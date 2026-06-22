@@ -145,7 +145,12 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun vodRows(cat: Portal.VodCat, acc: ArrayList<Portal.VodItem>, loaded: Int, total: Int): List<Row> {
         val rows = ArrayList<Row>()
-        acc.forEach { v -> rows.add(Row(v.name, v.posterUrl) { play(v.name) { Portal.playVodUrl(v.id, v.cmd) } }) }
+        acc.forEach { v ->
+            val label = if (v.isSeries) "📁  ${v.name}" else v.name
+            rows.add(Row(label, v.posterUrl) {
+                if (v.isSeries) showSeasons(v) else play(v.name) { Portal.playVodUrl(v.id, v.cmd) }
+            })
+        }
         if (loaded < total) {
             rows.add(Row("⬇  Load more  ($loaded/$total)", null) {
                 b.status.visibility = View.VISIBLE
@@ -164,6 +169,44 @@ class ChannelsActivity : AppCompatActivity() {
             })
         }
         return rows
+    }
+
+    private fun showSeasons(series: Portal.VodItem) {
+        b.status.visibility = View.VISIBLE
+        b.status.text = "Loading ${series.name}…"
+        io.execute {
+            val seasons = Portal.seriesSeasons(series.id)
+            runOnUiThread {
+                b.status.visibility = View.GONE
+                if (seasons.isEmpty()) {
+                    b.status.visibility = View.VISIBLE
+                    b.status.text = "No seasons found for ${series.name}."
+                    return@runOnUiThread
+                }
+                push(Page(series.name, seasons.reversed().map { s ->
+                    Row(s.name, null) { showEpisodes(series, s) }
+                }))
+            }
+        }
+    }
+
+    private fun showEpisodes(series: Portal.VodItem, season: Portal.Season) {
+        b.status.visibility = View.VISIBLE
+        b.status.text = "Loading ${season.name}…"
+        io.execute {
+            val eps = Portal.seriesEpisodes(series.id, season.id)
+            runOnUiThread {
+                b.status.visibility = View.GONE
+                if (eps.isEmpty()) {
+                    b.status.visibility = View.VISIBLE
+                    b.status.text = "No episodes found."
+                    return@runOnUiThread
+                }
+                push(Page("${series.name} — ${season.name}", eps.reversed().map { e ->
+                    Row(e.name, null) { play(e.name) { Portal.playEpisodeUrl(series.id, season.id, e.id) } }
+                }))
+            }
+        }
     }
 
     private fun play(title: String, resolve: () -> String?) {

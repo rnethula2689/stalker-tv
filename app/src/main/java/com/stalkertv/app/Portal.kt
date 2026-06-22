@@ -32,7 +32,9 @@ object Portal {
     )
     data class Genre(val id: String, val title: String)
     data class VodCat(val id: String, val title: String)
-    data class VodItem(val id: String, val name: String, val cmd: String, val posterUrl: String)
+    data class VodItem(val id: String, val name: String, val cmd: String, val posterUrl: String, val isSeries: Boolean)
+    data class Season(val id: String, val name: String)
+    data class Episode(val id: String, val name: String)
 
     private fun origin(u: String): String =
         Regex("https?://[^/]+").find(u.trim())?.value ?: u.trim().trimEnd('/')
@@ -192,7 +194,7 @@ object Portal {
                     ss.startsWith("/") -> host + ss
                     else -> "$host/$ss"
                 }
-                out.add(VodItem(o.optString("id"), o.optString("name"), o.optString("cmd"), poster))
+                out.add(VodItem(o.optString("id"), o.optString("name"), o.optString("cmd"), poster, o.optString("is_series") == "1"))
             }
         } catch (_: Exception) {}
         return Pair(out, pages)
@@ -220,6 +222,56 @@ object Portal {
             }
         } catch (_: Exception) {}
         return resolve("vod", fallbackCmd)
+    }
+
+    /** Series (is_series=1) → seasons. */
+    fun seriesSeasons(seriesId: String): List<Season> {
+        val out = ArrayList<Season>()
+        try {
+            val body = get("$base?type=vod&action=get_ordered_list&movie_id=$seriesId&JsHttpRequest=1-xml", true)
+            val arr = JSONObject(body).optJSONObject("js")?.optJSONArray("data")
+            if (arr != null) for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val nm = o.optString("name").ifBlank { "Season ${o.optString("season_number")}" }
+                out.add(Season(o.optString("id"), nm))
+            }
+        } catch (_: Exception) {}
+        return out
+    }
+
+    /** A season → episodes. */
+    fun seriesEpisodes(seriesId: String, seasonId: String): List<Episode> {
+        val out = ArrayList<Episode>()
+        try {
+            val body = get(
+                "$base?type=vod&action=get_ordered_list&movie_id=$seriesId&season_id=$seasonId&JsHttpRequest=1-xml",
+                true
+            )
+            val arr = JSONObject(body).optJSONObject("js")?.optJSONArray("data")
+            if (arr != null) for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val nm = o.optString("name").ifBlank { "Episode ${o.optString("series_number")}" }
+                out.add(Episode(o.optString("id"), nm))
+            }
+        } catch (_: Exception) {}
+        return out
+    }
+
+    /** Resolve a single episode to a playable URL (episode → file id → create_link). */
+    fun playEpisodeUrl(seriesId: String, seasonId: String, episodeId: String): String? {
+        try {
+            val body = get(
+                "$base?type=vod&action=get_ordered_list&movie_id=$seriesId&season_id=$seasonId&episode_id=$episodeId&JsHttpRequest=1-xml",
+                true
+            )
+            val fileId = JSONObject(body).optJSONObject("js")?.optJSONArray("data")
+                ?.optJSONObject(0)?.optString("id") ?: ""
+            if (fileId.isNotBlank()) {
+                val url = resolve("vod", "/media/file_$fileId.mpg")
+                if (!url.isNullOrEmpty()) return url
+            }
+        } catch (_: Exception) {}
+        return null
     }
 
     private fun resolve(type: String, cmd: String): String? {
