@@ -203,7 +203,11 @@ class ChannelsActivity : AppCompatActivity() {
                     return@runOnUiThread
                 }
                 push(Page("${series.name} — ${season.name}", eps.reversed().map { e ->
-                    Row(e.name, null) { play(e.name) { Portal.playEpisodeUrl(series.id, season.id, e.id) } }
+                    Row(e.name, null) {
+                        play("${series.name}  /  ${season.name}  /  ${e.name}") {
+                            Portal.playEpisodeUrl(series.id, season.id, e.id)
+                        }
+                    }
                 }))
             }
         }
