@@ -9,12 +9,12 @@ import java.util.concurrent.TimeUnit
 
 /** Minimal Stalker (Ministra) portal client. */
 object Portal {
-    private const val UA =
+    const val UA =
         "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG250 stbapp ver: 2 rev: 250 Safari/533.3"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(25, TimeUnit.SECONDS)
+        .readTimeout(40, TimeUnit.SECONDS)
         .build()
 
     var portalUrl: String = ""
@@ -22,8 +22,16 @@ object Portal {
     var sn: String = ""
     private var base: String = ""
     private var token: String = ""
+    private var host: String = ""
+    private var logosBase: String = ""
 
-    data class Channel(val id: String, val name: String, val number: String, val cmd: String, val logo: String)
+    data class Channel(
+        val id: String, val name: String, val number: String,
+        val cmd: String, val logoUrl: String, val genreId: String
+    )
+    data class Genre(val id: String, val title: String)
+    data class VodCat(val id: String, val title: String)
+    data class VodItem(val id: String, val name: String, val cmd: String, val posterUrl: String)
 
     private fun origin(u: String): String =
         Regex("https?://[^/]+").find(u.trim())?.value ?: u.trim().trimEnd('/')
@@ -38,6 +46,15 @@ object Portal {
         if (auth && token.isNotEmpty()) rb.header("Authorization", "Bearer $token")
         client.newCall(rb.build()).execute().use { r -> return r.body?.string() ?: "" }
     }
+
+    /** js can be a plain array, or an object with a "data" array. */
+    private fun jsArray(body: String): JSONArray? = try {
+        when (val js = JSONObject(body).opt("js")) {
+            is JSONArray -> js
+            is JSONObject -> js.optJSONArray("data")
+            else -> null
+        }
+    } catch (e: Exception) { null }
 
     /** @return null on success, else an error message. */
     fun connect(): String? {
@@ -56,6 +73,10 @@ object Portal {
                 if (!t.isNullOrEmpty()) { base = b; token = t; break }
             }
             if (token.isEmpty()) return "Handshake failed — check the portal URL & MAC."
+            host = o
+            val prefix = if (base.contains("server/load.php")) base.substringBefore("server/load.php")
+                         else "$host/stalker_portal/"
+            logosBase = prefix + "misc/logos/320/"
             val snEnc = URLEncoder.encode(sn, "UTF-8")
             val prof = get(
                 "$base?type=stb&action=get_profile&sn=$snEnc&stb_type=MAG250" +
@@ -79,20 +100,19 @@ object Portal {
             val body = get("$base?type=itv&action=get_all_channels&JsHttpRequest=1-xml", true)
             parseChannels(JSONObject(body).optJSONObject("js")?.optJSONArray("data"), out)
         } catch (_: Exception) {}
-        if (out.isNotEmpty()) return out
-        // fallback: paged ordered list (capped to keep request count modest)
-        try {
-            val first = get("$base?type=itv&action=get_ordered_list&genre=*&p=1&JsHttpRequest=1-xml", true)
-            val js = JSONObject(first).optJSONObject("js") ?: return out
-            parseChannels(js.optJSONArray("data"), out)
-            val total = js.optInt("total_items", 0)
-            val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
-            val pages = Math.min(Math.ceil(total.toDouble() / per).toInt(), 40)
-            for (p in 2..pages) {
-                val b = get("$base?type=itv&action=get_ordered_list&genre=*&p=$p&JsHttpRequest=1-xml", true)
-                parseChannels(JSONObject(b).optJSONObject("js")?.optJSONArray("data"), out)
-            }
-        } catch (_: Exception) {}
+        return out
+    }
+
+    fun liveGenres(): List<Genre> {
+        val out = ArrayList<Genre>()
+        val arr = jsArray(get("$base?type=itv&action=get_genres&JsHttpRequest=1-xml", true)) ?: return out
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val id = o.optString("id")
+            val title = o.optString("title")
+            if (id == "*" || title.isEmpty()) continue
+            out.add(Genre(id, title))
+        }
         return out
     }
 
@@ -100,23 +120,69 @@ object Portal {
         if (arr == null) return
         for (i in 0 until arr.length()) {
             val c = arr.optJSONObject(i) ?: continue
+            val logo = c.optString("logo")
             out.add(
                 Channel(
                     id = c.optString("id"),
                     name = c.optString("name"),
                     number = c.optString("number"),
                     cmd = c.optString("cmd"),
-                    logo = c.optString("logo")
+                    logoUrl = if (logo.isBlank() || logo == "null") "" else logosBase + logo,
+                    genreId = c.optString("tv_genre_id")
                 )
             )
         }
     }
 
-    /** Resolve a channel's cmd into a playable URL. */
-    fun createLink(cmd: String): String? {
+    fun vodCategories(): List<VodCat> {
+        val out = ArrayList<VodCat>()
+        val arr = jsArray(get("$base?type=vod&action=get_categories&JsHttpRequest=1-xml", true)) ?: return out
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val id = o.optString("id")
+            val title = o.optString("title")
+            if (title.isEmpty()) continue
+            out.add(VodCat(id, title))
+        }
+        return out
+    }
+
+    /** @return Pair(items, totalPages) */
+    fun vodList(catId: String, page: Int): Pair<List<VodItem>, Int> {
+        val out = ArrayList<VodItem>()
+        var pages = 1
+        try {
+            val body = get(
+                "$base?type=vod&action=get_ordered_list&category=$catId&p=$page&sortby=added&JsHttpRequest=1-xml",
+                true
+            )
+            val js = JSONObject(body).optJSONObject("js") ?: return Pair(out, pages)
+            val total = js.optInt("total_items", 0)
+            val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
+            pages = Math.ceil(total.toDouble() / per).toInt().coerceAtLeast(1)
+            val arr = js.optJSONArray("data")
+            if (arr != null) for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val ss = o.optString("screenshot_uri")
+                val poster = when {
+                    ss.isBlank() || ss == "null" -> ""
+                    ss.startsWith("http") -> ss
+                    ss.startsWith("/") -> host + ss
+                    else -> "$host/$ss"
+                }
+                out.add(VodItem(o.optString("id"), o.optString("name"), o.optString("cmd"), poster))
+            }
+        } catch (_: Exception) {}
+        return Pair(out, pages)
+    }
+
+    fun createLink(cmd: String): String? = resolve("itv", cmd)
+    fun createVodLink(cmd: String): String? = resolve("vod", cmd)
+
+    private fun resolve(type: String, cmd: String): String? {
         return try {
             val enc = URLEncoder.encode(cmd, "UTF-8")
-            val body = get("$base?type=itv&action=create_link&cmd=$enc&JsHttpRequest=1-xml", true)
+            val body = get("$base?type=$type&action=create_link&cmd=$enc&JsHttpRequest=1-xml", true)
             var url = JSONObject(body).optJSONObject("js")?.optString("cmd") ?: return null
             val idx = url.indexOf("http")
             if (idx > 0) url = url.substring(idx)

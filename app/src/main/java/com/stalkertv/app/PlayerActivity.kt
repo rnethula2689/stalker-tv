@@ -5,7 +5,9 @@ import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.stalkertv.app.databinding.ActivityPlayerBinding
 
 @OptIn(UnstableApi::class)
@@ -19,7 +21,16 @@ class PlayerActivity : AppCompatActivity() {
         setContentView(b.root)
 
         val url = intent.getStringExtra("url") ?: run { finish(); return }
-        val p = ExoPlayer.Builder(this).build()
+
+        val http = DefaultHttpDataSource.Factory()
+            .setUserAgent(Portal.UA)
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(20000)
+            .setReadTimeoutMs(20000)
+
+        val p = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(http))
+            .build()
         player = p
         b.playerView.player = p
         p.setMediaItem(MediaItem.fromUri(url))
