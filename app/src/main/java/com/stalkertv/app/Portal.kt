@@ -224,37 +224,44 @@ object Portal {
         return resolve("vod", fallbackCmd)
     }
 
-    /** Series (is_series=1) → seasons. */
+    /** Series (is_series=1) → seasons (all pages). */
     fun seriesSeasons(seriesId: String): List<Season> {
         val out = ArrayList<Season>()
-        try {
-            val body = get("$base?type=vod&action=get_ordered_list&movie_id=$seriesId&JsHttpRequest=1-xml", true)
-            val arr = JSONObject(body).optJSONObject("js")?.optJSONArray("data")
-            if (arr != null) for (i in 0 until arr.length()) {
-                val o = arr.optJSONObject(i) ?: continue
-                val nm = o.optString("name").ifBlank { "Season ${o.optString("season_number")}" }
-                out.add(Season(o.optString("id"), nm))
-            }
-        } catch (_: Exception) {}
+        pagedList("$base?type=vod&action=get_ordered_list&movie_id=$seriesId") { o ->
+            val nm = o.optString("name").ifBlank { "Season ${o.optString("season_number")}" }
+            out.add(Season(o.optString("id"), nm))
+        }
         return out
     }
 
-    /** A season → episodes. */
+    /** A season → episodes (all pages). */
     fun seriesEpisodes(seriesId: String, seasonId: String): List<Episode> {
         val out = ArrayList<Episode>()
+        pagedList("$base?type=vod&action=get_ordered_list&movie_id=$seriesId&season_id=$seasonId") { o ->
+            val nm = o.optString("name").ifBlank { "Episode ${o.optString("series_number")}" }
+            out.add(Episode(o.optString("id"), nm))
+        }
+        return out
+    }
+
+    /** Fetch every page of a get_ordered_list-style endpoint, calling [onItem] for each data row. */
+    private fun pagedList(urlPrefix: String, onItem: (JSONObject) -> Unit) {
         try {
-            val body = get(
-                "$base?type=vod&action=get_ordered_list&movie_id=$seriesId&season_id=$seasonId&JsHttpRequest=1-xml",
-                true
-            )
-            val arr = JSONObject(body).optJSONObject("js")?.optJSONArray("data")
-            if (arr != null) for (i in 0 until arr.length()) {
-                val o = arr.optJSONObject(i) ?: continue
-                val nm = o.optString("name").ifBlank { "Episode ${o.optString("series_number")}" }
-                out.add(Episode(o.optString("id"), nm))
+            var page = 1
+            while (page <= 60) {
+                val body = get("$urlPrefix&p=$page&JsHttpRequest=1-xml", true)
+                val js = JSONObject(body).optJSONObject("js") ?: break
+                val arr = js.optJSONArray("data") ?: break
+                if (arr.length() == 0) break
+                for (i in 0 until arr.length()) {
+                    arr.optJSONObject(i)?.let(onItem)
+                }
+                val total = js.optInt("total_items", arr.length())
+                val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
+                if (page >= Math.ceil(total.toDouble() / per).toInt()) break
+                page++
             }
         } catch (_: Exception) {}
-        return out
     }
 
     /** Resolve a single episode to a playable URL (episode → file id → create_link). */
