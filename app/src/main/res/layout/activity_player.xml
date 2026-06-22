@@ -12,4 +12,19 @@
         app:use_controller="true"
         app:resize_mode="fit"
         app:show_buffering="when_playing" />
+
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="#B3000000"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="14dp"
+        android:textColor="#ffffff"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:visibility="gone" />
 </FrameLayout>
