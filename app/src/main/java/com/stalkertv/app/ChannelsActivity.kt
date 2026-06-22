@@ -39,19 +39,57 @@ class ChannelsActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, a: Int, c: Int, d: Int) {}
         })
 
-        b.status.text = "Loading…"
+        b.reloadBtn.setOnClickListener { connectAndLoad() }
+        b.settingsBtn.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
+
+        connectAndLoad()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (Configs.dirty) {
+            Configs.dirty = false
+            connectAndLoad()
+        }
+    }
+
+    /** Read the active provider, connect in the background, then show the home menu. */
+    private fun connectAndLoad() {
+        val acct = Configs.active(this)
+        b.title.text = "Stalker TV"
+        b.search.setText("")
+        backStack.clear()
+        adapter.submit(emptyList())
+        if (acct == null) {
+            b.status.visibility = View.VISIBLE
+            b.status.text = "No IPTV configuration.\nTap ⚙ Settings to add a provider."
+            return
+        }
+        Portal.portalUrl = acct.portal
+        Portal.mac = acct.mac
+        Portal.sn = acct.sn
+        b.status.visibility = View.VISIBLE
+        b.status.text = "Loading ${acct.name}…"
         io.execute {
+            val err = Portal.connect()
+            if (err != null) {
+                runOnUiThread {
+                    b.status.visibility = View.VISIBLE
+                    b.status.text = err
+                }
+                return@execute
+            }
             val ch = Portal.liveChannels()
             val g = Portal.liveGenres()
             runOnUiThread {
                 allChannels = ch
                 genres = g
                 byGenre = ch.groupBy { it.genreId }
-                b.status.visibility = View.GONE
                 if (ch.isEmpty()) {
                     b.status.visibility = View.VISIBLE
-                    b.status.text = "No channels returned. (Portal auth or listing issue.)"
+                    b.status.text = "No channels returned. Check the configuration (⚙)."
                 } else {
+                    b.status.visibility = View.GONE
                     showHome()
                 }
             }

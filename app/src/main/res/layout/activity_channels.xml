@@ -6,14 +6,45 @@
     android:background="#0b0f14"
     android:padding="24dp">
 
-    <TextView
-        android:id="@+id/title"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="#19c37d"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        android:text="Stalker TV" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#19c37d"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:text="Stalker TV" />
+
+        <TextView
+            android:id="@+id/reloadBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔄"
+            android:textSize="22sp"
+            android:padding="10dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+
+        <TextView
+            android:id="@+id/settingsBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="⚙"
+            android:textSize="22sp"
+            android:padding="10dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+    </LinearLayout>
 
     <EditText
         android:id="@+id/search"
