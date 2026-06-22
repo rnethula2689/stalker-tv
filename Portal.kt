@@ -1,0 +1,249 @@
+package com.stalkertv.app
+
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.URLEncoder
+import java.util.concurrent.TimeUnit
+
+/** Minimal Stalker (Ministra) portal client. */
+object Portal {
+    const val UA =
+        "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG250 stbapp ver: 2 rev: 250 Safari/533.3"
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(40, TimeUnit.SECONDS)
+        .build()
+
+    var portalUrl: String = ""
+    var mac: String = ""
+    var sn: String = ""
+    private var base: String = ""
+    private var token: String = ""
+    private var host: String = ""
+    private var logosBase: String = ""
+    var lastError: String = ""
+
+    data class Channel(
+        val id: String, val name: String, val number: String,
+        val cmd: String, val logoUrl: String, val genreId: String
+    )
+    data class Genre(val id: String, val title: String)
+    data class VodCat(val id: String, val title: String)
+    data class VodItem(val id: String, val name: String, val cmd: String, val posterUrl: String)
+
+    private fun origin(u: String): String =
+        Regex("https?://[^/]+").find(u.trim())?.value ?: u.trim().trimEnd('/')
+
+    // Cloudflare / portal cookies captured from responses, resent on every request
+    // so the whole session sticks to one backend node (like a real STB / Strimix).
+    private val extraCookies = LinkedHashMap<String, String>()
+
+    fun resetSession() {
+        extraCookies.clear()
+        token = ""
+    }
+
+    private fun cookie(): String {
+        val sb = StringBuilder("mac=$mac; stb_lang=en; timezone=America/New_York")
+        for ((k, v) in extraCookies) sb.append("; ").append(k).append("=").append(v)
+        return sb.toString()
+    }
+
+    private fun get(url: String, auth: Boolean): String {
+        val rb = Request.Builder().url(url)
+            .header("User-Agent", UA)
+            .header("Cookie", cookie())
+            .header("X-User-Agent", "Model: MAG250; Link: WiFi")
+        if (auth && token.isNotEmpty()) rb.header("Authorization", "Bearer $token")
+        client.newCall(rb.build()).execute().use { r ->
+            for (h in r.headers("Set-Cookie")) {
+                val pair = h.substringBefore(";")
+                val k = pair.substringBefore("=").trim()
+                val v = pair.substringAfter("=", "").trim()
+                if (k.isNotEmpty() && k != "mac" && v.isNotEmpty()) extraCookies[k] = v
+            }
+            return r.body?.string() ?: ""
+        }
+    }
+
+    /** js can be a plain array, or an object with a "data" array. */
+    private fun jsArray(body: String): JSONArray? = try {
+        when (val js = JSONObject(body).opt("js")) {
+            is JSONArray -> js
+            is JSONObject -> js.optJSONArray("data")
+            else -> null
+        }
+    } catch (e: Exception) { null }
+
+    /** @return null on success, else an error message. */
+    fun connect(): String? {
+        return try {
+            val o = origin(portalUrl)
+            val candidates = listOf(
+                "$o/stalker_portal/server/load.php",
+                "$o/server/load.php",
+                "$o/portal.php",
+                "$o/c/server/load.php"
+            )
+            resetSession()
+            for (b in candidates) {
+                val hs = get("$b?type=stb&action=handshake&JsHttpRequest=1-xml", false)
+                val t = Regex("\"token\"\\s*:\\s*\"([^\"]+)\"").find(hs)?.groupValues?.get(1)
+                if (!t.isNullOrEmpty()) { base = b; token = t; break }
+            }
+            if (token.isEmpty()) return "Handshake failed — check the portal URL & MAC."
+            host = o
+            val prefix = if (base.contains("server/load.php")) base.substringBefore("server/load.php")
+                         else "$host/stalker_portal/"
+            logosBase = prefix + "misc/logos/320/"
+            val snEnc = URLEncoder.encode(sn, "UTF-8")
+            val prof = get(
+                "$base?type=stb&action=get_profile&sn=$snEnc&stb_type=MAG250" +
+                    "&hw_version=1.7-BD-00&num_banks=2&image_version=218&hd=1&JsHttpRequest=1-xml",
+                true
+            )
+            if (prof.contains("block_msg") || prof.contains("Serial Number mismatch")) {
+                val msg = Regex("\"msg\"\\s*:\\s*\"([^\"]+)\"").find(prof)?.groupValues?.get(1)
+                    ?: "device rejected"
+                return "Portal rejected this device: $msg — check the Serial Number."
+            }
+            null
+        } catch (e: Exception) {
+            "Connection error: ${e.message}"
+        }
+    }
+
+    fun liveChannels(): List<Channel> {
+        val out = ArrayList<Channel>()
+        try {
+            val body = get("$base?type=itv&action=get_all_channels&JsHttpRequest=1-xml", true)
+            parseChannels(JSONObject(body).optJSONObject("js")?.optJSONArray("data"), out)
+        } catch (_: Exception) {}
+        return out
+    }
+
+    fun liveGenres(): List<Genre> {
+        val out = ArrayList<Genre>()
+        val arr = jsArray(get("$base?type=itv&action=get_genres&JsHttpRequest=1-xml", true)) ?: return out
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val id = o.optString("id")
+            val title = o.optString("title")
+            if (id == "*" || title.isEmpty()) continue
+            out.add(Genre(id, title))
+        }
+        return out
+    }
+
+    private fun parseChannels(arr: JSONArray?, out: ArrayList<Channel>) {
+        if (arr == null) return
+        for (i in 0 until arr.length()) {
+            val c = arr.optJSONObject(i) ?: continue
+            val logo = c.optString("logo")
+            out.add(
+                Channel(
+                    id = c.optString("id"),
+                    name = c.optString("name"),
+                    number = c.optString("number"),
+                    cmd = c.optString("cmd"),
+                    logoUrl = if (logo.isBlank() || logo == "null") "" else logosBase + logo,
+                    genreId = c.optString("tv_genre_id")
+                )
+            )
+        }
+    }
+
+    fun vodCategories(): List<VodCat> {
+        val out = ArrayList<VodCat>()
+        val arr = jsArray(get("$base?type=vod&action=get_categories&JsHttpRequest=1-xml", true)) ?: return out
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val id = o.optString("id")
+            val title = o.optString("title")
+            if (title.isEmpty()) continue
+            out.add(VodCat(id, title))
+        }
+        return out
+    }
+
+    /** @return Pair(items, totalPages) */
+    fun vodList(catId: String, page: Int): Pair<List<VodItem>, Int> {
+        val out = ArrayList<VodItem>()
+        var pages = 1
+        try {
+            val body = get(
+                "$base?type=vod&action=get_ordered_list&category=$catId&p=$page&sortby=added&JsHttpRequest=1-xml",
+                true
+            )
+            val js = JSONObject(body).optJSONObject("js") ?: return Pair(out, pages)
+            val total = js.optInt("total_items", 0)
+            val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
+            pages = Math.ceil(total.toDouble() / per).toInt().coerceAtLeast(1)
+            val arr = js.optJSONArray("data")
+            if (arr != null) for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val ss = o.optString("screenshot_uri")
+                val poster = when {
+                    ss.isBlank() || ss == "null" -> ""
+                    ss.startsWith("http") -> ss
+                    ss.startsWith("/") -> host + ss
+                    else -> "$host/$ss"
+                }
+                out.add(VodItem(o.optString("id"), o.optString("name"), o.optString("cmd"), poster))
+            }
+        } catch (_: Exception) {}
+        return Pair(out, pages)
+    }
+
+    fun createLink(cmd: String): String? = resolve("itv", cmd)
+
+    /**
+     * VOD play needs an extra step: fetch the movie's actual file(s) via movie_id,
+     * then create_link with /media/file_<fileId>.mpg. Falls back to the list cmd.
+     */
+    fun playVodUrl(movieId: String, fallbackCmd: String): String? {
+        try {
+            val body = get(
+                "$base?type=vod&action=get_ordered_list&movie_id=$movieId&JsHttpRequest=1-xml",
+                true
+            )
+            val arr = JSONObject(body).optJSONObject("js")?.optJSONArray("data")
+            if (arr != null && arr.length() > 0) {
+                val fileId = arr.optJSONObject(0)?.optString("id") ?: ""
+                if (fileId.isNotBlank()) {
+                    val url = resolve("vod", "/media/file_$fileId.mpg")
+                    if (!url.isNullOrEmpty()) return url
+                }
+            }
+        } catch (_: Exception) {}
+        return resolve("vod", fallbackCmd)
+    }
+
+    private fun resolve(type: String, cmd: String): String? {
+        val enc = URLEncoder.encode(cmd, "UTF-8")
+        val u = "$base?type=$type&action=create_link&cmd=$enc" +
+            "&series=0&forced_storage=&disable_ad=0&download=0&JsHttpRequest=1-xml"
+        // Retry on transient storage timeouts (nothing_to_play); cookies keep us on one node.
+        repeat(3) { attempt ->
+            try {
+                val js = JSONObject(get(u, true)).optJSONObject("js")
+                var url = js?.optString("cmd") ?: ""
+                if (url.isNotBlank()) {
+                    val idx = url.indexOf("http")
+                    if (idx > 0) url = url.substring(idx)
+                    return url.trim()
+                }
+                val err = js?.optString("error") ?: ""
+                lastError = if (err.isNotBlank()) err else "no stream returned"
+                if (lastError != "nothing_to_play") return null
+            } catch (e: Exception) {
+                lastError = e.message ?: "connection error"
+            }
+            if (attempt < 2) Thread.sleep(800)
+        }
+        return null
+    }
+}
