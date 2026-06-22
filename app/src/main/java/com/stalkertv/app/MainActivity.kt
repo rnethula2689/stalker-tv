@@ -18,17 +18,20 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("cfg", Context.MODE_PRIVATE)
         b.portal.setText(prefs.getString("portal", ""))
         b.mac.setText(prefs.getString("mac", ""))
+        b.serial.setText(prefs.getString("sn", ""))
 
         b.connect.setOnClickListener {
             val url = b.portal.text.toString().trim()
             val mac = b.mac.text.toString().trim()
+            val sn = b.serial.text.toString().trim()
             if (url.isEmpty() || mac.isEmpty()) {
                 b.status.text = "Enter both the portal URL and the MAC address."
                 return@setOnClickListener
             }
-            prefs.edit().putString("portal", url).putString("mac", mac).apply()
+            prefs.edit().putString("portal", url).putString("mac", mac).putString("sn", sn).apply()
             Portal.portalUrl = url
             Portal.mac = mac
+            Portal.sn = sn
             b.status.text = "Connecting…"
             b.connect.isEnabled = false
             io.execute {

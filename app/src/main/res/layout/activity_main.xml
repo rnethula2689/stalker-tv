@@ -36,6 +36,17 @@
         android:textColorHint="#5a6675"
         android:textColor="#e6edf3"
         android:singleLine="true"
+        android:imeOptions="actionNext" />
+
+    <EditText
+        android:id="@+id/serial"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="Serial Number (from your provider / Strimix)"
+        android:textColorHint="#5a6675"
+        android:textColor="#e6edf3"
+        android:singleLine="true"
         android:imeOptions="actionDone" />
 
     <Button

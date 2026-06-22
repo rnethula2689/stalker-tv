@@ -19,6 +19,7 @@ object Portal {
 
     var portalUrl: String = ""
     var mac: String = ""
+    var sn: String = ""
     private var base: String = ""
     private var token: String = ""
 
@@ -55,7 +56,17 @@ object Portal {
                 if (!t.isNullOrEmpty()) { base = b; token = t; break }
             }
             if (token.isEmpty()) return "Handshake failed — check the portal URL & MAC."
-            get("$base?type=stb&action=get_profile&JsHttpRequest=1-xml", true) // register session (best-effort)
+            val snEnc = URLEncoder.encode(sn, "UTF-8")
+            val prof = get(
+                "$base?type=stb&action=get_profile&sn=$snEnc&stb_type=MAG250" +
+                    "&hw_version=1.7-BD-00&num_banks=2&image_version=218&hd=1&JsHttpRequest=1-xml",
+                true
+            )
+            if (prof.contains("block_msg") || prof.contains("Serial Number mismatch")) {
+                val msg = Regex("\"msg\"\\s*:\\s*\"([^\"]+)\"").find(prof)?.groupValues?.get(1)
+                    ?: "device rejected"
+                return "Portal rejected this device: $msg — check the Serial Number."
+            }
             null
         } catch (e: Exception) {
             "Connection error: ${e.message}"
