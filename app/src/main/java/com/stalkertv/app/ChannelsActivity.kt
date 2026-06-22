@@ -14,10 +14,16 @@ class ChannelsActivity : AppCompatActivity() {
     private val adapter = RowAdapter()
 
     data class Row(val label: String, val iconUrl: String?, val action: () -> Unit)
-    data class Page(val title: String, val rows: List<Row>, val global: Boolean = false)
+    enum class SearchKind { LOCAL, GLOBAL, CHANNELS, VOD_ALL, VOD_CATEGORY }
+    data class Page(
+        val title: String,
+        val rows: List<Row>,
+        val kind: SearchKind = SearchKind.LOCAL,
+        val scopeId: String? = null,
+        val scopeChannels: List<Portal.Channel>? = null
+    )
 
     private val backStack = ArrayDeque<Page>()
-    private var searchMode = false
     private val searchHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var pendingSearch: Runnable? = null
     private var searchSeq = 0
@@ -103,9 +109,14 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     private fun display(page: Page) {
-        searchMode = page.global
         b.title.text = page.title
-        b.search.hint = if (page.global) "Search channels, movies & shows…" else "Filter this list…"
+        b.search.hint = when (page.kind) {
+            SearchKind.GLOBAL -> "Search channels, movies & shows…"
+            SearchKind.CHANNELS -> "Search channels…"
+            SearchKind.VOD_ALL -> "Search movies & shows…"
+            SearchKind.VOD_CATEGORY -> "Search this folder…"
+            SearchKind.LOCAL -> "Filter…"
+        }
         adapter.submit(page.rows)
         if (b.search.text.isNotEmpty()) b.search.setText("")
         b.list.scrollToPosition(0)
@@ -122,29 +133,51 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     private fun filter(q: String) {
-        if (searchMode) { globalSearch(q); return }
-        val src = backStack.lastOrNull()?.rows ?: return
-        val query = q.trim().lowercase()
-        adapter.submit(if (query.isEmpty()) src else src.filter { it.label.lowercase().contains(query) })
+        val page = backStack.lastOrNull() ?: return
+        when (page.kind) {
+            SearchKind.LOCAL -> {
+                val query = q.trim().lowercase()
+                adapter.submit(if (query.isEmpty()) page.rows else page.rows.filter { it.label.lowercase().contains(query) })
+            }
+            SearchKind.CHANNELS -> channelSearch(q, page.scopeChannels ?: allChannels, page)
+            SearchKind.GLOBAL -> globalSearch(q, page)
+            SearchKind.VOD_ALL -> vodSearchUi(q, null, page)
+            SearchKind.VOD_CATEGORY -> vodSearchUi(q, page.scopeId, page)
+        }
     }
 
-    /** Home-screen global search: channels (instant, in-memory) + movies/series (portal VOD search). */
-    private fun globalSearch(q: String) {
+    private fun channelRow(ch: Portal.Channel): Row {
+        val label = "📺  " + (if (ch.number.isNotEmpty()) "${ch.number}. " else "") + ch.name
+        return Row(label, ch.logoUrl) { play(ch.name) { Portal.createLink(ch.cmd) } }
+    }
+
+    private fun vodItemRow(v: Portal.VodItem): Row {
+        val label = (if (v.isSeries) "📁  " else "🎬  ") + v.name
+        return Row(label, v.posterUrl) {
+            if (v.isSeries) showSeasons(v) else play(v.name) { Portal.playVodUrl(v.id, v.cmd) }
+        }
+    }
+
+    /** In-memory channel search (Live TV scope). */
+    private fun channelSearch(q: String, channels: List<Portal.Channel>, page: Page) {
+        val query = q.trim()
+        if (query.isEmpty()) { b.status.visibility = View.GONE; adapter.submit(page.rows); return }
+        val rows = channels.asSequence()
+            .filter { it.name.contains(query, ignoreCase = true) }
+            .take(500).map { channelRow(it) }.toList()
+        b.status.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
+        if (rows.isEmpty()) b.status.text = "No channels match “$query”."
+        adapter.submit(rows)
+    }
+
+    /** Global search: channels (instant) + all movies/series (portal). */
+    private fun globalSearch(q: String, page: Page) {
         val query = q.trim()
         pendingSearch?.let { searchHandler.removeCallbacks(it) }
         searchSeq++
-        if (query.isEmpty()) {
-            b.status.visibility = View.GONE
-            adapter.submit(backStack.last().rows)
-            return
-        }
-        val chRows = allChannels.asSequence()
-            .filter { it.name.contains(query, ignoreCase = true) }
-            .take(200)
-            .map { ch ->
-                val label = "📺  " + (if (ch.number.isNotEmpty()) "${ch.number}. " else "") + ch.name
-                Row(label, ch.logoUrl) { play(ch.name) { Portal.createLink(ch.cmd) } }
-            }.toList()
+        if (query.isEmpty()) { b.status.visibility = View.GONE; adapter.submit(page.rows); return }
+        val chRows = allChannels.asSequence().filter { it.name.contains(query, ignoreCase = true) }
+            .take(150).map { channelRow(it) }.toList()
         adapter.submit(chRows)
         if (query.length < 2) { b.status.visibility = View.GONE; return }
         b.status.visibility = View.VISIBLE
@@ -155,14 +188,34 @@ class ChannelsActivity : AppCompatActivity() {
                 val vod = Portal.vodSearch(query)
                 runOnUiThread {
                     if (seq != searchSeq) return@runOnUiThread
-                    val vodRows = vod.map { v ->
-                        val label = (if (v.isSeries) "📁  " else "🎬  ") + v.name
-                        Row(label, v.posterUrl) {
-                            if (v.isSeries) showSeasons(v) else play(v.name) { Portal.playVodUrl(v.id, v.cmd) }
-                        }
-                    }
                     b.status.visibility = View.GONE
-                    adapter.submit(chRows + vodRows)
+                    adapter.submit(chRows + vod.map { vodItemRow(it) })
+                }
+            }
+        }
+        pendingSearch = task
+        searchHandler.postDelayed(task, 450)
+    }
+
+    /** VOD search — all categories if catId is null, else scoped to that folder. */
+    private fun vodSearchUi(q: String, catId: String?, page: Page) {
+        val query = q.trim()
+        pendingSearch?.let { searchHandler.removeCallbacks(it) }
+        searchSeq++
+        if (query.isEmpty()) { b.status.visibility = View.GONE; adapter.submit(page.rows); return }
+        if (query.length < 2) return
+        b.status.visibility = View.VISIBLE
+        b.status.text = "Searching…"
+        val seq = searchSeq
+        val task = Runnable {
+            io.execute {
+                val vod = if (catId == null) Portal.vodSearch(query) else Portal.vodSearchInCategory(catId, query)
+                runOnUiThread {
+                    if (seq != searchSeq) return@runOnUiThread
+                    val rows = vod.map { vodItemRow(it) }
+                    b.status.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
+                    if (rows.isEmpty()) b.status.text = "No results for “$query”."
+                    adapter.submit(rows)
                 }
             }
         }
@@ -180,7 +233,7 @@ class ChannelsActivity : AppCompatActivity() {
                     Row("📺   Live TV", null) { showLiveGenres() },
                     Row("🎬   Movies (VOD)", null) { showVodCategories() }
                 ),
-                global = true
+                kind = SearchKind.GLOBAL
             )
         )
     }
@@ -192,14 +245,11 @@ class ChannelsActivity : AppCompatActivity() {
             val list = byGenre[g.id] ?: emptyList()
             if (list.isNotEmpty()) rows.add(Row("${g.title}  (${list.size})", null) { showChannels(list, g.title) })
         }
-        push(Page("Live TV", rows))
+        push(Page("Live TV", rows, kind = SearchKind.CHANNELS, scopeChannels = allChannels))
     }
 
     private fun showChannels(list: List<Portal.Channel>, title: String) {
-        push(Page(title, list.map { ch ->
-            val label = if (ch.number.isNotEmpty()) "${ch.number}.  ${ch.name}" else ch.name
-            Row(label, ch.logoUrl) { play(ch.name) { Portal.createLink(ch.cmd) } }
-        }))
+        push(Page(title, list.map { channelRow(it) }, kind = SearchKind.CHANNELS, scopeChannels = list))
     }
 
     private fun showVodCategories() {
@@ -214,7 +264,7 @@ class ChannelsActivity : AppCompatActivity() {
                     b.status.text = "No VOD categories found."
                     return@runOnUiThread
                 }
-                push(Page("Movies", cats.map { c -> Row(c.title, null) { showVodList(c) } }))
+                push(Page("Movies", cats.map { c -> Row(c.title, null) { showVodList(c) } }, kind = SearchKind.VOD_ALL))
             }
         }
     }
@@ -226,19 +276,14 @@ class ChannelsActivity : AppCompatActivity() {
             val (items, pages) = Portal.vodList(cat.id, 1)
             runOnUiThread {
                 b.status.visibility = View.GONE
-                push(Page(cat.title, vodRows(cat, ArrayList(items), 1, pages)))
+                push(Page(cat.title, vodRows(cat, ArrayList(items), 1, pages), kind = SearchKind.VOD_CATEGORY, scopeId = cat.id))
             }
         }
     }
 
     private fun vodRows(cat: Portal.VodCat, acc: ArrayList<Portal.VodItem>, loaded: Int, total: Int): List<Row> {
         val rows = ArrayList<Row>()
-        acc.forEach { v ->
-            val label = if (v.isSeries) "📁  ${v.name}" else v.name
-            rows.add(Row(label, v.posterUrl) {
-                if (v.isSeries) showSeasons(v) else play(v.name) { Portal.playVodUrl(v.id, v.cmd) }
-            })
-        }
+        acc.forEach { v -> rows.add(vodItemRow(v)) }
         if (loaded < total) {
             rows.add(Row("⬇  Load more  ($loaded/$total)", null) {
                 b.status.visibility = View.VISIBLE
@@ -248,7 +293,7 @@ class ChannelsActivity : AppCompatActivity() {
                     runOnUiThread {
                         b.status.visibility = View.GONE
                         acc.addAll(more)
-                        val page = Page(cat.title, vodRows(cat, acc, loaded + 1, total))
+                        val page = Page(cat.title, vodRows(cat, acc, loaded + 1, total), kind = SearchKind.VOD_CATEGORY, scopeId = cat.id)
                         backStack.removeLast()
                         backStack.addLast(page)
                         display(page)

@@ -225,6 +225,27 @@ object Portal {
         return out
     }
 
+    /** VOD search scoped to a single category (movies + series within that folder). */
+    fun vodSearchInCategory(catId: String, query: String): List<VodItem> {
+        val out = ArrayList<VodItem>()
+        try {
+            val enc = URLEncoder.encode(query, "UTF-8")
+            var page = 1
+            while (page <= 3) {
+                val body = get("$base?type=vod&action=get_ordered_list&category=$catId&search=$enc&p=$page&JsHttpRequest=1-xml", true)
+                val js = JSONObject(body).optJSONObject("js") ?: break
+                val arr = js.optJSONArray("data") ?: break
+                if (arr.length() == 0) break
+                parseVodItems(arr, out)
+                val total = js.optInt("total_items", out.size)
+                val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
+                if (page >= Math.ceil(total.toDouble() / per).toInt()) break
+                page++
+            }
+        } catch (_: Exception) {}
+        return out
+    }
+
     fun createLink(cmd: String): String? = resolve("itv", cmd)
 
     /**
