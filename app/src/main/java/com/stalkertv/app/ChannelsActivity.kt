@@ -14,9 +14,13 @@ class ChannelsActivity : AppCompatActivity() {
     private val adapter = RowAdapter()
 
     data class Row(val label: String, val iconUrl: String?, val action: () -> Unit)
-    data class Page(val title: String, val rows: List<Row>)
+    data class Page(val title: String, val rows: List<Row>, val global: Boolean = false)
 
     private val backStack = ArrayDeque<Page>()
+    private var searchMode = false
+    private val searchHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var pendingSearch: Runnable? = null
+    private var searchSeq = 0
 
     private var allChannels = listOf<Portal.Channel>()
     private var genres = listOf<Portal.Genre>()
@@ -61,7 +65,9 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     private fun display(page: Page) {
+        searchMode = page.global
         b.title.text = page.title
+        b.search.hint = if (page.global) "Search channels, movies & shows…" else "Filter this list…"
         adapter.submit(page.rows)
         if (b.search.text.isNotEmpty()) b.search.setText("")
         b.list.scrollToPosition(0)
@@ -78,9 +84,52 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     private fun filter(q: String) {
+        if (searchMode) { globalSearch(q); return }
         val src = backStack.lastOrNull()?.rows ?: return
         val query = q.trim().lowercase()
         adapter.submit(if (query.isEmpty()) src else src.filter { it.label.lowercase().contains(query) })
+    }
+
+    /** Home-screen global search: channels (instant, in-memory) + movies/series (portal VOD search). */
+    private fun globalSearch(q: String) {
+        val query = q.trim()
+        pendingSearch?.let { searchHandler.removeCallbacks(it) }
+        searchSeq++
+        if (query.isEmpty()) {
+            b.status.visibility = View.GONE
+            adapter.submit(backStack.last().rows)
+            return
+        }
+        val chRows = allChannels.asSequence()
+            .filter { it.name.contains(query, ignoreCase = true) }
+            .take(200)
+            .map { ch ->
+                val label = "📺  " + (if (ch.number.isNotEmpty()) "${ch.number}. " else "") + ch.name
+                Row(label, ch.logoUrl) { play(ch.name) { Portal.createLink(ch.cmd) } }
+            }.toList()
+        adapter.submit(chRows)
+        if (query.length < 2) { b.status.visibility = View.GONE; return }
+        b.status.visibility = View.VISIBLE
+        b.status.text = "Searching movies & shows…"
+        val seq = searchSeq
+        val task = Runnable {
+            io.execute {
+                val vod = Portal.vodSearch(query)
+                runOnUiThread {
+                    if (seq != searchSeq) return@runOnUiThread
+                    val vodRows = vod.map { v ->
+                        val label = (if (v.isSeries) "📁  " else "🎬  ") + v.name
+                        Row(label, v.posterUrl) {
+                            if (v.isSeries) showSeasons(v) else play(v.name) { Portal.playVodUrl(v.id, v.cmd) }
+                        }
+                    }
+                    b.status.visibility = View.GONE
+                    adapter.submit(chRows + vodRows)
+                }
+            }
+        }
+        pendingSearch = task
+        searchHandler.postDelayed(task, 450)
     }
 
     // ---- screens ----
@@ -92,7 +141,8 @@ class ChannelsActivity : AppCompatActivity() {
                 listOf(
                     Row("📺   Live TV", null) { showLiveGenres() },
                     Row("🎬   Movies (VOD)", null) { showVodCategories() }
-                )
+                ),
+                global = true
             )
         )
     }

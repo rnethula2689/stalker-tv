@@ -184,20 +184,45 @@ object Portal {
             val total = js.optInt("total_items", 0)
             val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
             pages = Math.ceil(total.toDouble() / per).toInt().coerceAtLeast(1)
-            val arr = js.optJSONArray("data")
-            if (arr != null) for (i in 0 until arr.length()) {
-                val o = arr.optJSONObject(i) ?: continue
-                val ss = o.optString("screenshot_uri")
-                val poster = when {
-                    ss.isBlank() || ss == "null" -> ""
-                    ss.startsWith("http") -> ss
-                    ss.startsWith("/") -> host + ss
-                    else -> "$host/$ss"
-                }
-                out.add(VodItem(o.optString("id"), o.optString("name"), o.optString("cmd"), poster, o.optString("is_series") == "1"))
-            }
+            parseVodItems(js.optJSONArray("data"), out)
         } catch (_: Exception) {}
         return Pair(out, pages)
+    }
+
+    private fun parseVodItems(arr: JSONArray?, out: ArrayList<VodItem>) {
+        if (arr == null) return
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val ss = o.optString("screenshot_uri")
+            val poster = when {
+                ss.isBlank() || ss == "null" -> ""
+                ss.startsWith("http") -> ss
+                ss.startsWith("/") -> host + ss
+                else -> "$host/$ss"
+            }
+            out.add(VodItem(o.optString("id"), o.optString("name"), o.optString("cmd"), poster, o.optString("is_series") == "1"))
+        }
+    }
+
+    /** Global VOD search across all categories (returns both movies and series). */
+    fun vodSearch(query: String): List<VodItem> {
+        val out = ArrayList<VodItem>()
+        try {
+            val enc = URLEncoder.encode(query, "UTF-8")
+            var page = 1
+            while (page <= 3) {
+                val body = get("$base?type=vod&action=get_ordered_list&search=$enc&p=$page&JsHttpRequest=1-xml", true)
+                val js = JSONObject(body).optJSONObject("js") ?: break
+                val arr = js.optJSONArray("data") ?: break
+                if (arr.length() == 0) break
+                parseVodItems(arr, out)
+                val total = js.optInt("total_items", out.size)
+                val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
+                if (page >= Math.ceil(total.toDouble() / per).toInt()) break
+                page++
+            }
+        } catch (_: Exception) {}
+        return out
     }
 
     fun createLink(cmd: String): String? = resolve("itv", cmd)
