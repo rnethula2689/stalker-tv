@@ -1,18 +1,50 @@
 package com.stalkertv.app
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.stalkertv.app.databinding.ActivityMainBinding
+import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
+    private val io = Executors.newSingleThreadExecutor()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val b = ActivityMainBinding.inflate(layoutInflater)
         setContentView(b.root)
-        b.status.text = "Stalker TV v0.1\nBuild + install OK ✓\nNext step: portal login + channel list."
-        b.testBtn.setOnClickListener {
-            b.status.text = "Remote D-pad + OK button work ✓\nReady for the next milestone."
+
+        val prefs = getSharedPreferences("cfg", Context.MODE_PRIVATE)
+        b.portal.setText(prefs.getString("portal", ""))
+        b.mac.setText(prefs.getString("mac", ""))
+
+        b.connect.setOnClickListener {
+            val url = b.portal.text.toString().trim()
+            val mac = b.mac.text.toString().trim()
+            if (url.isEmpty() || mac.isEmpty()) {
+                b.status.text = "Enter both the portal URL and the MAC address."
+                return@setOnClickListener
+            }
+            prefs.edit().putString("portal", url).putString("mac", mac).apply()
+            Portal.portalUrl = url
+            Portal.mac = mac
+            b.status.text = "Connecting…"
+            b.connect.isEnabled = false
+            io.execute {
+                val err = Portal.connect()
+                runOnUiThread {
+                    b.connect.isEnabled = true
+                    if (err == null) {
+                        b.status.text = "Connected ✓"
+                        startActivity(Intent(this, ChannelsActivity::class.java))
+                    } else {
+                        b.status.text = err
+                    }
+                }
+            }
         }
-        b.testBtn.requestFocus()
+
+        b.portal.requestFocus()
     }
 }
