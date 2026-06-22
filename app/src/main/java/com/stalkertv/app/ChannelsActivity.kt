@@ -174,7 +174,10 @@ class ChannelsActivity : AppCompatActivity() {
             runOnUiThread {
                 if (url.isNullOrEmpty()) {
                     b.status.visibility = View.VISIBLE
-                    b.status.text = "Couldn't open $title."
+                    val why = Portal.lastError
+                    b.status.text = if (why == "nothing_to_play")
+                        "“$title” — provider has no stream right now (storage unavailable)."
+                    else "Couldn't open “$title” — $why"
                 } else {
                     b.status.visibility = View.GONE
                     startActivity(

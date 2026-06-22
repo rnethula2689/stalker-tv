@@ -11,13 +11,27 @@ android {
         applicationId = "com.stalkertv.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.5"
+        versionCode = 7
+        versionName = "0.7"
+    }
+
+    signingConfigs {
+        create("stable") {
+            storeFile = file("signing.keystore")
+            storePassword = "stalkertv"
+            keyAlias = "stalker"
+            keyPassword = "stalkertv"
+            storeType = "PKCS12"
+        }
     }
 
     buildTypes {
-        release {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("stable")
+        }
+        getByName("release") {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("stable")
         }
     }
     compileOptions {

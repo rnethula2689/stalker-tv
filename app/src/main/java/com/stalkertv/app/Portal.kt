@@ -24,6 +24,7 @@ object Portal {
     private var token: String = ""
     private var host: String = ""
     private var logosBase: String = ""
+    var lastError: String = ""
 
     data class Channel(
         val id: String, val name: String, val number: String,
@@ -36,7 +37,20 @@ object Portal {
     private fun origin(u: String): String =
         Regex("https?://[^/]+").find(u.trim())?.value ?: u.trim().trimEnd('/')
 
-    private fun cookie() = "mac=$mac; stb_lang=en; timezone=America/New_York"
+    // Cloudflare / portal cookies captured from responses, resent on every request
+    // so the whole session sticks to one backend node (like a real STB / Strimix).
+    private val extraCookies = LinkedHashMap<String, String>()
+
+    fun resetSession() {
+        extraCookies.clear()
+        token = ""
+    }
+
+    private fun cookie(): String {
+        val sb = StringBuilder("mac=$mac; stb_lang=en; timezone=America/New_York")
+        for ((k, v) in extraCookies) sb.append("; ").append(k).append("=").append(v)
+        return sb.toString()
+    }
 
     private fun get(url: String, auth: Boolean): String {
         val rb = Request.Builder().url(url)
@@ -44,7 +58,15 @@ object Portal {
             .header("Cookie", cookie())
             .header("X-User-Agent", "Model: MAG250; Link: WiFi")
         if (auth && token.isNotEmpty()) rb.header("Authorization", "Bearer $token")
-        client.newCall(rb.build()).execute().use { r -> return r.body?.string() ?: "" }
+        client.newCall(rb.build()).execute().use { r ->
+            for (h in r.headers("Set-Cookie")) {
+                val pair = h.substringBefore(";")
+                val k = pair.substringBefore("=").trim()
+                val v = pair.substringAfter("=", "").trim()
+                if (k.isNotEmpty() && k != "mac" && v.isNotEmpty()) extraCookies[k] = v
+            }
+            return r.body?.string() ?: ""
+        }
     }
 
     /** js can be a plain array, or an object with a "data" array. */
@@ -66,7 +88,7 @@ object Portal {
                 "$o/portal.php",
                 "$o/c/server/load.php"
             )
-            token = ""
+            resetSession()
             for (b in candidates) {
                 val hs = get("$b?type=stb&action=handshake&JsHttpRequest=1-xml", false)
                 val t = Regex("\"token\"\\s*:\\s*\"([^\"]+)\"").find(hs)?.groupValues?.get(1)
@@ -180,15 +202,27 @@ object Portal {
     fun createVodLink(cmd: String): String? = resolve("vod", cmd)
 
     private fun resolve(type: String, cmd: String): String? {
-        return try {
-            val enc = URLEncoder.encode(cmd, "UTF-8")
-            val body = get("$base?type=$type&action=create_link&cmd=$enc&JsHttpRequest=1-xml", true)
-            var url = JSONObject(body).optJSONObject("js")?.optString("cmd") ?: return null
-            val idx = url.indexOf("http")
-            if (idx > 0) url = url.substring(idx)
-            url.trim()
-        } catch (e: Exception) {
-            null
+        val enc = URLEncoder.encode(cmd, "UTF-8")
+        val u = "$base?type=$type&action=create_link&cmd=$enc" +
+            "&series=0&forced_storage=&disable_ad=0&download=0&JsHttpRequest=1-xml"
+        // Retry on transient storage timeouts (nothing_to_play); cookies keep us on one node.
+        repeat(3) { attempt ->
+            try {
+                val js = JSONObject(get(u, true)).optJSONObject("js")
+                var url = js?.optString("cmd") ?: ""
+                if (url.isNotBlank()) {
+                    val idx = url.indexOf("http")
+                    if (idx > 0) url = url.substring(idx)
+                    return url.trim()
+                }
+                val err = js?.optString("error") ?: ""
+                lastError = if (err.isNotBlank()) err else "no stream returned"
+                if (lastError != "nothing_to_play") return null
+            } catch (e: Exception) {
+                lastError = e.message ?: "connection error"
+            }
+            if (attempt < 2) Thread.sleep(800)
         }
+        return null
     }
 }
