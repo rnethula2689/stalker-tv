@@ -199,7 +199,28 @@ object Portal {
     }
 
     fun createLink(cmd: String): String? = resolve("itv", cmd)
-    fun createVodLink(cmd: String): String? = resolve("vod", cmd)
+
+    /**
+     * VOD play needs an extra step: fetch the movie's actual file(s) via movie_id,
+     * then create_link with /media/file_<fileId>.mpg. Falls back to the list cmd.
+     */
+    fun playVodUrl(movieId: String, fallbackCmd: String): String? {
+        try {
+            val body = get(
+                "$base?type=vod&action=get_ordered_list&movie_id=$movieId&JsHttpRequest=1-xml",
+                true
+            )
+            val arr = JSONObject(body).optJSONObject("js")?.optJSONArray("data")
+            if (arr != null && arr.length() > 0) {
+                val fileId = arr.optJSONObject(0)?.optString("id") ?: ""
+                if (fileId.isNotBlank()) {
+                    val url = resolve("vod", "/media/file_$fileId.mpg")
+                    if (!url.isNullOrEmpty()) return url
+                }
+            }
+        } catch (_: Exception) {}
+        return resolve("vod", fallbackCmd)
+    }
 
     private fun resolve(type: String, cmd: String): String? {
         val enc = URLEncoder.encode(cmd, "UTF-8")

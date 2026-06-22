@@ -145,7 +145,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun vodRows(cat: Portal.VodCat, acc: ArrayList<Portal.VodItem>, loaded: Int, total: Int): List<Row> {
         val rows = ArrayList<Row>()
-        acc.forEach { v -> rows.add(Row(v.name, v.posterUrl) { play(v.name) { Portal.createVodLink(v.cmd) } }) }
+        acc.forEach { v -> rows.add(Row(v.name, v.posterUrl) { play(v.name) { Portal.playVodUrl(v.id, v.cmd) } }) }
         if (loaded < total) {
             rows.add(Row("⬇  Load more  ($loaded/$total)", null) {
                 b.status.visibility = View.VISIBLE
