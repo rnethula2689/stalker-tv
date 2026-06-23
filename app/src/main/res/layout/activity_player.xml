@@ -13,18 +13,41 @@
         app:resize_mode="fit"
         app:show_buffering="when_playing" />
 
-    <TextView
-        android:id="@+id/title"
+    <LinearLayout
+        android:id="@+id/topBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:background="#B3000000"
         android:paddingHorizontal="20dp"
-        android:paddingVertical="14dp"
-        android:textColor="#ffffff"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:maxLines="2"
-        android:ellipsize="end"
-        android:visibility="gone" />
+        android:paddingVertical="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#ffffff"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/subBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="💬 Subtitles"
+            android:textColor="#ffffff"
+            android:textSize="15sp"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="10dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+    </LinearLayout>
 </FrameLayout>
