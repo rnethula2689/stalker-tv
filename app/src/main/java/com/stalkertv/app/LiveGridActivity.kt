@@ -59,7 +59,7 @@ class LiveGridActivity : AppCompatActivity() {
 
         b.previewFrame.setOnClickListener { openFullscreen() }
         b.searchBtn.setOnClickListener { toggleSearch() }
-        b.menuBtn.setOnClickListener { showMenu(it) }
+        b.menuBtn.setOnClickListener { showMenu() }
         b.clearBtn.setOnClickListener { b.search.setText(""); b.search.requestFocus() }
         b.search.addTextChangedListener(object : android.text.TextWatcher {
             override fun afterTextChanged(s: android.text.Editable?) = filter(s?.toString() ?: "")
@@ -217,20 +217,27 @@ class LiveGridActivity : AppCompatActivity() {
         adapter.submit(if (letter == null) all else all.filter { it.name.trimStart().startsWith(letter, ignoreCase = true) })
     }
 
-    private fun showMenu(anchor: View) {
-        val pm = androidx.appcompat.widget.PopupMenu(this, anchor)
-        pm.menu.add(0, 1, 0, "🔄   Refresh")
-        pm.menu.add(0, 2, 0, "⚙   Settings")
-        pm.menu.add(0, 3, 0, "✖   Exit")
-        pm.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                1 -> current?.let { loadPreview(it) }
-                2 -> startActivity(Intent(this, SettingsActivity::class.java))
-                3 -> finishAffinity()
+    private var menuDialog: androidx.appcompat.app.AlertDialog? = null
+    private fun showMenu() {
+        if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
+        val items = arrayOf("🔄   Refresh", "⚙   Settings", "✖   Exit")
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> current?.let { loadPreview(it) }
+                    1 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    2 -> finishAffinity()
+                }
             }
-            true
+            .setOnDismissListener { menuDialog = null }
+            .create()
+        dlg.setOnKeyListener { d, keyCode, ev ->
+            if (keyCode == android.view.KeyEvent.KEYCODE_MENU && ev.action == android.view.KeyEvent.ACTION_UP) {
+                d.dismiss(); true
+            } else false
         }
-        pm.show()
+        menuDialog = dlg
+        dlg.show()
     }
 
     private fun confirmExit() {
@@ -243,7 +250,7 @@ class LiveGridActivity : AppCompatActivity() {
 
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
         when (keyCode) {
-            android.view.KeyEvent.KEYCODE_MENU -> { showMenu(b.menuBtn); return true }
+            android.view.KeyEvent.KEYCODE_MENU -> return true // handled on key-up (avoids flash)
             android.view.KeyEvent.KEYCODE_BACK -> { event.startTracking(); return true }
         }
         return super.onKeyDown(keyCode, event)
@@ -255,6 +262,7 @@ class LiveGridActivity : AppCompatActivity() {
     }
 
     override fun onKeyUp(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_MENU) { showMenu(); return true }
         if (keyCode == android.view.KeyEvent.KEYCODE_BACK && !event.isCanceled) {
             @Suppress("DEPRECATION") onBackPressed(); return true
         }

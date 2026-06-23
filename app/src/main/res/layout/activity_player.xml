@@ -56,5 +56,20 @@
             android:focusable="true"
             android:clickable="true"
             android:background="@drawable/item_bg" />
+
+        <TextView
+            android:id="@+id/menuBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="⋮"
+            android:textColor="#ffffff"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="8dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
     </LinearLayout>
 </FrameLayout>

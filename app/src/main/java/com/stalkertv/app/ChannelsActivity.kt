@@ -49,7 +49,7 @@ class ChannelsActivity : AppCompatActivity() {
 
         b.searchBtn.setOnClickListener { toggleSearch() }
         b.reloadBtn.setOnClickListener { connectAndLoad() }
-        b.menuBtn.setOnClickListener { showMenu(it) }
+        b.menuBtn.setOnClickListener { showMenu() }
 
         connectAndLoad()
     }
@@ -100,20 +100,28 @@ class ChannelsActivity : AppCompatActivity() {
         }
     }
 
-    private fun showMenu(anchor: View) {
-        val pm = androidx.appcompat.widget.PopupMenu(this, anchor)
-        pm.menu.add(0, 1, 0, "🔄   Refresh portal")
-        pm.menu.add(0, 2, 0, "⚙   Settings")
-        pm.menu.add(0, 3, 0, "✖   Exit")
-        pm.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                1 -> connectAndLoad()
-                2 -> startActivity(Intent(this, SettingsActivity::class.java))
-                3 -> finishAffinity()
+    private var menuDialog: androidx.appcompat.app.AlertDialog? = null
+    private fun showMenu() {
+        if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
+        val items = arrayOf("🔄   Refresh portal", "⚙   Settings", "✖   Exit")
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> connectAndLoad()
+                    1 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    2 -> finishAffinity()
+                }
             }
-            true
+            .setOnDismissListener { menuDialog = null }
+            .create()
+        // Pressing the menu/hamburger key again closes it (Back also closes by default).
+        dlg.setOnKeyListener { d, keyCode, ev ->
+            if (keyCode == android.view.KeyEvent.KEYCODE_MENU && ev.action == android.view.KeyEvent.ACTION_UP) {
+                d.dismiss(); true
+            } else false
         }
-        pm.show()
+        menuDialog = dlg
+        dlg.show()
     }
 
     private fun confirmExit() {
@@ -126,7 +134,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
         when (keyCode) {
-            android.view.KeyEvent.KEYCODE_MENU -> { showMenu(b.menuBtn); return true }
+            android.view.KeyEvent.KEYCODE_MENU -> return true // handled on key-up (avoids flash)
             android.view.KeyEvent.KEYCODE_BACK -> { event.startTracking(); return true }
         }
         return super.onKeyDown(keyCode, event)
@@ -138,6 +146,7 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     override fun onKeyUp(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_MENU) { showMenu(); return true }
         if (keyCode == android.view.KeyEvent.KEYCODE_BACK && !event.isCanceled) {
             @Suppress("DEPRECATION") onBackPressed(); return true
         }

@@ -44,6 +44,7 @@ class PlayerActivity : AppCompatActivity() {
             PlayerView.ControllerVisibilityListener { visibility -> b.topBar.visibility = visibility }
         )
         b.subBtn.setOnClickListener { searchSubtitles() }
+        b.menuBtn.setOnClickListener { showMenu() }
 
         val http = DefaultHttpDataSource.Factory()
             .setUserAgent(Portal.UA)
@@ -73,9 +74,36 @@ class PlayerActivity : AppCompatActivity() {
         b.playerView.requestFocus()
     }
 
-    /** Any remote key (except Back) re-shows the controls when they've auto-hidden. */
+    private var menuDialog: AlertDialog? = null
+    private fun showMenu() {
+        if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
+        val items = arrayOf("💬   Subtitles", "⚙   Settings", "✖   Exit")
+        val dlg = AlertDialog.Builder(this)
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> searchSubtitles()
+                    1 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
+                    2 -> finishAffinity()
+                }
+            }
+            .setOnDismissListener { menuDialog = null }
+            .create()
+        dlg.setOnKeyListener { d, keyCode, ev ->
+            if (keyCode == android.view.KeyEvent.KEYCODE_MENU && ev.action == android.view.KeyEvent.ACTION_UP) {
+                d.dismiss(); true
+            } else false
+        }
+        menuDialog = dlg
+        dlg.show()
+    }
+
+    /** Menu key opens the overlay menu; any other key (except Back/volume) re-shows the controls. */
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
         val kc = event.keyCode
+        if (kc == android.view.KeyEvent.KEYCODE_MENU) {
+            if (event.action == android.view.KeyEvent.ACTION_UP) showMenu()
+            return true
+        }
         if (event.action == android.view.KeyEvent.ACTION_DOWN &&
             kc != android.view.KeyEvent.KEYCODE_BACK &&
             kc != android.view.KeyEvent.KEYCODE_VOLUME_UP &&
