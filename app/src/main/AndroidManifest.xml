@@ -32,6 +32,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".AppUpdatesActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".LiveGridActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden" />

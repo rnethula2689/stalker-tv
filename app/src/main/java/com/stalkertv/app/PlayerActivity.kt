@@ -77,14 +77,15 @@ class PlayerActivity : AppCompatActivity() {
     private var menuDialog: AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("💬   Subtitles", "⚙   Settings", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("💬   Subtitles", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> searchSubtitles()
                     1 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
-                    2 -> About.show(this)
-                    3 -> finishAffinity()
+                    2 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
+                    3 -> About.show(this)
+                    4 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }

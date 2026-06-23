@@ -14,6 +14,9 @@ object About {
             .setTitle("About")
             .setMessage(msg)
             .setPositiveButton("OK", null)
+            .setNeutralButton("App updates / page") { _, _ ->
+                ctx.startActivity(android.content.Intent(ctx, AppUpdatesActivity::class.java))
+            }
             .show()
     }
 }

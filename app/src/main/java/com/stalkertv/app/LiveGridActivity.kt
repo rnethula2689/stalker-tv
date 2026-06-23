@@ -220,14 +220,15 @@ class LiveGridActivity : AppCompatActivity() {
     private var menuDialog: androidx.appcompat.app.AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("🔄   Refresh", "⚙   Settings", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("🔄   Refresh", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> current?.let { loadPreview(it) }
                     1 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    2 -> About.show(this)
-                    3 -> finishAffinity()
+                    2 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
+                    3 -> About.show(this)
+                    4 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }

@@ -75,38 +75,7 @@ class ChannelsActivity : AppCompatActivity() {
         }
     }
 
-    private fun startUpdate() {
-        // Android 8+: the app must be allowed to install packages.
-        if (android.os.Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("Allow updates")
-                .setMessage("To install updates in-app, allow this app to install apps. You'll be taken to the setting — turn it on, then press Download now again.")
-                .setPositiveButton("Open setting") { _, _ ->
-                    startActivity(
-                        Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:$packageName"))
-                    )
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
-            return
-        }
-        android.widget.Toast.makeText(this, "Downloading update…", android.widget.Toast.LENGTH_LONG).show()
-        io.execute {
-            val apk = java.io.File(cacheDir, "update.apk")
-            val ok = Updater.downloadApk(apk)
-            runOnUiThread {
-                if (!ok) {
-                    android.widget.Toast.makeText(this, "Download failed — try again, or use is.gd/stalkertvfiretv.", android.widget.Toast.LENGTH_LONG).show()
-                    return@runOnUiThread
-                }
-                val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.fileprovider", apk)
-                val i = Intent(Intent.ACTION_VIEW)
-                    .setDataAndType(uri, "application/vnd.android.package-archive")
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(i)
-            }
-        }
-    }
+    private fun startUpdate() = AppUpdate.install(this)
 
     private fun showWelcome() {
         if (welcomeShown) return
@@ -174,14 +143,15 @@ class ChannelsActivity : AppCompatActivity() {
     private var menuDialog: androidx.appcompat.app.AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("🔄   Refresh portal", "⚙   Settings", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("🔄   Refresh portal", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> connectAndLoad()
                     1 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    2 -> About.show(this)
-                    3 -> finishAffinity()
+                    2 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
+                    3 -> About.show(this)
+                    4 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }
