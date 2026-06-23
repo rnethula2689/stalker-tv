@@ -18,8 +18,8 @@ android {
         applicationId = "com.stalkertv.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 38
-        versionName = "0.38"
+        versionCode = 39
+        versionName = "0.39"
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
     }
 
