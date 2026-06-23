@@ -11,8 +11,13 @@ android {
         applicationId = "com.stalkertv.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 31
-        versionName = "0.31"
+        versionCode = 32
+        versionName = "0.32"
+        buildConfigField(
+            "String",
+            "BUILD_TIME",
+            "\"${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm 'UTC'").apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date())}\""
+        )
     }
 
     signingConfigs {
@@ -43,6 +48,7 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 

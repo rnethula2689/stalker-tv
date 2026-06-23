@@ -103,13 +103,14 @@ class ChannelsActivity : AppCompatActivity() {
     private var menuDialog: androidx.appcompat.app.AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("🔄   Refresh portal", "⚙   Settings", "✖   Exit")
+        val items = arrayOf("🔄   Refresh portal", "⚙   Settings", "ℹ️   About", "✖   Exit")
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> connectAndLoad()
                     1 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    2 -> finishAffinity()
+                    2 -> About.show(this)
+                    3 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }
