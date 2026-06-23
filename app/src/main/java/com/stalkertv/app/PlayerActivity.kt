@@ -50,6 +50,8 @@ class PlayerActivity : AppCompatActivity() {
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(20000)
             .setReadTimeoutMs(20000)
+        // Wrap so the factory can open both the http stream AND the local subtitle file://.
+        val dataSource = androidx.media3.datasource.DefaultDataSource.Factory(this, http)
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(20000, 60000, 1500, 3000)
@@ -57,7 +59,7 @@ class PlayerActivity : AppCompatActivity() {
             .build()
 
         val p = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(http))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSource))
             .setLoadControl(loadControl)
             .build()
         p.setSeekParameters(SeekParameters.CLOSEST_SYNC)
@@ -117,6 +119,8 @@ class PlayerActivity : AppCompatActivity() {
                 pl.setMediaItem(item, pos)
                 pl.prepare()
                 pl.playWhenReady = true
+                pl.trackSelectionParameters = pl.trackSelectionParameters.buildUpon()
+                    .setPreferredTextLanguage("en").build()
                 Toast.makeText(this, "Subtitle applied ✓", Toast.LENGTH_SHORT).show()
             }
         }
