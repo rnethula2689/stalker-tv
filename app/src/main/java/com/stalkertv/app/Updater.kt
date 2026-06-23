@@ -3,6 +3,7 @@ package com.stalkertv.app
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 /** Checks the published version file so sideloaded users get notified of new builds. */
@@ -24,6 +25,24 @@ object Updater {
             }
         } catch (e: Exception) {
             null
+        }
+    }
+
+    private const val APK_URL =
+        "https://github.com/rnethula2689/stalker-tv/releases/download/apk-latest/app-debug.apk"
+
+    /** Downloads the latest APK to [dest]. @return true on success. */
+    fun downloadApk(dest: File): Boolean {
+        return try {
+            val req = Request.Builder().url(APK_URL).header("User-Agent", "StalkerTV").build()
+            client.newCall(req).execute().use { r ->
+                if (!r.isSuccessful) return false
+                val body = r.body ?: return false
+                dest.outputStream().use { out -> body.byteStream().copyTo(out) }
+            }
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 }

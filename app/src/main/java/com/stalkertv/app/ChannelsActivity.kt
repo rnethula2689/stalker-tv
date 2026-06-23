@@ -66,10 +66,44 @@ class ChannelsActivity : AppCompatActivity() {
                     updateChecked = true
                     androidx.appcompat.app.AlertDialog.Builder(this)
                         .setTitle("Update available")
-                        .setMessage("Version ${v.second} is available.\n\nReinstall from:\nis.gd/stalkertvfiretv")
-                        .setPositiveButton("OK", null)
+                        .setMessage("Version ${v.second} is available.\nDownload and install it now?")
+                        .setPositiveButton("Download now") { _, _ -> startUpdate() }
+                        .setNegativeButton("Close", null)
                         .show()
                 }
+            }
+        }
+    }
+
+    private fun startUpdate() {
+        // Android 8+: the app must be allowed to install packages.
+        if (android.os.Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Allow updates")
+                .setMessage("To install updates in-app, allow this app to install apps. You'll be taken to the setting — turn it on, then press Download now again.")
+                .setPositiveButton("Open setting") { _, _ ->
+                    startActivity(
+                        Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:$packageName"))
+                    )
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
+        }
+        android.widget.Toast.makeText(this, "Downloading update…", android.widget.Toast.LENGTH_LONG).show()
+        io.execute {
+            val apk = java.io.File(cacheDir, "update.apk")
+            val ok = Updater.downloadApk(apk)
+            runOnUiThread {
+                if (!ok) {
+                    android.widget.Toast.makeText(this, "Download failed — try again, or use is.gd/stalkertvfiretv.", android.widget.Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
+                val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.fileprovider", apk)
+                val i = Intent(Intent.ACTION_VIEW)
+                    .setDataAndType(uri, "application/vnd.android.package-archive")
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(i)
             }
         }
     }
