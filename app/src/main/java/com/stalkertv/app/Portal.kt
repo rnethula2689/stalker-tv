@@ -279,6 +279,27 @@ object Portal {
         return out
     }
 
+    /** All titles in a category whose name starts with [letter] (server-side `abc` filter, all pages). */
+    fun vodByLetter(catId: String, letter: String): List<VodItem> {
+        val out = ArrayList<VodItem>()
+        try {
+            val enc = URLEncoder.encode(letter, "UTF-8")
+            var page = 1
+            while (page <= 20) {
+                val body = get("$base?type=vod&action=get_ordered_list&category=$catId&abc=$enc&p=$page&JsHttpRequest=1-xml", true)
+                val js = JSONObject(body).optJSONObject("js") ?: break
+                val arr = js.optJSONArray("data") ?: break
+                if (arr.length() == 0) break
+                parseVodItems(arr, out)
+                val total = js.optInt("total_items", out.size)
+                val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
+                if (page >= Math.ceil(total.toDouble() / per).toInt()) break
+                page++
+            }
+        } catch (_: Exception) {}
+        return out
+    }
+
     fun createLink(cmd: String): String? = resolve("itv", cmd)
 
     /**

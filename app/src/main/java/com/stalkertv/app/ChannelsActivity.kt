@@ -72,8 +72,32 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun azFilter(letter: String?) {
         if (b.search.text.isNotEmpty()) b.search.setText("")
-        val rows = backStack.lastOrNull()?.rows ?: return
-        adapter.submit(if (letter == null) rows else rows.filter { it.sortKey.trimStart().startsWith(letter, ignoreCase = true) })
+        val page = backStack.lastOrNull() ?: return
+        if (letter == null) {
+            adapter.submit(page.rows)
+            return
+        }
+        // Movie folders: ask the portal for every title starting with this letter (complete, not just loaded).
+        if (page.kind == SearchKind.VOD_CATEGORY && page.scopeId != null) {
+            val cat = page.scopeId
+            b.status.visibility = View.VISIBLE
+            b.status.text = "Loading “$letter”…"
+            io.execute {
+                val items = Portal.vodByLetter(cat, letter)
+                runOnUiThread {
+                    if (items.isEmpty()) {
+                        b.status.visibility = View.VISIBLE
+                        b.status.text = "No titles starting with “$letter”."
+                    } else {
+                        b.status.visibility = View.GONE
+                    }
+                    adapter.submit(items.map { vodItemRow(it) })
+                }
+            }
+        } else {
+            // Channels / genres / categories are all in memory — filter locally.
+            adapter.submit(page.rows.filter { it.sortKey.trimStart().startsWith(letter, ignoreCase = true) })
+        }
     }
 
     private fun showMenu(anchor: View) {
