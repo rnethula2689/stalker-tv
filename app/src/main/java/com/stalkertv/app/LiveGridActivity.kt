@@ -36,6 +36,7 @@ class LiveGridActivity : AppCompatActivity() {
     private var currentUrl: String? = null
     private var pendingPreview: Runnable? = null
     private var seq = 0
+    private var retried = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +55,12 @@ class LiveGridActivity : AppCompatActivity() {
             .setLoadControl(loadControl).build()
         player = p
         b.preview.player = p
+        p.addListener(object : androidx.media3.common.Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                val ch = current ?: return
+                if (!retried) { retried = true; loadPreview(ch) }
+            }
+        })
 
         adapter = ChannelGridAdapter(all) { ch -> select(ch) }
         b.list.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
@@ -79,6 +86,8 @@ class LiveGridActivity : AppCompatActivity() {
     /** Focus or click on a channel → update the preview (debounced). */
     private fun select(ch: Portal.Channel) {
         current = ch
+        retried = false
+        player?.stop() // release the previous stream immediately (portals often cap concurrent streams)
         pendingPreview?.let { ui.removeCallbacks(it) }
         val r = Runnable { loadPreview(ch) }
         pendingPreview = r
@@ -87,14 +96,18 @@ class LiveGridActivity : AppCompatActivity() {
 
     private fun loadPreview(ch: Portal.Channel) {
         val mine = ++seq
-        b.epg.text = "▶  ${ch.name}\n\nLoading guide…"
+        b.epg.text = "▶  ${ch.name}\n\nLoading…"
         io.execute {
+            if (mine != seq) return@execute // superseded by a newer selection — skip the work
             val url = Portal.createLink(ch.cmd)
+            if (mine != seq) return@execute
             val epg = Portal.shortEpg(ch.id)
             runOnUiThread {
                 if (mine != seq || current != ch) return@runOnUiThread
                 currentUrl = url
                 val pl = player ?: return@runOnUiThread
+                pl.stop()
+                pl.clearMediaItems()
                 if (!url.isNullOrEmpty()) {
                     pl.setMediaItem(MediaItem.fromUri(url))
                     pl.prepare()
@@ -157,7 +170,12 @@ class LiveGridActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        player?.pause()
+        player?.stop() // free the stream while in fullscreen / background
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        current?.let { loadPreview(it) } // resume the preview when returning from fullscreen
     }
 
     override fun onDestroy() {

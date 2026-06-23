@@ -50,7 +50,8 @@ object Portal {
     }
 
     private fun cookie(): String {
-        val sb = StringBuilder("mac=$mac; stb_lang=en; timezone=America/New_York")
+        val tz = java.util.TimeZone.getDefault().id
+        val sb = StringBuilder("mac=$mac; stb_lang=en; timezone=$tz")
         for ((k, v) in extraCookies) sb.append("; ").append(k).append("=").append(v)
         return sb.toString()
     }
