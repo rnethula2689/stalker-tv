@@ -68,6 +68,26 @@ class PlayerActivity : AppCompatActivity() {
         p.setMediaItem(MediaItem.fromUri(videoUrl))
         p.prepare()
         p.playWhenReady = true
+
+        b.playerView.controllerShowTimeoutMs = 6000
+        b.playerView.requestFocus()
+    }
+
+    /** Any remote key (except Back) re-shows the controls when they've auto-hidden. */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        val kc = event.keyCode
+        if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+            kc != android.view.KeyEvent.KEYCODE_BACK &&
+            kc != android.view.KeyEvent.KEYCODE_VOLUME_UP &&
+            kc != android.view.KeyEvent.KEYCODE_VOLUME_DOWN &&
+            kc != android.view.KeyEvent.KEYCODE_VOLUME_MUTE
+        ) {
+            if (!b.playerView.isControllerFullyVisible) {
+                b.playerView.showController()
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     /** Clean the display title into a search query (drop language/category/quality tags). */
