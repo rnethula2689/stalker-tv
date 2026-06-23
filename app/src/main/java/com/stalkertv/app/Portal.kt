@@ -210,7 +210,7 @@ object Portal {
         try {
             val enc = URLEncoder.encode(query, "UTF-8")
             var page = 1
-            while (page <= 3) {
+            while (page <= 5) {
                 val body = get("$base?type=vod&action=get_ordered_list&search=$enc&p=$page&JsHttpRequest=1-xml", true)
                 val js = JSONObject(body).optJSONObject("js") ?: break
                 val arr = js.optJSONArray("data") ?: break
@@ -222,7 +222,7 @@ object Portal {
                 page++
             }
         } catch (_: Exception) {}
-        return out
+        return out.filter { it.name.contains(query, ignoreCase = true) }
     }
 
     /** VOD search scoped to a single category (movies + series within that folder). */
@@ -231,7 +231,7 @@ object Portal {
         try {
             val enc = URLEncoder.encode(query, "UTF-8")
             var page = 1
-            while (page <= 3) {
+            while (page <= 5) {
                 val body = get("$base?type=vod&action=get_ordered_list&category=$catId&search=$enc&p=$page&JsHttpRequest=1-xml", true)
                 val js = JSONObject(body).optJSONObject("js") ?: break
                 val arr = js.optJSONArray("data") ?: break
@@ -243,7 +243,7 @@ object Portal {
                 page++
             }
         } catch (_: Exception) {}
-        return out
+        return out.filter { it.name.contains(query, ignoreCase = true) }
     }
 
     fun createLink(cmd: String): String? = resolve("itv", cmd)
