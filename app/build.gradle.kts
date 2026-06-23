@@ -18,8 +18,8 @@ android {
         applicationId = "com.stalkertv.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 39
-        versionName = "0.39"
+        versionCode = 40
+        versionName = "0.40"
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
     }
 
@@ -61,9 +61,10 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("io.coil-kt:coil:2.6.0")
-    implementation("androidx.media3:media3-exoplayer:1.5.1")
-    implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
-    implementation("androidx.media3:media3-ui:1.5.1")
-    // FFmpeg software decoders (AC-3, MP2, etc.) for ExoPlayer
-    implementation("com.github.anilbeesetti.nextlib:nextlib-media3ext:v0.8.4")
+    implementation("androidx.media3:media3-exoplayer:1.7.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.7.1")
+    implementation("androidx.media3:media3-ui:1.7.1")
+    // FFmpeg software decoders (AC-3, MP2, etc.) for ExoPlayer.
+    // Maven Central; version is <media3version>-<nextlibversion> and must match the Media3 above.
+    implementation("io.github.anilbeesetti:nextlib-media3ext:1.7.1-0.9.0")
 }
