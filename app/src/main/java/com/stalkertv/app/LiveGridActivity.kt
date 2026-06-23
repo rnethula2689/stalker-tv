@@ -34,9 +34,12 @@ class LiveGridActivity : AppCompatActivity() {
     private var all = listOf<Portal.Channel>()
     private var current: Portal.Channel? = null
     private var currentUrl: String? = null
+    private var currentUrlId: String? = null
     private var pendingPreview: Runnable? = null
     private var seq = 0
     private var retried = false
+    private var lastActivateId = ""
+    private var lastActivateTime = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,23 +49,11 @@ class LiveGridActivity : AppCompatActivity() {
         all = channels
         b.title.text = gridTitle
 
-        val http = DefaultHttpDataSource.Factory()
-            .setUserAgent(Portal.UA).setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(20000).setReadTimeoutMs(20000)
-        val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(15000, 50000, 1200, 2500).build()
-        val p = ExoPlayer.Builder(this).setMediaSourceFactory(DefaultMediaSourceFactory(http))
-            .setLoadControl(loadControl).build()
+        val p = buildPlayer()
         player = p
         b.preview.player = p
-        p.addListener(object : androidx.media3.common.Player.Listener {
-            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                val ch = current ?: return
-                if (!retried) { retried = true; loadPreview(ch) }
-            }
-        })
 
-        adapter = ChannelGridAdapter(all) { ch -> select(ch) }
+        adapter = ChannelGridAdapter(all, { ch -> select(ch) }, { ch -> activate(ch) })
         b.list.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
         b.list.adapter = adapter
 
@@ -95,6 +86,36 @@ class LiveGridActivity : AppCompatActivity() {
         }
     }
 
+    private fun buildPlayer(): ExoPlayer {
+        val http = DefaultHttpDataSource.Factory()
+            .setUserAgent(Portal.UA).setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(20000).setReadTimeoutMs(20000)
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(15000, 50000, 1200, 2500).build()
+        val p = ExoPlayer.Builder(this).setMediaSourceFactory(DefaultMediaSourceFactory(http))
+            .setLoadControl(loadControl).build()
+        p.addListener(object : androidx.media3.common.Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                val ch = current ?: return
+                if (!retried) { retried = true; loadPreview(ch) }
+            }
+        })
+        return p
+    }
+
+    /** Double center-press / double-tap a channel → fullscreen; single = preview. */
+    private fun activate(ch: Portal.Channel) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (ch.id == lastActivateId && now - lastActivateTime < 600) {
+            lastActivateId = ""
+            openFullscreen()
+        } else {
+            if (current?.id != ch.id) select(ch)
+            lastActivateId = ch.id
+            lastActivateTime = now
+        }
+    }
+
     /** Focus or click on a channel → update the preview (debounced). */
     private fun select(ch: Portal.Channel) {
         current = ch
@@ -117,9 +138,13 @@ class LiveGridActivity : AppCompatActivity() {
             runOnUiThread {
                 if (mine != seq || current != ch) return@runOnUiThread
                 currentUrl = url
-                val pl = player ?: return@runOnUiThread
-                pl.stop()
-                pl.clearMediaItems()
+                currentUrlId = ch.id
+                // Fully rebuild the player so the previous stream's connection is released
+                // (this server caps concurrent connections per token).
+                player?.release()
+                val pl = buildPlayer()
+                player = pl
+                b.preview.player = pl
                 if (!url.isNullOrEmpty()) {
                     pl.setMediaItem(MediaItem.fromUri(url))
                     pl.prepare()
@@ -148,7 +173,7 @@ class LiveGridActivity : AppCompatActivity() {
 
     private fun openFullscreen() {
         val ch = current ?: return
-        val url = currentUrl
+        val url = if (currentUrlId == ch.id) currentUrl else null
         if (!url.isNullOrEmpty()) {
             startActivity(Intent(this, PlayerActivity::class.java).putExtra("url", url).putExtra("title", ch.name))
         } else {
