@@ -27,6 +27,12 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var b: ActivityPlayerBinding
     private var videoUrl: String = ""
     private var titleText: String = ""
+    private var isLive = false
+    private var chIndex = -1
+
+    companion object {
+        var liveChannels: List<Portal.Channel> = emptyList()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,24 +52,17 @@ class PlayerActivity : AppCompatActivity() {
         b.subBtn.setOnClickListener { searchSubtitles() }
         b.menuBtn.setOnClickListener { showMenu() }
 
-        val http = DefaultHttpDataSource.Factory()
-            .setUserAgent(Portal.UA)
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(20000)
-            .setReadTimeoutMs(20000)
-        // Wrap so the factory can open both the http stream AND the local subtitle file://.
-        val dataSource = androidx.media3.datasource.DefaultDataSource.Factory(this, http)
+        isLive = intent.getBooleanExtra("live", false)
+        chIndex = intent.getIntExtra("chIndex", -1)
+        if (isLive) {
+            // Live TV can't seek back/forward — drop those controls; Up/Down change channels.
+            b.playerView.setShowPreviousButton(false)
+            b.playerView.setShowNextButton(false)
+            b.playerView.setShowFastForwardButton(false)
+            b.playerView.setShowRewindButton(false)
+        }
 
-        val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(20000, 60000, 1500, 3000)
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .build()
-
-        val p = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSource))
-            .setLoadControl(loadControl)
-            .build()
-        p.setSeekParameters(SeekParameters.CLOSEST_SYNC)
+        val p = buildPlayer()
         player = p
         b.playerView.player = p
         p.setMediaItem(MediaItem.fromUri(videoUrl))
@@ -72,6 +71,55 @@ class PlayerActivity : AppCompatActivity() {
 
         b.playerView.controllerShowTimeoutMs = 6000
         b.playerView.requestFocus()
+    }
+
+    private fun buildPlayer(): ExoPlayer {
+        val http = DefaultHttpDataSource.Factory()
+            .setUserAgent(Portal.UA)
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(20000)
+            .setReadTimeoutMs(20000)
+        // Wrap so the factory can open both the http stream AND the local subtitle file://.
+        val dataSource = androidx.media3.datasource.DefaultDataSource.Factory(this, http)
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(20000, 60000, 1500, 3000)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+        val p = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSource))
+            .setLoadControl(loadControl)
+            .build()
+        p.setSeekParameters(SeekParameters.CLOSEST_SYNC)
+        return p
+    }
+
+    /** Live TV: Up = previous channel, Down = next. Rebuilds the player to release the prior stream. */
+    private fun switchChannel(delta: Int) {
+        val list = liveChannels
+        if (!isLive || list.isEmpty() || chIndex < 0) return
+        var idx = chIndex + delta
+        if (idx < 0) idx = 0
+        if (idx > list.size - 1) idx = list.size - 1
+        if (idx == chIndex) return
+        chIndex = idx
+        val ch = list[idx]
+        titleText = ch.name
+        b.title.text = ch.name
+        b.playerView.showController()
+        io.execute {
+            val u = Portal.createLink(ch.cmd)
+            runOnUiThread {
+                if (u.isNullOrEmpty() || isFinishing) return@runOnUiThread
+                videoUrl = u
+                player?.release()
+                val np = buildPlayer()
+                player = np
+                b.playerView.player = np
+                np.setMediaItem(MediaItem.fromUri(u))
+                np.prepare()
+                np.playWhenReady = true
+            }
+        }
     }
 
     private var menuDialog: AlertDialog? = null
@@ -105,6 +153,10 @@ class PlayerActivity : AppCompatActivity() {
         if (kc == android.view.KeyEvent.KEYCODE_MENU) {
             if (event.action == android.view.KeyEvent.ACTION_UP) showMenu()
             return true
+        }
+        if (isLive && event.action == android.view.KeyEvent.ACTION_DOWN) {
+            if (kc == android.view.KeyEvent.KEYCODE_DPAD_UP) { switchChannel(-1); return true }
+            if (kc == android.view.KeyEvent.KEYCODE_DPAD_DOWN) { switchChannel(1); return true }
         }
         if (event.action == android.view.KeyEvent.ACTION_DOWN &&
             kc != android.view.KeyEvent.KEYCODE_BACK &&

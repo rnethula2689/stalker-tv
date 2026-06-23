@@ -38,8 +38,6 @@ class LiveGridActivity : AppCompatActivity() {
     private var pendingPreview: Runnable? = null
     private var seq = 0
     private var retried = false
-    private var lastActivateId = ""
-    private var lastActivateTime = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,7 +51,7 @@ class LiveGridActivity : AppCompatActivity() {
         player = p
         b.preview.player = p
 
-        adapter = ChannelGridAdapter(all, { ch -> select(ch) }, { ch -> activate(ch) })
+        adapter = ChannelGridAdapter(all) { ch -> activate(ch) }
         b.list.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
         b.list.adapter = adapter
 
@@ -94,17 +92,9 @@ class LiveGridActivity : AppCompatActivity() {
         return p
     }
 
-    /** Double center-press / double-tap a channel → fullscreen; single = preview. */
+    /** OK/tap a channel → preview it; OK/tap again on the same (already-previewing) channel → fullscreen. */
     private fun activate(ch: Portal.Channel) {
-        val now = android.os.SystemClock.elapsedRealtime()
-        if (ch.id == lastActivateId && now - lastActivateTime < 600) {
-            lastActivateId = ""
-            openFullscreen()
-        } else {
-            if (current?.id != ch.id) select(ch)
-            lastActivateId = ch.id
-            lastActivateTime = now
-        }
+        if (current?.id == ch.id) openFullscreen() else select(ch)
     }
 
     /** Focus or click on a channel → update the preview (debounced). */
@@ -164,20 +154,26 @@ class LiveGridActivity : AppCompatActivity() {
 
     private fun openFullscreen() {
         val ch = current ?: return
+        PlayerActivity.liveChannels = all
+        val idx = all.indexOfFirst { it.id == ch.id }
         val url = if (currentUrlId == ch.id) currentUrl else null
         if (!url.isNullOrEmpty()) {
-            startActivity(Intent(this, PlayerActivity::class.java).putExtra("url", url).putExtra("title", ch.name))
+            startActivity(playerIntent(ch, url, idx))
         } else {
             b.epg.text = "Opening ${ch.name}…"
             io.execute {
                 val u = Portal.createLink(ch.cmd)
-                runOnUiThread {
-                    if (!u.isNullOrEmpty())
-                        startActivity(Intent(this, PlayerActivity::class.java).putExtra("url", u).putExtra("title", ch.name))
-                }
+                runOnUiThread { if (!u.isNullOrEmpty()) startActivity(playerIntent(ch, u, idx)) }
             }
         }
     }
+
+    private fun playerIntent(ch: Portal.Channel, url: String, idx: Int) =
+        Intent(this, PlayerActivity::class.java)
+            .putExtra("url", url)
+            .putExtra("title", ch.name)
+            .putExtra("live", true)
+            .putExtra("chIndex", idx)
 
     private fun toggleSearch() {
         if (b.searchRow.visibility == View.VISIBLE) {

@@ -10,7 +10,6 @@ import com.stalkertv.app.databinding.ItemChannelBinding
 /** Channel list for the Live TV preview screen. Fires [onSelect] on focus (D-pad) or click (touch). */
 class ChannelGridAdapter(
     private var items: List<Portal.Channel>,
-    private val onSelect: (Portal.Channel) -> Unit,
     private val onActivate: (Portal.Channel) -> Unit
 ) : RecyclerView.Adapter<ChannelGridAdapter.VH>() {
 
@@ -36,7 +35,6 @@ class ChannelGridAdapter(
                 crossfade(true); placeholder(R.drawable.thumb_placeholder); error(R.drawable.thumb_placeholder)
             }
         }
-        holder.b.root.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) onSelect(ch) }
         holder.b.root.setOnClickListener { onActivate(ch) }
     }
 
