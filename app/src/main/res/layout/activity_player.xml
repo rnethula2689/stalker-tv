@@ -11,7 +11,14 @@
         android:layout_height="match_parent"
         app:use_controller="true"
         app:resize_mode="fit"
-        app:show_buffering="when_playing" />
+        app:show_buffering="when_playing"
+        app:bar_height="6dp"
+        app:touch_target_height="56dp"
+        app:scrubber_enabled_size="18dp"
+        app:scrubber_dragged_size="26dp"
+        app:scrubber_color="#19c37d"
+        app:played_color="#19c37d"
+        app:buffered_color="#8819c37d" />
 
     <LinearLayout
         android:id="@+id/topBar"
