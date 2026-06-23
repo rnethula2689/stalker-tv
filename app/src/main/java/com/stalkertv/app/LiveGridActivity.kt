@@ -81,7 +81,10 @@ class LiveGridActivity : AppCompatActivity() {
             .setConnectTimeoutMs(20000).setReadTimeoutMs(20000)
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(15000, 50000, 1200, 2500).build()
-        val p = ExoPlayer.Builder(this).setMediaSourceFactory(DefaultMediaSourceFactory(http))
+        val renderers = io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory(this)
+            .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            .setEnableDecoderFallback(true)
+        val p = ExoPlayer.Builder(this, renderers).setMediaSourceFactory(DefaultMediaSourceFactory(http))
             .setLoadControl(loadControl).build()
         p.addListener(object : androidx.media3.common.Player.Listener {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
