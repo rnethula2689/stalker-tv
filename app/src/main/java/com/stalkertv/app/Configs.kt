@@ -54,6 +54,9 @@ object Configs {
         prefs(ctx).edit().putInt("active", index).apply()
     }
 
+    fun ossKey(ctx: Context): String = prefs(ctx).getString("ossKey", "") ?: ""
+    fun setOssKey(ctx: Context, key: String) { prefs(ctx).edit().putString("ossKey", key).apply() }
+
     fun active(ctx: Context): Account? {
         val list = load(ctx)
         val i = activeIndex(ctx)

@@ -23,6 +23,14 @@ class SettingsActivity : AppCompatActivity() {
         b.submitBtn.setOnClickListener { onSubmit() }
         b.clearBtn.setOnClickListener { loadForm(null) }
         b.deleteBtn.setOnClickListener { onDelete() }
+
+        b.ossKey.setText(Configs.ossKey(this))
+        b.saveKeyBtn.setOnClickListener {
+            val key = b.ossKey.text.toString().trim()
+            Configs.setOssKey(this, key)
+            Subtitles.apiKey = key
+            b.msg.text = if (key.isEmpty()) "Subtitle key cleared." else "Subtitle key saved ✓"
+        }
     }
 
     private fun refreshList() {

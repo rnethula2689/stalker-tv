@@ -126,5 +126,36 @@
             android:textColor="#e6edf3"
             android:textSize="15sp"
             android:text="" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1c2530"
+            android:layout_marginVertical="20dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Subtitles (OpenSubtitles API key)"
+            android:textColor="#e6edf3"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/ossKey"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="Paste your OpenSubtitles API key"
+            android:textColorHint="#5a6675"
+            android:textColor="#e6edf3"
+            android:singleLine="true" />
+
+        <Button
+            android:id="@+id/saveKeyBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="Save subtitle key" />
     </LinearLayout>
 </ScrollView>
