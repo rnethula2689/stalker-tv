@@ -19,8 +19,8 @@ object Subtitles {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    /** Set from Settings (OpenSubtitles API key). Empty = fall back to the keyless legacy endpoint. */
-    var apiKey: String = ""
+    /** OpenSubtitles API key. Bundled default; can be overridden in Settings. */
+    var apiKey: String = "zVrOLC9GryTV5tAGMblRZbBiTQlmarLH"
 
     // legacyUrl used for the keyless endpoint; fileId used for the official API.
     data class Sub(val name: String, val legacyUrl: String, val fileId: String)
@@ -37,7 +37,7 @@ object Subtitles {
         try {
             val q = URLEncoder.encode(query, "UTF-8")
             val req = Request.Builder()
-                .url("https://api.opensubtitles.com/api/v1/subtitles?query=$q&languages=en&order_by=download_count")
+                .url("https://api.opensubtitles.com/api/v1/subtitles?languages=en&order_by=download_count&query=$q")
                 .header("Api-Key", apiKey)
                 .header("User-Agent", APP_UA)
                 .header("Accept", "application/json")

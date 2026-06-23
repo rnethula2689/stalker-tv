@@ -35,7 +35,8 @@ class PlayerActivity : AppCompatActivity() {
 
         videoUrl = intent.getStringExtra("url") ?: run { finish(); return }
         titleText = intent.getStringExtra("title") ?: ""
-        Subtitles.apiKey = Configs.ossKey(this)
+        val savedKey = Configs.ossKey(this)
+        if (savedKey.isNotBlank()) Subtitles.apiKey = savedKey
 
         // Top bar (title + Subtitles) shows/hides with the playback controls.
         b.title.text = titleText
