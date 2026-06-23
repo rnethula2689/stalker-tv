@@ -96,7 +96,7 @@ class PlayerActivity : AppCompatActivity() {
         Toast.makeText(this, "Downloading subtitle…", Toast.LENGTH_SHORT).show()
         io.execute {
             val file = File(cacheDir, "subtitle.srt")
-            val ok = Subtitles.download(sub.url, file)
+            val ok = Subtitles.download(sub, file)
             runOnUiThread {
                 if (!ok) {
                     Toast.makeText(this, "Couldn't download that subtitle.", Toast.LENGTH_SHORT).show()
