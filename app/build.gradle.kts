@@ -1,7 +1,14 @@
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.TimeZone
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+
+val buildTime: String =
+    SimpleDateFormat("yyyy-MM-dd HH:mm 'UTC'").apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date())
 
 android {
     namespace = "com.stalkertv.app"
@@ -11,13 +18,9 @@ android {
         applicationId = "com.stalkertv.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 32
-        versionName = "0.32"
-        buildConfigField(
-            "String",
-            "BUILD_TIME",
-            "\"${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm 'UTC'").apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date())}\""
-        )
+        versionCode = 33
+        versionName = "0.33"
+        buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
     }
 
     signingConfigs {
