@@ -16,6 +16,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.stalkertv.app.databinding.ActivityLivegridBinding
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import java.util.concurrent.Executors
 
 @OptIn(UnstableApi::class)
@@ -81,7 +82,7 @@ class LiveGridActivity : AppCompatActivity() {
             .setConnectTimeoutMs(20000).setReadTimeoutMs(20000)
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(15000, 50000, 1200, 2500).build()
-        val renderers = io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory(this)
+        val renderers = NextRenderersFactory(this)
             .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             .setEnableDecoderFallback(true)
         val p = ExoPlayer.Builder(this, renderers).setMediaSourceFactory(DefaultMediaSourceFactory(http))

@@ -17,6 +17,7 @@ import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import com.stalkertv.app.databinding.ActivityPlayerBinding
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import java.io.File
 import java.util.concurrent.Executors
 
@@ -85,7 +86,7 @@ class PlayerActivity : AppCompatActivity() {
             .setBufferDurationsMs(20000, 60000, 1500, 3000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
-        val renderers = io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory(this)
+        val renderers = NextRenderersFactory(this)
             .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             .setEnableDecoderFallback(true)
         val p = ExoPlayer.Builder(this, renderers)
