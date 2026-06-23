@@ -239,14 +239,19 @@ object Portal {
                 val js = JSONObject(body).optJSONObject("js") ?: break
                 val arr = js.optJSONArray("data") ?: break
                 if (arr.length() == 0) break
-                parseVodItems(arr, out)
+                val pageItems = ArrayList<VodItem>()
+                parseVodItems(arr, pageItems)
+                val matches = pageItems.filter { it.name.contains(query, ignoreCase = true) }
+                out.addAll(matches)
+                // Portal ranks title matches first — once a page yields none, later pages won't either.
+                if (matches.isEmpty() && out.isNotEmpty()) break
                 val total = js.optInt("total_items", out.size)
                 val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
                 if (page >= Math.ceil(total.toDouble() / per).toInt()) break
                 page++
             }
         } catch (_: Exception) {}
-        return out.filter { it.name.contains(query, ignoreCase = true) }
+        return out
     }
 
     /** VOD search scoped to a single category (movies + series within that folder). */
@@ -260,14 +265,18 @@ object Portal {
                 val js = JSONObject(body).optJSONObject("js") ?: break
                 val arr = js.optJSONArray("data") ?: break
                 if (arr.length() == 0) break
-                parseVodItems(arr, out)
+                val pageItems = ArrayList<VodItem>()
+                parseVodItems(arr, pageItems)
+                val matches = pageItems.filter { it.name.contains(query, ignoreCase = true) }
+                out.addAll(matches)
+                if (matches.isEmpty() && out.isNotEmpty()) break
                 val total = js.optInt("total_items", out.size)
                 val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
                 if (page >= Math.ceil(total.toDouble() / per).toInt()) break
                 page++
             }
         } catch (_: Exception) {}
-        return out.filter { it.name.contains(query, ignoreCase = true) }
+        return out
     }
 
     fun createLink(cmd: String): String? = resolve("itv", cmd)

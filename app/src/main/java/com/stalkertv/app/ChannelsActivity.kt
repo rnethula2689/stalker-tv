@@ -40,16 +40,73 @@ class ChannelsActivity : AppCompatActivity() {
         b.list.adapter = adapter
 
         b.search.addTextChangedListener(object : android.text.TextWatcher {
-            override fun afterTextChanged(s: android.text.Editable?) = filter(s?.toString() ?: "")
+            override fun afterTextChanged(s: android.text.Editable?) {
+                b.search.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, if (s.isNullOrEmpty()) 0 else R.drawable.ic_clear, 0)
+                filter(s?.toString() ?: "")
+            }
             override fun beforeTextChanged(s: CharSequence?, a: Int, c: Int, d: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, c: Int, d: Int) {}
         })
+        b.search.setOnTouchListener { v, e ->
+            if (e.action == android.view.MotionEvent.ACTION_UP) {
+                val et = v as android.widget.EditText
+                val d = et.compoundDrawablesRelative[2]
+                if (d != null && e.x >= et.width - et.paddingEnd - d.intrinsicWidth) {
+                    et.setText(""); return@setOnTouchListener true
+                }
+            }
+            false
+        }
 
         b.searchBtn.setOnClickListener { toggleSearch() }
         b.reloadBtn.setOnClickListener { connectAndLoad() }
-        b.settingsBtn.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
+        b.menuBtn.setOnClickListener { showMenu(it) }
 
         connectAndLoad()
+    }
+
+    private fun showMenu(anchor: View) {
+        val pm = androidx.appcompat.widget.PopupMenu(this, anchor)
+        pm.menu.add(0, 1, 0, "🔄   Refresh portal")
+        pm.menu.add(0, 2, 0, "⚙   Settings")
+        pm.menu.add(0, 3, 0, "✖   Exit")
+        pm.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1 -> connectAndLoad()
+                2 -> startActivity(Intent(this, SettingsActivity::class.java))
+                3 -> finishAffinity()
+            }
+            true
+        }
+        pm.show()
+    }
+
+    private fun confirmExit() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Exit Stalker TV?")
+            .setPositiveButton("Yes") { _, _ -> finishAffinity() }
+            .setNegativeButton("No", null)
+            .show()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        when (keyCode) {
+            android.view.KeyEvent.KEYCODE_MENU -> { showMenu(b.menuBtn); return true }
+            android.view.KeyEvent.KEYCODE_BACK -> { event.startTracking(); return true }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyLongPress(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_BACK) { confirmExit(); return true }
+        return super.onKeyLongPress(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_BACK && !event.isCanceled) {
+            @Suppress("DEPRECATION") onBackPressed(); return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     private fun toggleSearch() {
