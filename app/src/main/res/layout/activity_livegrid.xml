@@ -58,17 +58,52 @@
                 android:background="@drawable/item_bg" />
         </LinearLayout>
 
-        <EditText
-            android:id="@+id/search"
+        <LinearLayout
+            android:id="@+id/searchRow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:hint="Search channels…"
-            android:textColorHint="#5a6675"
-            android:textColor="#e6edf3"
-            android:singleLine="true"
-            android:imeOptions="actionSearch"
-            android:visibility="gone" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/search"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Search channels…"
+                android:textColorHint="#5a6675"
+                android:textColor="#e6edf3"
+                android:singleLine="true"
+                android:imeOptions="actionSearch" />
+
+            <TextView
+                android:id="@+id/clearBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:text="✕"
+                android:textSize="18sp"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="8dp"
+                android:focusable="true"
+                android:clickable="true"
+                android:background="@drawable/item_bg" />
+        </LinearLayout>
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/azBar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/list"

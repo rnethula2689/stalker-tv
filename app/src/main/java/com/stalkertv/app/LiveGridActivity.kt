@@ -60,22 +60,13 @@ class LiveGridActivity : AppCompatActivity() {
         b.previewFrame.setOnClickListener { openFullscreen() }
         b.searchBtn.setOnClickListener { toggleSearch() }
         b.menuBtn.setOnClickListener { showMenu(it) }
+        b.clearBtn.setOnClickListener { b.search.setText(""); b.search.requestFocus() }
         b.search.addTextChangedListener(object : android.text.TextWatcher {
-            override fun afterTextChanged(s: android.text.Editable?) {
-                b.search.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, if (s.isNullOrEmpty()) 0 else R.drawable.ic_clear, 0)
-                filter(s?.toString() ?: "")
-            }
+            override fun afterTextChanged(s: android.text.Editable?) = filter(s?.toString() ?: "")
             override fun beforeTextChanged(s: CharSequence?, a: Int, c: Int, d: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, c: Int, d: Int) {}
         })
-        b.search.setOnTouchListener { v, e ->
-            if (e.action == android.view.MotionEvent.ACTION_UP) {
-                val et = v as android.widget.EditText
-                val d = et.compoundDrawablesRelative[2]
-                if (d != null && e.x >= et.width - et.paddingEnd - d.intrinsicWidth) { et.setText(""); return@setOnTouchListener true }
-            }
-            false
-        }
+        buildAzBar()
 
         if (all.isNotEmpty()) {
             b.epg.text = "Loading…"
@@ -189,11 +180,11 @@ class LiveGridActivity : AppCompatActivity() {
     }
 
     private fun toggleSearch() {
-        if (b.search.visibility == View.VISIBLE) {
+        if (b.searchRow.visibility == View.VISIBLE) {
             b.search.setText("")
-            b.search.visibility = View.GONE
+            b.searchRow.visibility = View.GONE
         } else {
-            b.search.visibility = View.VISIBLE
+            b.searchRow.visibility = View.VISIBLE
             b.search.requestFocus()
             (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                 .showSoftInput(b.search, InputMethodManager.SHOW_IMPLICIT)
@@ -203,6 +194,27 @@ class LiveGridActivity : AppCompatActivity() {
     private fun filter(q: String) {
         val query = q.trim()
         adapter.submit(if (query.isEmpty()) all else all.filter { it.name.contains(query, ignoreCase = true) })
+    }
+
+    private fun buildAzBar() {
+        val labels = listOf("ALL") + ('A'..'Z').map { it.toString() } + ('0'..'9').map { it.toString() }
+        for (lbl in labels) {
+            val tv = android.widget.TextView(this)
+            tv.text = lbl
+            tv.setTextColor(0xFFE6EDF3.toInt())
+            tv.textSize = 15f
+            tv.setPadding(20, 12, 20, 12)
+            tv.isFocusable = true
+            tv.isClickable = true
+            tv.setBackgroundResource(R.drawable.item_bg)
+            tv.setOnClickListener { azFilter(if (lbl == "ALL") null else lbl) }
+            b.azBar.addView(tv)
+        }
+    }
+
+    private fun azFilter(letter: String?) {
+        if (b.search.text.isNotEmpty()) b.search.setText("")
+        adapter.submit(if (letter == null) all else all.filter { it.name.trimStart().startsWith(letter, ignoreCase = true) })
     }
 
     private fun showMenu(anchor: View) {

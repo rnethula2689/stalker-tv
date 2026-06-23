@@ -13,7 +13,7 @@ class ChannelsActivity : AppCompatActivity() {
     private lateinit var b: ActivityChannelsBinding
     private val adapter = RowAdapter()
 
-    data class Row(val label: String, val iconUrl: String?, val action: () -> Unit)
+    data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val action: () -> Unit)
     enum class SearchKind { LOCAL, GLOBAL, CHANNELS, VOD_ALL, VOD_CATEGORY }
     data class Page(
         val title: String,
@@ -40,29 +40,40 @@ class ChannelsActivity : AppCompatActivity() {
         b.list.adapter = adapter
 
         b.search.addTextChangedListener(object : android.text.TextWatcher {
-            override fun afterTextChanged(s: android.text.Editable?) {
-                b.search.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, if (s.isNullOrEmpty()) 0 else R.drawable.ic_clear, 0)
-                filter(s?.toString() ?: "")
-            }
+            override fun afterTextChanged(s: android.text.Editable?) = filter(s?.toString() ?: "")
             override fun beforeTextChanged(s: CharSequence?, a: Int, c: Int, d: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, c: Int, d: Int) {}
         })
-        b.search.setOnTouchListener { v, e ->
-            if (e.action == android.view.MotionEvent.ACTION_UP) {
-                val et = v as android.widget.EditText
-                val d = et.compoundDrawablesRelative[2]
-                if (d != null && e.x >= et.width - et.paddingEnd - d.intrinsicWidth) {
-                    et.setText(""); return@setOnTouchListener true
-                }
-            }
-            false
-        }
+        b.clearBtn.setOnClickListener { b.search.setText(""); b.search.requestFocus() }
+        buildAzBar()
 
         b.searchBtn.setOnClickListener { toggleSearch() }
         b.reloadBtn.setOnClickListener { connectAndLoad() }
         b.menuBtn.setOnClickListener { showMenu(it) }
 
         connectAndLoad()
+    }
+
+    private fun buildAzBar() {
+        val labels = listOf("ALL") + ('A'..'Z').map { it.toString() } + ('0'..'9').map { it.toString() }
+        for (lbl in labels) {
+            val tv = android.widget.TextView(this)
+            tv.text = lbl
+            tv.setTextColor(0xFFE6EDF3.toInt())
+            tv.textSize = 15f
+            tv.setPadding(20, 12, 20, 12)
+            tv.isFocusable = true
+            tv.isClickable = true
+            tv.setBackgroundResource(R.drawable.item_bg)
+            tv.setOnClickListener { azFilter(if (lbl == "ALL") null else lbl) }
+            b.azBar.addView(tv)
+        }
+    }
+
+    private fun azFilter(letter: String?) {
+        if (b.search.text.isNotEmpty()) b.search.setText("")
+        val rows = backStack.lastOrNull()?.rows ?: return
+        adapter.submit(if (letter == null) rows else rows.filter { it.sortKey.trimStart().startsWith(letter, ignoreCase = true) })
     }
 
     private fun showMenu(anchor: View) {
@@ -110,11 +121,11 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     private fun toggleSearch() {
-        if (b.search.visibility == View.VISIBLE) {
+        if (b.searchRow.visibility == View.VISIBLE) {
             b.search.setText("")
-            b.search.visibility = View.GONE
+            b.searchRow.visibility = View.GONE
         } else {
-            b.search.visibility = View.VISIBLE
+            b.searchRow.visibility = View.VISIBLE
             b.search.requestFocus()
             (getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
                 .showSoftInput(b.search, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
@@ -195,15 +206,15 @@ class ChannelsActivity : AppCompatActivity() {
         }
         adapter.submit(page.rows)
         if (b.search.text.isNotEmpty()) b.search.setText("")
-        b.search.visibility = View.GONE
+        b.searchRow.visibility = View.GONE
         b.list.scrollToPosition(0)
         b.list.requestFocus()
     }
 
     override fun onBackPressed() {
-        if (b.search.visibility == View.VISIBLE) {
+        if (b.searchRow.visibility == View.VISIBLE) {
             b.search.setText("")
-            b.search.visibility = View.GONE
+            b.searchRow.visibility = View.GONE
             return
         }
         if (backStack.size > 1) {
@@ -230,12 +241,12 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun channelRow(ch: Portal.Channel): Row {
         val label = "📺  " + (if (ch.number.isNotEmpty()) "${ch.number}. " else "") + ch.name
-        return Row(label, ch.logoUrl) { play(ch.name) { Portal.createLink(ch.cmd) } }
+        return Row(label, ch.logoUrl, sortKey = ch.name) { play(ch.name) { Portal.createLink(ch.cmd) } }
     }
 
     private fun vodItemRow(v: Portal.VodItem): Row {
         val label = (if (v.isSeries) "📁  " else "🎬  ") + v.name
-        return Row(label, v.posterUrl) {
+        return Row(label, v.posterUrl, sortKey = v.name) {
             if (v.isSeries) showSeasons(v) else play(v.name) { Portal.playVodUrl(v.id, v.cmd) }
         }
     }
@@ -322,10 +333,10 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun showLiveGenres() {
         val rows = ArrayList<Row>()
-        rows.add(Row("All Channels  (${allChannels.size})", null) { openLiveGrid(allChannels, "All Channels") })
+        rows.add(Row("All Channels  (${allChannels.size})", null, sortKey = "All Channels") { openLiveGrid(allChannels, "All Channels") })
         for (g in genres) {
             val list = byGenre[g.id] ?: emptyList()
-            if (list.isNotEmpty()) rows.add(Row("${g.title}  (${list.size})", null) { openLiveGrid(list, g.title) })
+            if (list.isNotEmpty()) rows.add(Row("${g.title}  (${list.size})", null, sortKey = g.title) { openLiveGrid(list, g.title) })
         }
         push(Page("Live TV", rows, kind = SearchKind.CHANNELS, scopeChannels = allChannels))
     }
@@ -346,7 +357,7 @@ class ChannelsActivity : AppCompatActivity() {
                     b.status.text = "No VOD categories found."
                     return@runOnUiThread
                 }
-                push(Page("Movies", cats.map { c -> Row(c.title, null) { showVodList(c) } }, kind = SearchKind.VOD_ALL))
+                push(Page("Movies", cats.map { c -> Row(c.title, null, sortKey = c.title) { showVodList(c) } }, kind = SearchKind.VOD_ALL))
             }
         }
     }
