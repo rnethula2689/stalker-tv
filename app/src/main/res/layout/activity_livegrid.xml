@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="#0b0f14"
+    android:padding="16dp">
+
+    <!-- Left: channel list -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="0.42"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="#19c37d"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end"
+                android:text="Live TV" />
+
+            <TextView
+                android:id="@+id/searchBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔍"
+                android:textSize="20sp"
+                android:padding="10dp"
+                android:focusable="true"
+                android:clickable="true"
+                android:background="@drawable/item_bg" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/search"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:hint="Search channels…"
+            android:textColorHint="#5a6675"
+            android:textColor="#e6edf3"
+            android:singleLine="true"
+            android:imeOptions="actionSearch"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="8dp" />
+    </LinearLayout>
+
+    <!-- Right: preview + EPG -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="0.58"
+        android:orientation="vertical"
+        android:layout_marginStart="14dp">
+
+        <FrameLayout
+            android:id="@+id/previewFrame"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="0.62"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/preview_bg">
+
+            <androidx.media3.ui.PlayerView
+                android:id="@+id/preview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:use_controller="false"
+                app:resize_mode="fit"
+                app:show_buffering="when_playing" />
+
+            <TextView
+                android:id="@+id/previewHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="8dp"
+                android:background="#99000000"
+                android:padding="6dp"
+                android:textColor="#e6edf3"
+                android:textSize="12sp"
+                android:text="OK / tap = fullscreen" />
+        </FrameLayout>
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="0.38"
+            android:layout_marginTop="10dp">
+
+            <TextView
+                android:id="@+id/epg"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#e6edf3"
+                android:textSize="15sp"
+                android:lineSpacingExtra="3dp"
+                android:text="" />
+        </ScrollView>
+    </LinearLayout>
+</LinearLayout>

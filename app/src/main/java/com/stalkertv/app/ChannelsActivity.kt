@@ -45,10 +45,29 @@ class ChannelsActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, a: Int, c: Int, d: Int) {}
         })
 
+        b.searchBtn.setOnClickListener { toggleSearch() }
         b.reloadBtn.setOnClickListener { connectAndLoad() }
         b.settingsBtn.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
 
         connectAndLoad()
+    }
+
+    private fun toggleSearch() {
+        if (b.search.visibility == View.VISIBLE) {
+            b.search.setText("")
+            b.search.visibility = View.GONE
+        } else {
+            b.search.visibility = View.VISIBLE
+            b.search.requestFocus()
+            (getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                .showSoftInput(b.search, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        }
+    }
+
+    private fun openLiveGrid(list: List<Portal.Channel>, title: String) {
+        LiveGridActivity.channels = list
+        LiveGridActivity.gridTitle = title
+        startActivity(Intent(this, LiveGridActivity::class.java))
     }
 
     override fun onResume() {
@@ -119,11 +138,17 @@ class ChannelsActivity : AppCompatActivity() {
         }
         adapter.submit(page.rows)
         if (b.search.text.isNotEmpty()) b.search.setText("")
+        b.search.visibility = View.GONE
         b.list.scrollToPosition(0)
         b.list.requestFocus()
     }
 
     override fun onBackPressed() {
+        if (b.search.visibility == View.VISIBLE) {
+            b.search.setText("")
+            b.search.visibility = View.GONE
+            return
+        }
         if (backStack.size > 1) {
             backStack.removeLast()
             display(backStack.last())
@@ -240,10 +265,10 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun showLiveGenres() {
         val rows = ArrayList<Row>()
-        rows.add(Row("All Channels  (${allChannels.size})", null) { showChannels(allChannels, "All Channels") })
+        rows.add(Row("All Channels  (${allChannels.size})", null) { openLiveGrid(allChannels, "All Channels") })
         for (g in genres) {
             val list = byGenre[g.id] ?: emptyList()
-            if (list.isNotEmpty()) rows.add(Row("${g.title}  (${list.size})", null) { showChannels(list, g.title) })
+            if (list.isNotEmpty()) rows.add(Row("${g.title}  (${list.size})", null) { openLiveGrid(list, g.title) })
         }
         push(Page("Live TV", rows, kind = SearchKind.CHANNELS, scopeChannels = allChannels))
     }

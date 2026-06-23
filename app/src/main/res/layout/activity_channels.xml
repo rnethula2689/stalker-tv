@@ -23,9 +23,21 @@
             android:text="Stalker TV" />
 
         <TextView
+            android:id="@+id/searchBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔍"
+            android:textSize="22sp"
+            android:padding="10dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+
+        <TextView
             android:id="@+id/reloadBtn"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             android:text="🔄"
             android:textSize="22sp"
             android:padding="10dp"
@@ -55,7 +67,8 @@
         android:textColorHint="#5a6675"
         android:textColor="#e6edf3"
         android:singleLine="true"
-        android:imeOptions="actionSearch" />
+        android:imeOptions="actionSearch"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/status"
