@@ -120,7 +120,7 @@ class LiveGridActivity : AppCompatActivity() {
 
     private fun formatEpg(ch: Portal.Channel, epg: List<Portal.EpgItem>, url: String?): String {
         val sb = StringBuilder("▶  ${ch.name}\n")
-        if (url.isNullOrEmpty()) sb.append("\n(no stream — provider may be down)\n")
+        if (url.isNullOrEmpty()) sb.append("\n(no stream — provider down, or connection limit reached: another device may be streaming)\n")
         if (epg.isEmpty()) {
             sb.append("\nNo program guide for this channel.")
         } else {

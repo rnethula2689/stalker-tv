@@ -381,7 +381,7 @@ class ChannelsActivity : AppCompatActivity() {
                     b.status.visibility = View.VISIBLE
                     val why = Portal.lastError
                     b.status.text = if (why == "nothing_to_play")
-                        "“$title” — provider has no stream right now (storage unavailable)."
+                        "“$title” — no stream returned. Either the provider's storage is down, or your account's connection limit is reached (another device is already streaming)."
                     else "Couldn't open “$title” — $why"
                 } else {
                     b.status.visibility = View.GONE
