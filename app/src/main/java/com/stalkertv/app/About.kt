@@ -8,9 +8,8 @@ object About {
         val msg = "Stalker TV\n\n" +
             "Version:   ${BuildConfig.VERSION_NAME}  (build ${BuildConfig.VERSION_CODE})\n" +
             "Built:   ${BuildConfig.BUILD_TIME}\n\n" +
-            "Developer:   Rohit Nethula\n" +
-            "Contact:   rnethula.ai@gmail.com\n" +
-            "Repo:   github.com/rnethula2689/stalker-tv"
+            "Developer:   RN\n" +
+            "Updates:   is.gd/stalkertvfiretv"
         AlertDialog.Builder(ctx)
             .setTitle("About")
             .setMessage(msg)

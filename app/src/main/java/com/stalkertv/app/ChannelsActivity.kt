@@ -31,6 +31,8 @@ class ChannelsActivity : AppCompatActivity() {
     private var allChannels = listOf<Portal.Channel>()
     private var genres = listOf<Portal.Genre>()
     private var byGenre = mapOf<String, List<Portal.Channel>>()
+    private var welcomeShown = false
+    private var updateChecked = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,6 +54,41 @@ class ChannelsActivity : AppCompatActivity() {
         b.menuBtn.setOnClickListener { showMenu() }
 
         connectAndLoad()
+        checkForUpdate()
+    }
+
+    private fun checkForUpdate() {
+        io.execute {
+            val v = Updater.latest() ?: return@execute
+            if (v.first > BuildConfig.VERSION_CODE) {
+                runOnUiThread {
+                    if (updateChecked) return@runOnUiThread
+                    updateChecked = true
+                    androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Update available")
+                        .setMessage("Version ${v.second} is available.\n\nReinstall from:\nis.gd/stalkertvfiretv")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
+            }
+        }
+    }
+
+    private fun showWelcome() {
+        if (welcomeShown) return
+        welcomeShown = true
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Welcome to Stalker TV")
+            .setMessage(
+                "To start watching, add your IPTV provider:\n\n" +
+                    "1. Open Settings (⚙ top-right, or ⋮ menu → Settings).\n" +
+                    "2. Enter your Portal URL, MAC address, and Serial Number.\n" +
+                    "3. Tap Submit — channels and movies load automatically.\n\n" +
+                    "You get these details from your IPTV provider."
+            )
+            .setPositiveButton("Open Settings") { _, _ -> startActivity(Intent(this, SettingsActivity::class.java)) }
+            .setNegativeButton("Later", null)
+            .show()
     }
 
     private fun buildAzBar() {
@@ -189,7 +226,8 @@ class ChannelsActivity : AppCompatActivity() {
         adapter.submit(emptyList())
         if (acct == null) {
             b.status.visibility = View.VISIBLE
-            b.status.text = "No IPTV configuration.\nTap ⚙ Settings to add a provider."
+            b.status.text = "Welcome! Open Settings (⚙ top-right) to add your IPTV provider."
+            showWelcome()
             return
         }
         Portal.portalUrl = acct.portal

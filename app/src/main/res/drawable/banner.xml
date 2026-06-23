@@ -3,7 +3,17 @@
     android:height="180dp"
     android:viewportWidth="320"
     android:viewportHeight="180">
-    <path android:fillColor="#0b0f14" android:pathData="M0,0 H320 V180 H0 Z" />
-    <path android:fillColor="#19c37d" android:pathData="M48,66 H272 V94 H48 Z" />
-    <path android:fillColor="#4f8cff" android:pathData="M48,104 H200 V126 H48 Z" />
+    <path android:fillColor="#0b0f14" android:pathData="M0,0h320v180h-320z" />
+    <!-- TV screen -->
+    <path android:strokeColor="#19c37d" android:strokeWidth="6" android:fillColor="#11161d"
+        android:pathData="M40,52 H150 V126 H40 Z" />
+    <!-- play triangle -->
+    <path android:fillColor="#19c37d" android:pathData="M82,74 L82,104 L112,89 Z" />
+    <!-- stand legs -->
+    <path android:strokeColor="#19c37d" android:strokeWidth="5"
+        android:pathData="M72,126 L62,142 M118,126 L128,142" />
+    <!-- wordmark bars (channel list motif) -->
+    <path android:fillColor="#19c37d" android:pathData="M178,66 h104 v12 h-104 z" />
+    <path android:fillColor="#4f8cff" android:pathData="M178,90 h78 v10 h-78 z" />
+    <path android:fillColor="#5a6675" android:pathData="M178,110 h60 v8 h-60 z" />
 </vector>

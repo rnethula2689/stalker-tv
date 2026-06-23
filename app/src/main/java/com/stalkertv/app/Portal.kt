@@ -41,7 +41,7 @@ object Portal {
         Regex("https?://[^/]+").find(u.trim())?.value ?: u.trim().trimEnd('/')
 
     // Cloudflare / portal cookies captured from responses, resent on every request
-    // so the whole session sticks to one backend node (like a real STB / Strimix).
+    // so the whole session sticks to one backend node across requests.
     private val extraCookies = LinkedHashMap<String, String>()
 
     fun resetSession() {
