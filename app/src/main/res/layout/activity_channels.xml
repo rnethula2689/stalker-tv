@@ -120,12 +120,18 @@
             android:textSize="16sp"
             android:text="" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/list"
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/swipe"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:layout_marginTop="8dp" />
+            android:layout_marginTop="8dp">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
     </LinearLayout>
 
     <!-- Loading splash: covers the screen while the portal connects / refreshes. -->

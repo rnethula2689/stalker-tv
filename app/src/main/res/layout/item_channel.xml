@@ -25,4 +25,16 @@
         android:layout_weight="1"
         android:textColor="#e6edf3"
         android:textSize="18sp" />
+
+    <TextView
+        android:id="@+id/star"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="☆"
+        android:textSize="26sp"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="6dp"
+        android:focusable="true"
+        android:clickable="true"
+        android:background="@drawable/item_bg" />
 </LinearLayout>
