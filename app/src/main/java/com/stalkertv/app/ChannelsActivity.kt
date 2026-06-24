@@ -10,6 +10,8 @@ import java.util.concurrent.Executors
 
 class ChannelsActivity : AppCompatActivity() {
     private val io = Executors.newSingleThreadExecutor()
+    // Separate executor for opening streams, so playback never queues behind a slow search/list load.
+    private val playIo = Executors.newSingleThreadExecutor()
     private lateinit var b: ActivityChannelsBinding
     private val adapter = RowAdapter()
 
@@ -357,7 +359,7 @@ class ChannelsActivity : AppCompatActivity() {
     private fun playChannel(ch: Portal.Channel) {
         b.status.visibility = View.VISIBLE
         b.status.text = "Opening ${ch.name}…"
-        io.execute {
+        playIo.execute {
             val url = Portal.createLink(ch.cmd)
             runOnUiThread {
                 if (url.isNullOrEmpty()) {
@@ -579,7 +581,7 @@ class ChannelsActivity : AppCompatActivity() {
     private fun play(title: String, resolve: () -> String?) {
         b.status.visibility = View.VISIBLE
         b.status.text = "Opening $title…"
-        io.execute {
+        playIo.execute {
             val url = resolve()
             runOnUiThread {
                 if (url.isNullOrEmpty()) {
