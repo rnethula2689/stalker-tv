@@ -221,12 +221,30 @@ class ChannelsActivity : AppCompatActivity() {
         }
     }
 
+    private var progressAnim: android.animation.ObjectAnimator? = null
+
     private fun showLoading(msg: String) {
+        progressAnim?.cancel()
+        b.loadingBar.progress = 0
+        b.loadingPct.text = "0%"
         b.loadingMsg.text = msg
         b.loadingOverlay.visibility = View.VISIBLE
     }
 
+    /** Animate the bar and the counting % toward [pct] while showing [msg]. */
+    private fun setProgress(pct: Int, msg: String, durationMs: Long = 600) {
+        b.loadingMsg.text = msg
+        progressAnim?.cancel()
+        val anim = android.animation.ObjectAnimator.ofInt(b.loadingBar, "progress", b.loadingBar.progress, pct)
+        anim.duration = durationMs
+        anim.interpolator = android.view.animation.DecelerateInterpolator()
+        anim.addUpdateListener { va -> b.loadingPct.text = "${va.animatedValue}%" }
+        progressAnim = anim
+        anim.start()
+    }
+
     private fun hideLoading() {
+        progressAnim?.cancel()
         b.loadingOverlay.visibility = View.GONE
     }
 
@@ -248,7 +266,8 @@ class ChannelsActivity : AppCompatActivity() {
         Portal.portalUrl = acct.portal
         Portal.mac = acct.mac
         Portal.sn = acct.sn
-        showLoading("Connecting…")
+        showLoading("Connecting to portal…")
+        setProgress(40, "Connecting to portal…", 2200) // creep up while the handshake runs
         io.execute {
             val err = Portal.connect() // resets the session and re-handshakes → a true fresh load
             if (err != null) {
@@ -259,18 +278,21 @@ class ChannelsActivity : AppCompatActivity() {
                 }
                 return@execute
             }
+            runOnUiThread { setProgress(65, "Authenticated ✓   Loading channels…", 700) }
             val ch = Portal.liveChannels()
+            runOnUiThread { setProgress(88, "Loading categories…", 700) }
             val g = Portal.liveGenres()
             runOnUiThread {
                 allChannels = ch
                 genres = g
                 byGenre = ch.groupBy { it.genreId }
-                hideLoading()
                 if (ch.isEmpty()) {
+                    hideLoading()
                     b.status.visibility = View.VISIBLE
                     b.status.text = "No channels returned. Check the configuration (⚙)."
                 } else {
-                    showHome()
+                    setProgress(100, "Ready", 350)
+                    b.loadingOverlay.postDelayed({ hideLoading(); showHome() }, 450)
                 }
             }
         }

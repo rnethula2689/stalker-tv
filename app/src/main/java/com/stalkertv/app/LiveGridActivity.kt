@@ -197,6 +197,48 @@ class LiveGridActivity : AppCompatActivity() {
         adapter.submit(if (letter == null) all else all.filter { it.name.trimStart().startsWith(letter, ignoreCase = true) })
     }
 
+    private var progressAnim: android.animation.ObjectAnimator? = null
+
+    private fun showLoading(msg: String) {
+        progressAnim?.cancel()
+        b.loadingBar.progress = 0
+        b.loadingPct.text = "0%"
+        b.loadingMsg.text = msg
+        b.loadingOverlay.visibility = View.VISIBLE
+    }
+
+    private fun setProgress(pct: Int, msg: String, durationMs: Long = 600) {
+        b.loadingMsg.text = msg
+        progressAnim?.cancel()
+        val anim = android.animation.ObjectAnimator.ofInt(b.loadingBar, "progress", b.loadingBar.progress, pct)
+        anim.duration = durationMs
+        anim.interpolator = android.view.animation.DecelerateInterpolator()
+        anim.addUpdateListener { va -> b.loadingPct.text = "${va.animatedValue}%" }
+        progressAnim = anim
+        anim.start()
+    }
+
+    private fun hideLoading() {
+        progressAnim?.cancel()
+        b.loadingOverlay.visibility = View.GONE
+    }
+
+    /** Refresh: re-establish the portal session (recovers a stuck preview) and stay on this screen. */
+    private fun refreshGrid() {
+        showLoading("Reconnecting…")
+        setProgress(55, "Reconnecting…", 1600)
+        io.execute {
+            val err = Portal.connect() // fresh session — recovers stuck / expired streams
+            runOnUiThread {
+                setProgress(100, if (err == null) "Reconnected ✓" else "Reconnected", 350)
+                b.loadingOverlay.postDelayed({
+                    hideLoading()
+                    current?.let { loadPreview(it) } // restart the preview right where the user is
+                }, 450)
+            }
+        }
+    }
+
     private var menuDialog: androidx.appcompat.app.AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
@@ -204,7 +246,7 @@ class LiveGridActivity : AppCompatActivity() {
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> current?.let { loadPreview(it) }
+                    0 -> refreshGrid()
                     1 -> startActivity(Intent(this, SettingsActivity::class.java))
                     2 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
                     3 -> About.show(this)

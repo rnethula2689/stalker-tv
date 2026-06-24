@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="horizontal"
-    android:background="#0b0f14"
-    android:padding="16dp">
+    android:background="#0b0f14">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:padding="16dp">
 
     <!-- Left: channel list -->
     <LinearLayout
@@ -168,4 +172,62 @@
                 android:text="" />
         </ScrollView>
     </LinearLayout>
-</LinearLayout>
+    </LinearLayout>
+
+    <!-- Loading splash: shown on Refresh / reconnect. -->
+    <LinearLayout
+        android:id="@+id/loadingOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="#0b0f14"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="110dp"
+            android:layout_height="110dp"
+            android:src="@drawable/ic_launcher"
+            android:contentDescription="Stalker TV" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Stalker TV"
+            android:textColor="#19c37d"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <ProgressBar
+            android:id="@+id/loadingBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="300dp"
+            android:layout_height="14dp"
+            android:layout_marginTop="26dp"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/progress_horizontal_green" />
+
+        <TextView
+            android:id="@+id/loadingPct"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="0%"
+            android:textColor="#19c37d"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/loadingMsg"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Loading…"
+            android:textColor="#9fb0c0"
+            android:textSize="14sp" />
+    </LinearLayout>
+</FrameLayout>

@@ -157,19 +157,31 @@
 
         <ProgressBar
             android:id="@+id/loadingBar"
-            style="?android:attr/progressBarStyleLarge"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="300dp"
+            android:layout_height="14dp"
+            android:layout_marginTop="28dp"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/progress_horizontal_green" />
+
+        <TextView
+            android:id="@+id/loadingPct"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="26dp"
-            android:indeterminateTint="#19c37d" />
+            android:layout_marginTop="12dp"
+            android:text="0%"
+            android:textColor="#19c37d"
+            android:textSize="15sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/loadingMsg"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="4dp"
             android:text="Loading…"
             android:textColor="#9fb0c0"
-            android:textSize="15sp" />
+            android:textSize="14sp" />
     </LinearLayout>
 </FrameLayout>
