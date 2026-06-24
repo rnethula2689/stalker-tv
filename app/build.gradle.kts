@@ -12,14 +12,14 @@ val buildTime: String =
 
 android {
     namespace = "com.stalkertv.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.stalkertv.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 43
-        versionName = "0.43"
+        versionCode = 44
+        versionName = "0.44"
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
         // libVLC ships native libs per ABI; Fire/Android devices are ARM. Drop x86 to keep the APK small.
         ndk {
