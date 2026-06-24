@@ -55,8 +55,35 @@ class ChannelsActivity : AppCompatActivity() {
         b.reloadBtn.setOnClickListener { connectAndLoad() }
         b.menuBtn.setOnClickListener { showMenu() }
 
+        registerForegroundWatch()
         connectAndLoad()
         checkForUpdate()
+    }
+
+    private var lifecycleCb: android.app.Application.ActivityLifecycleCallbacks? = null
+
+    /** Re-lock restricted folders whenever the whole app leaves the foreground (exit / Home / background). */
+    private fun registerForegroundWatch() {
+        val cb = object : android.app.Application.ActivityLifecycleCallbacks {
+            var started = 0
+            override fun onActivityStarted(activity: android.app.Activity) { started++ }
+            override fun onActivityStopped(activity: android.app.Activity) {
+                started--
+                if (started <= 0) parentalUnlocked = false // app moved to background → re-lock
+            }
+            override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityResumed(activity: android.app.Activity) {}
+            override fun onActivityPaused(activity: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: android.app.Activity) {}
+        }
+        lifecycleCb = cb
+        application.registerActivityLifecycleCallbacks(cb)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        lifecycleCb?.let { application.unregisterActivityLifecycleCallbacks(it) }
     }
 
     private fun checkForUpdate() {
@@ -253,6 +280,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     /** Read the active provider, connect in the background, then show the home menu. */
     private fun connectAndLoad() {
+        parentalUnlocked = false // a fresh portal load re-locks restricted folders
         val acct = Configs.active(this)
         b.title.text = "Stalker TV"
         b.search.setText("")
