@@ -65,11 +65,11 @@ class LiveGridActivity : AppCompatActivity() {
         buildAzBar()
 
         if (all.isNotEmpty()) {
-            b.epg.text = "Loading…"
+            showEpgStatus("Loading…")
             current = all[0] // onStart starts the preview (and restarts it when returning from fullscreen)
             b.list.post { b.list.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
         } else {
-            b.epg.text = "No channels."
+            showEpgStatus("No channels.")
         }
     }
 
@@ -91,7 +91,7 @@ class LiveGridActivity : AppCompatActivity() {
 
     private fun loadPreview(ch: Portal.Channel) {
         val mine = ++seq
-        b.epg.text = "▶  ${ch.name}\n\nLoading…"
+        showEpgStatus("Loading ${ch.name}…")
         io.execute {
             if (mine != seq) return@execute // superseded by a newer selection
             val url = Portal.createLink(ch.cmd)
@@ -102,7 +102,7 @@ class LiveGridActivity : AppCompatActivity() {
                 currentUrl = url
                 currentUrlId = ch.id
                 if (!url.isNullOrEmpty()) playPreview(url)
-                b.epg.text = formatEpg(ch, epg, url)
+                renderEpg(ch, epg, url)
             }
         }
     }
@@ -121,21 +121,75 @@ class LiveGridActivity : AppCompatActivity() {
         player.play()
     }
 
-    private fun formatEpg(ch: Portal.Channel, epg: List<Portal.EpgItem>, url: String?): String {
-        val sb = StringBuilder("▶  ${ch.name}\n")
-        if (url.isNullOrEmpty()) sb.append("\n(no stream — provider down, or connection limit reached: another device may be streaming)\n")
-        if (epg.isEmpty()) {
-            sb.append("\nNo program guide for this channel.")
-        } else {
-            epg.forEachIndexed { i, e ->
-                val tag = if (i == 0) "NOW " else "NEXT"
-                sb.append("\n$tag  ${e.start}–${e.end}\n${e.name}")
-                if (i == 0 && e.descr.isNotBlank()) sb.append("\n${e.descr}")
-                sb.append("\n")
-            }
-        }
-        return sb.toString()
+    /** Transient one-line message in the EPG panel (loading / opening / no channels). */
+    private fun showEpgStatus(msg: String) {
+        b.nowBadge.visibility = View.GONE
+        b.epgProgress.visibility = View.GONE
+        b.nowTime.text = ""
+        b.nowTitle.text = msg
+        b.nowDesc.text = ""
+        b.upNextHeader.visibility = View.GONE
+        b.upNext.removeAllViews()
     }
+
+    /** Render the guide for [ch]: a NOW card (title, time, live progress, description) + an Up Next list. */
+    private fun renderEpg(ch: Portal.Channel, epg: List<Portal.EpgItem>, url: String?) {
+        if (epg.isEmpty()) {
+            b.nowBadge.visibility = View.GONE
+            b.epgProgress.visibility = View.GONE
+            b.nowTime.text = ""
+            b.nowTitle.text = ch.name
+            b.nowDesc.text = if (url.isNullOrEmpty())
+                "No stream — the provider may be down, or another device is using your connection."
+            else "No program guide for this channel."
+            b.upNextHeader.visibility = View.GONE
+            b.upNext.removeAllViews()
+            return
+        }
+        val now = epg[0]
+        b.nowBadge.visibility = View.VISIBLE
+        b.nowTime.text = "${now.start} – ${now.end}"
+        b.nowTitle.text = now.name
+        b.nowDesc.text = if (url.isNullOrEmpty())
+            "(no stream — provider down, or connection limit reached)"
+        else now.descr
+        // Progress through the current programme.
+        val nowSec = System.currentTimeMillis() / 1000
+        if (now.startTs > 0 && now.stopTs > now.startTs) {
+            val pct = ((nowSec - now.startTs) * 100 / (now.stopTs - now.startTs)).coerceIn(0L, 100L)
+            b.epgProgress.visibility = View.VISIBLE
+            b.epgProgress.progress = pct.toInt()
+        } else {
+            b.epgProgress.visibility = View.GONE
+        }
+        // Up next.
+        val upcoming = epg.drop(1)
+        b.upNext.removeAllViews()
+        b.upNextHeader.visibility = if (upcoming.isEmpty()) View.GONE else View.VISIBLE
+        for (e in upcoming) b.upNext.addView(upNextRow(e))
+    }
+
+    private fun upNextRow(e: Portal.EpgItem): View {
+        val row = android.widget.LinearLayout(this)
+        row.orientation = android.widget.LinearLayout.HORIZONTAL
+        row.setPadding(0, dp(5), 0, dp(5))
+        val time = android.widget.TextView(this)
+        time.text = e.start
+        time.setTextColor(0xFF19C37D.toInt())
+        time.textSize = 13f
+        time.width = dp(58)
+        val title = android.widget.TextView(this)
+        title.text = e.name
+        title.setTextColor(0xFFD7E0EA.toInt())
+        title.textSize = 13f
+        title.maxLines = 1
+        title.ellipsize = android.text.TextUtils.TruncateAt.END
+        row.addView(time)
+        row.addView(title)
+        return row
+    }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private fun openFullscreen() {
         val ch = current ?: return
@@ -145,7 +199,7 @@ class LiveGridActivity : AppCompatActivity() {
         if (!url.isNullOrEmpty()) {
             startActivity(playerIntent(ch, url, idx))
         } else {
-            b.epg.text = "Opening ${ch.name}…"
+            showEpgStatus("Opening ${ch.name}…")
             io.execute {
                 val u = Portal.createLink(ch.cmd)
                 runOnUiThread { if (!u.isNullOrEmpty()) startActivity(playerIntent(ch, u, idx)) }

@@ -35,7 +35,10 @@ object Portal {
     data class VodItem(val id: String, val name: String, val cmd: String, val posterUrl: String, val isSeries: Boolean)
     data class Season(val id: String, val name: String)
     data class Episode(val id: String, val name: String)
-    data class EpgItem(val name: String, val start: String, val end: String, val descr: String, val hasArchive: Boolean)
+    data class EpgItem(
+        val name: String, val start: String, val end: String, val descr: String,
+        val hasArchive: Boolean, val startTs: Long = 0, val stopTs: Long = 0
+    )
 
     private fun origin(u: String): String =
         Regex("https?://[^/]+").find(u.trim())?.value ?: u.trim().trimEnd('/')
@@ -174,7 +177,9 @@ object Portal {
                         start = o.optString("t_time"),
                         end = o.optString("t_time_to"),
                         descr = o.optString("descr"),
-                        hasArchive = o.optInt("mark_archive", 0) == 1
+                        hasArchive = o.optInt("mark_archive", 0) == 1,
+                        startTs = o.optLong("start_timestamp", 0),
+                        stopTs = o.optLong("stop_timestamp", 0)
                     )
                 )
             }
