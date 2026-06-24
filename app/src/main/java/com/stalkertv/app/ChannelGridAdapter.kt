@@ -5,7 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
-import com.stalkertv.app.databinding.ItemChannelBinding
+import com.stalkertv.app.databinding.ItemLiveChannelBinding
 
 /**
  * Channel list for the Live TV preview screen.
@@ -24,10 +24,10 @@ class ChannelGridAdapter(
         notifyDataSetChanged()
     }
 
-    class VH(val b: ItemChannelBinding) : RecyclerView.ViewHolder(b.root)
+    class VH(val b: ItemLiveChannelBinding) : RecyclerView.ViewHolder(b.root)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
-        VH(ItemChannelBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+        VH(ItemLiveChannelBinding.inflate(LayoutInflater.from(parent.context), parent, false))
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val ch = items[position]
