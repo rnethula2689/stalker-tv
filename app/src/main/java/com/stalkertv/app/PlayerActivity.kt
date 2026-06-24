@@ -30,6 +30,10 @@ class PlayerActivity : AppCompatActivity() {
     private var titleText: String = ""
     private var isLive = false
     private var chIndex = -1
+    // Some streams use codecs the device can't hardware-decode (e.g. HEVC 10-bit, DTS).
+    // We start hardware-first for efficiency, then on a playback error rebuild the player
+    // forcing FFmpeg software decoders for both audio and video.
+    private var forceSoftware = false
 
     companion object {
         var liveChannels: List<Portal.Channel> = emptyList()
@@ -86,15 +90,42 @@ class PlayerActivity : AppCompatActivity() {
             .setBufferDurationsMs(20000, 60000, 1500, 3000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
+        val mode = if (forceSoftware)
+            androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+        else
+            androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
         val renderers = NextRenderersFactory(this)
-            .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            .setExtensionRendererMode(mode)
             .setEnableDecoderFallback(true)
         val p = ExoPlayer.Builder(this, renderers)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSource))
             .setLoadControl(loadControl)
             .build()
         p.setSeekParameters(SeekParameters.CLOSEST_SYNC)
+        p.addListener(object : androidx.media3.common.Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                // First failure on a hardware decoder → retry once with FFmpeg software decoders.
+                if (!forceSoftware) {
+                    forceSoftware = true
+                    rebuildSoftware()
+                }
+            }
+        })
         return p
+    }
+
+    /** Rebuild the player (now in software-decode mode) and resume the current stream. */
+    private fun rebuildSoftware() {
+        val old = player ?: return
+        val pos = old.currentPosition
+        old.release()
+        val np = buildPlayer()
+        player = np
+        b.playerView.player = np
+        np.setMediaItem(MediaItem.fromUri(videoUrl))
+        np.prepare()
+        if (!isLive && pos > 0) np.seekTo(pos)
+        np.playWhenReady = true
     }
 
     /** Live TV: Up = previous channel, Down = next. Rebuilds the player to release the prior stream. */
@@ -109,6 +140,7 @@ class PlayerActivity : AppCompatActivity() {
         val ch = list[idx]
         titleText = ch.name
         b.title.text = ch.name
+        forceSoftware = false // new channel: try hardware first again
         b.playerView.showController()
         io.execute {
             val u = Portal.createLink(ch.cmd)

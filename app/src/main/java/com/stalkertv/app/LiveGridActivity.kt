@@ -39,6 +39,8 @@ class LiveGridActivity : AppCompatActivity() {
     private var pendingPreview: Runnable? = null
     private var seq = 0
     private var retried = false
+    // On a playback error, retry once with FFmpeg software decoders forced (HEVC 10-bit, DTS, etc.).
+    private var forceSoftware = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,15 +84,20 @@ class LiveGridActivity : AppCompatActivity() {
             .setConnectTimeoutMs(20000).setReadTimeoutMs(20000)
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(15000, 50000, 1200, 2500).build()
+        val mode = if (forceSoftware)
+            androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+        else
+            androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
         val renderers = NextRenderersFactory(this)
-            .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            .setExtensionRendererMode(mode)
             .setEnableDecoderFallback(true)
         val p = ExoPlayer.Builder(this, renderers).setMediaSourceFactory(DefaultMediaSourceFactory(http))
             .setLoadControl(loadControl).build()
         p.addListener(object : androidx.media3.common.Player.Listener {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 val ch = current ?: return
-                if (!retried) { retried = true; loadPreview(ch) }
+                // First error → retry once, forcing FFmpeg software decoders.
+                if (!retried) { retried = true; forceSoftware = true; loadPreview(ch) }
             }
         })
         return p
@@ -105,6 +112,7 @@ class LiveGridActivity : AppCompatActivity() {
     private fun select(ch: Portal.Channel) {
         current = ch
         retried = false
+        forceSoftware = false // new channel: try hardware first again
         player?.stop() // release the previous stream immediately (portals often cap concurrent streams)
         pendingPreview?.let { ui.removeCallbacks(it) }
         val r = Runnable { loadPreview(ch) }
