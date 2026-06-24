@@ -50,7 +50,7 @@ class LiveGridActivity : AppCompatActivity() {
         mp = player
         player.attachViews(b.preview, null, false, false)
 
-        adapter = ChannelGridAdapter(all) { ch -> activate(ch) }
+        adapter = ChannelGridAdapter(all, { ch -> activate(ch) }, { ch -> select(ch) })
         b.list.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
         b.list.adapter = adapter
 
@@ -81,6 +81,7 @@ class LiveGridActivity : AppCompatActivity() {
 
     /** Focus or click on a channel → update the preview (debounced). */
     private fun select(ch: Portal.Channel) {
+        if (current?.id == ch.id) return // already previewing this channel (e.g. redundant focus event)
         current = ch
         mp?.stop() // release the previous stream immediately (portals often cap concurrent streams)
         pendingPreview?.let { ui.removeCallbacks(it) }
