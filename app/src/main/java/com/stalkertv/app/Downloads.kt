@@ -31,10 +31,21 @@ object Downloads {
     )
 
     interface Listener { fun onDownloadsChanged() }
-    @Volatile private var listener: Listener? = null
-    fun setListener(l: Listener?) { listener = l }
+    private val listeners = java.util.concurrent.CopyOnWriteArraySet<Listener>()
+    fun addListener(l: Listener) { listeners.add(l) }
+    fun removeListener(l: Listener) { listeners.remove(l) }
     private val ui = Handler(Looper.getMainLooper())
-    private fun notifyChanged() { ui.post { listener?.onDownloadsChanged() } }
+    private fun notifyChanged() { ui.post { for (l in listeners) l.onDownloadsChanged() } }
+
+    @Volatile private var currentId: String? = null
+    fun activeCount(): Int = active.size
+
+    data class NotifInfo(val title: String, val percent: Int, val count: Int)
+    fun notifInfo(): NotifInfo {
+        val cur = currentId?.let { active[it] } ?: active.values.firstOrNull()
+        val pct = if (cur != null && cur.total > 0) (cur.done * 100 / cur.total).toInt() else 0
+        return NotifInfo(cur?.title ?: "Downloading", pct.coerceIn(0, 100), active.size)
+    }
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(25, TimeUnit.SECONDS)
@@ -133,13 +144,17 @@ object Downloads {
         active[id] = item
         upsert(ctx, item)
         notifyChanged()
+        DownloadService.start(ctx.applicationContext) // keep running with the app closed
         exec.execute {
+            currentId = id
             try {
                 val url = resolve() ?: throw IOException("no stream")
                 if (isHlsUrl(url)) downloadHls(ctx, item, url)
                 else downloadProgressive(ctx, item, url)
             } catch (e: Exception) {
                 finish(ctx, item, ERROR)
+            } finally {
+                currentId = null
             }
         }
     }

@@ -29,13 +29,13 @@ class DownloadsActivity : AppCompatActivity(), Downloads.Listener {
 
     override fun onResume() {
         super.onResume()
-        Downloads.setListener(this)
+        Downloads.addListener(this)
         refresh()
     }
 
     override fun onPause() {
         super.onPause()
-        Downloads.setListener(null)
+        Downloads.removeListener(this)
     }
 
     override fun onDownloadsChanged() { runOnUiThread { refresh() } }

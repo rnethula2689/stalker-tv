@@ -56,8 +56,18 @@ class ChannelsActivity : AppCompatActivity() {
         b.menuBtn.setOnClickListener { showMenu() }
 
         registerForegroundWatch()
+        maybeRequestNotifications()
         connectAndLoad()
         checkForUpdate()
+    }
+
+    /** Ask for notification permission (Android 13+) so background download progress is visible. */
+    private fun maybeRequestNotifications() {
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            try { requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 77) } catch (_: Exception) {}
+        }
     }
 
     private var lifecycleCb: android.app.Application.ActivityLifecycleCallbacks? = null
