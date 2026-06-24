@@ -36,6 +36,7 @@ class ChannelsActivity : AppCompatActivity() {
     private var allChannels = listOf<Portal.Channel>()
     private var genres = listOf<Portal.Genre>()
     private var byGenre = mapOf<String, List<Portal.Channel>>()
+    private var vodCats = listOf<Portal.VodCat>() // cached so Movies rebuilds in-memory
     private var welcomeShown = false
     private var updateChecked = false
 
@@ -268,9 +269,11 @@ class ChannelsActivity : AppCompatActivity() {
             connectAndLoad()
             return
         }
-        // Returning from the live grid → refresh the Live TV page so the Favourites count is current.
+        // Returning to a Live TV / Movies page → refresh it so the Favourites count is current.
         val top = backStack.lastOrNull()
-        if (top?.title == "Live TV" && top.rebuild != null) { backStack.removeLast(); top.rebuild!!.invoke() }
+        if ((top?.title == "Live TV" || top?.title == "Movies") && top.rebuild != null) {
+            backStack.removeLast(); top.rebuild!!.invoke()
+        }
     }
 
     private var progressAnim: android.animation.ObjectAnimator? = null
@@ -343,6 +346,7 @@ class ChannelsActivity : AppCompatActivity() {
     /** Read the active provider, connect in the background, then show the home menu. */
     private fun connectAndLoad() {
         parentalUnlocked = false // a fresh portal load re-locks restricted folders
+        vodCats = emptyList() // drop cached categories on a fresh load
         val acct = Configs.active(this)
         b.title.text = "Stalker TV"
         b.search.setText("")
@@ -700,6 +704,7 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     private fun showVodCategories() {
+        if (vodCats.isNotEmpty()) { displayVodCategories(); return } // cached → in-memory rebuild
         b.status.visibility = View.VISIBLE
         b.status.text = "Loading movies…"
         io.execute {
@@ -711,9 +716,29 @@ class ChannelsActivity : AppCompatActivity() {
                     b.status.text = "No VOD categories found."
                     return@runOnUiThread
                 }
-                push(Page("Movies", cats.map { c -> Row(c.title, null, sortKey = c.title) { showVodList(c) } }, kind = SearchKind.VOD_ALL))
+                vodCats = cats
+                displayVodCategories()
             }
         }
+    }
+
+    private fun displayVodCategories() {
+        val rows = ArrayList<Row>()
+        val favCount = Favorites.byKind(this, "movie").size
+        if (favCount > 0)
+            rows.add(Row("⭐  Favourites  ($favCount)", null, sortKey = "Favourites") { showFavMovies() })
+        rows.addAll(vodCats.map { c -> Row(c.title, null, sortKey = c.title) { showVodList(c) } })
+        push(Page("Movies", rows, kind = SearchKind.VOD_ALL, rebuild = { showVodCategories() }))
+    }
+
+    private fun showFavMovies() {
+        val rows = Favorites.byKind(this, "movie").map { e ->
+            val fav = FavInfo({ Favorites.isFav(this, "movie", e.id) }, { Favorites.toggle(this, e) })
+            Row("🎬  ${e.title}", e.poster.ifBlank { null }, sortKey = e.title, fav = fav) {
+                mediaActions(e.title, e.poster, "movie_${e.id}", e.source)
+            }
+        }
+        push(Page("Favourites — Movies", rows, kind = SearchKind.LOCAL, rebuild = { showFavMovies() }))
     }
 
     private fun showVodList(cat: Portal.VodCat) {

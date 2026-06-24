@@ -34,7 +34,7 @@
         android:textSize="26sp"
         android:paddingHorizontal="14dp"
         android:paddingVertical="6dp"
-        android:focusable="true"
+        android:focusable="false"
         android:clickable="true"
         android:visibility="gone"
         android:background="@drawable/item_bg" />

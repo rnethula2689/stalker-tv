@@ -35,12 +35,14 @@ class ChannelGridAdapter(
         val fav = Configs.isFavorite(holder.b.root.context, ch.id)
         holder.b.star.text = if (fav) "★" else "☆"
         holder.b.star.setTextColor(if (fav) 0xFFFFD54F.toInt() else 0xFF5A6675.toInt())
-        holder.b.star.setOnClickListener {
+        val toggle = {
             Configs.toggleFavorite(holder.b.root.context, ch.id)
             val pos = holder.bindingAdapterPosition
             if (pos != RecyclerView.NO_POSITION) notifyItemChanged(pos) // refresh just this star
             onToggleFav(ch)
         }
+        holder.b.star.setOnClickListener { toggle() }              // tap the star (touch)
+        holder.b.root.setOnLongClickListener { toggle(); true }     // long-press OK / long-tap = favourite
         if (ch.logoUrl.isEmpty()) {
             holder.b.thumb.visibility = View.GONE
             holder.b.thumb.setImageDrawable(null)
