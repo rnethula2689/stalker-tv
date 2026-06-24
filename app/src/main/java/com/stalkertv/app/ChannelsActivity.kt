@@ -463,22 +463,22 @@ class ChannelsActivity : AppCompatActivity() {
         val label = (if (v.isSeries) "📁  " else "🎬  ") + v.name
         return Row(label, v.posterUrl, sortKey = v.name) {
             if (v.isSeries) showSeasons(v)
-            else mediaActions(v.name, v.posterUrl, "movie_${v.id}") { Portal.playVodUrl(v.id, v.cmd) }
+            else mediaActions(v.name, v.posterUrl, "movie_${v.id}", "vod|${v.id}|${v.cmd}")
         }
     }
 
-    /** Movie / episode action sheet: play now, or download for offline. */
-    private fun mediaActions(title: String, poster: String?, id: String, resolve: () -> String?) {
+    /** Movie / episode action sheet: play now, or download for offline. [source] lets a download resume later. */
+    private fun mediaActions(title: String, poster: String?, id: String, source: String) {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(title)
             .setItems(arrayOf("▶  Play", "⬇  Download for offline", "📂  Go to Downloads")) { _, w ->
                 when (w) {
-                    0 -> play(title, resolve)
+                    0 -> play(title) { Downloads.resolveSource(source) }
                     1 -> {
                         if (Downloads.has(applicationContext, id)) {
                             android.widget.Toast.makeText(this, "Already saved (or downloading). See Downloads.", android.widget.Toast.LENGTH_SHORT).show()
                         } else {
-                            Downloads.enqueue(applicationContext, id, title, poster ?: "", resolve)
+                            Downloads.enqueue(applicationContext, id, title, poster ?: "", source)
                             android.widget.Toast.makeText(this, "Download started — see ⬇ Downloads.", android.widget.Toast.LENGTH_LONG).show()
                         }
                     }
@@ -764,8 +764,9 @@ class ChannelsActivity : AppCompatActivity() {
                         mediaActions(
                             "${series.name}  /  ${season.name}  /  ${e.name}",
                             series.posterUrl,
-                            "ep_${series.id}_${season.id}_${e.id}"
-                        ) { Portal.playEpisodeUrl(series.id, season.id, e.id) }
+                            "ep_${series.id}_${season.id}_${e.id}",
+                            "ep|${series.id}|${season.id}|${e.id}"
+                        )
                     }
                 }))
             }

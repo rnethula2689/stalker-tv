@@ -27,15 +27,42 @@ class DownloadsActivity : AppCompatActivity(), Downloads.Listener {
         refresh()
     }
 
+    private var netCb: android.net.ConnectivityManager.NetworkCallback? = null
+
     override fun onResume() {
         super.onResume()
         Downloads.addListener(this)
+        registerNet()
+        Downloads.resumeAllAuto(applicationContext) // resume outage-paused items if we're back online
         refresh()
     }
 
     override fun onPause() {
         super.onPause()
         Downloads.removeListener(this)
+        unregisterNet()
+    }
+
+    private fun registerNet() {
+        if (android.os.Build.VERSION.SDK_INT < 24) return
+        try {
+            val cm = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            val cb = object : android.net.ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: android.net.Network) {
+                    runOnUiThread { Downloads.resumeAllAuto(applicationContext) }
+                }
+            }
+            cm.registerDefaultNetworkCallback(cb)
+            netCb = cb
+        } catch (_: Exception) {}
+    }
+
+    private fun unregisterNet() {
+        try {
+            val cm = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            netCb?.let { cm.unregisterNetworkCallback(it) }
+        } catch (_: Exception) {}
+        netCb = null
     }
 
     override fun onDownloadsChanged() { runOnUiThread { refresh() } }
@@ -55,16 +82,19 @@ class DownloadsActivity : AppCompatActivity(), Downloads.Listener {
                 }.show()
             Downloads.DOWNLOADING -> AlertDialog.Builder(this)
                 .setTitle(item.title)
-                .setMessage("Downloading…")
-                .setPositiveButton("Stop & remove") { _, _ -> Downloads.delete(this, item.id) }
-                .setNegativeButton("Close", null)
-                .show()
+                .setItems(arrayOf("⏸  Pause", "🗑  Stop & remove")) { _, w ->
+                    if (w == 0) Downloads.pause(applicationContext, item.id) else confirmDelete(item)
+                }.show()
+            Downloads.PAUSED -> AlertDialog.Builder(this)
+                .setTitle(item.title)
+                .setItems(arrayOf("▶  Resume", "🗑  Delete")) { _, w ->
+                    if (w == 0) Downloads.resume(applicationContext, item.id) else confirmDelete(item)
+                }.show()
             else -> AlertDialog.Builder(this)
                 .setTitle(item.title)
-                .setMessage("Download failed or was interrupted.")
-                .setPositiveButton("Remove") { _, _ -> Downloads.delete(this, item.id) }
-                .setNegativeButton("Close", null)
-                .show()
+                .setItems(arrayOf("↻  Retry", "🗑  Remove")) { _, w ->
+                    if (w == 0) Downloads.resume(applicationContext, item.id) else confirmDelete(item)
+                }.show()
         }
     }
 
@@ -104,7 +134,12 @@ class DownloadsActivity : AppCompatActivity(), Downloads.Listener {
                 else -> "Downloading…   ${sizeStr(item.done)}"
             }
         }
-        else -> "Download failed — tap to remove"
+        Downloads.PAUSED -> {
+            val pct = if (item.total > 0) (item.done * 100 / item.total).toInt() else 0
+            val why = if (item.userPaused) "Paused" else "Paused (no network)"
+            why + (if (item.total > 0) " • $pct%" else "") + " — tap to resume"
+        }
+        else -> "Download failed — tap to retry"
     }
 
     private inner class DlAdapter : RecyclerView.Adapter<DlAdapter.VH>() {
