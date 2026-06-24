@@ -3,6 +3,11 @@ package com.stalkertv.app
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -12,21 +17,22 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /**
- * Offline downloads with pause / resume. Handles a single progressive file (HTTP Range to resume)
- * and HLS (.m3u8 — resumes by skipping already-downloaded segments). On a network/portal outage a
- * download is PAUSED (resumable) rather than failed. Resume works across app restarts because the
- * way to re-resolve the stream is persisted (the [Item.source] descriptor), and partial data on
- * disk (the .part file or downloaded segments) is the source of truth for progress.
+ * Offline downloads with pause / resume, driven by WorkManager so they continue in the background
+ * and resume automatically when the network returns (even if the app was closed). Progressive files
+ * resume via HTTP Range; HLS resumes by skipping segments already on disk. Partial data on disk is
+ * the source of truth for progress, and the [Item.source] descriptor lets a download be re-resolved.
  */
 object Downloads {
     const val DONE = "done"
     const val DOWNLOADING = "downloading"
     const val PAUSED = "paused"
     const val ERROR = "error"
+    const val QUEUED = "queued"
+
+    enum class Outcome { DONE, NETWORK, USER_PAUSED, ERROR, SKIP }
 
     data class Item(
         val id: String, val title: String, val poster: String, val source: String,
@@ -49,8 +55,8 @@ object Downloads {
     private val active = ConcurrentHashMap<String, Item>()
     private val pauseFlags = ConcurrentHashMap<String, Boolean>()
     private val cancelled = java.util.Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
-    private val exec = Executors.newSingleThreadExecutor()
     @Volatile private var currentId: String? = null
+    @Volatile private var progressReporter: ((Item) -> Unit)? = null
 
     private class PausedException : Exception()
     private class CancelledException : Exception()
@@ -92,6 +98,7 @@ object Downloads {
         return out
     }
 
+    @Synchronized
     private fun writeIndex(ctx: Context, items: List<Item>) {
         try {
             val arr = JSONArray()
@@ -108,15 +115,7 @@ object Downloads {
 
     fun list(ctx: Context): List<Item> {
         val items = readIndex(ctx)
-        var changed = false
-        for (i in items.indices) {
-            val live = active[items[i].id]
-            if (live != null) items[i] = live
-            else if (items[i].status == DOWNLOADING) { // app was killed mid-download → resumable
-                items[i].status = PAUSED; items[i].userPaused = false; changed = true
-            }
-        }
-        if (changed) writeIndex(ctx, items)
+        for (i in items.indices) active[items[i].id]?.let { items[i] = it }
         return items.reversed()
     }
 
@@ -125,6 +124,7 @@ object Downloads {
     fun has(ctx: Context, id: String): Boolean =
         active.containsKey(id) || readIndex(ctx).any { it.id == id && it.status == DONE }
 
+    @Synchronized
     private fun upsert(ctx: Context, item: Item) {
         val items = readIndex(ctx)
         items.removeAll { it.id == item.id }
@@ -132,7 +132,6 @@ object Downloads {
         writeIndex(ctx, items)
     }
 
-    /** Resolve the playable URL from a persisted source descriptor (runs off the UI thread). */
     fun resolveSource(src: String): String? {
         val p = src.split("|")
         return when (p.getOrNull(0)) {
@@ -155,8 +154,8 @@ object Downloads {
     }
 
     fun pause(ctx: Context, id: String) {
-        if (active.containsKey(id)) {
-            pauseFlags[id] = true // worker stops at the next checkpoint and marks PAUSED
+        if (currentId == id) {
+            pauseFlags[id] = true // running → worker stops at the next checkpoint
         } else {
             val items = readIndex(ctx)
             items.firstOrNull { it.id == id }?.let { it.status = PAUSED; it.userPaused = true }
@@ -166,58 +165,84 @@ object Downloads {
     }
 
     fun resume(ctx: Context, id: String) {
-        val it = readIndex(ctx).firstOrNull { it.id == id } ?: return
-        if (it.status == DOWNLOADING || it.status == DONE) return
-        if (active.containsKey(id)) return
-        startWorker(ctx, it)
+        val items = readIndex(ctx)
+        val it = items.firstOrNull { it.id == id } ?: return
+        if (it.status == DONE || it.status == DOWNLOADING) return
+        it.status = QUEUED
+        it.userPaused = false
+        writeIndex(ctx, items)
+        notifyChanged()
+        scheduleWork(ctx)
     }
 
-    /** Auto-resume everything that was paused by an outage (not by the user). */
-    fun resumeAllAuto(ctx: Context) {
-        for (it in readIndex(ctx)) {
-            if (it.status == PAUSED && !it.userPaused && !active.containsKey(it.id)) startWorker(ctx, it)
-        }
-    }
+    /** Kick the worker so it picks up anything pending (used as auto-resume trigger too). */
+    fun resumeAllAuto(ctx: Context) = scheduleWork(ctx)
 
     fun enqueue(ctx: Context, id: String, title: String, poster: String, source: String) {
         if (has(ctx, id)) return
-        startWorker(ctx, Item(id, title, poster, source, "$id.mp4", DOWNLOADING, 0, 0))
+        upsert(ctx, Item(id, title, poster, source, "$id.mp4", QUEUED, 0, 0))
+        notifyChanged()
+        scheduleWork(ctx)
     }
 
-    private fun startWorker(ctx: Context, item: Item) {
+    fun scheduleWork(ctx: Context) {
+        val req = OneTimeWorkRequestBuilder<DownloadWorker>()
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .build()
+        WorkManager.getInstance(ctx.applicationContext)
+            .enqueueUniqueWork("downloads", ExistingWorkPolicy.KEEP, req)
+    }
+
+    // ---- worker engine ----
+    /** Next item the worker should process: freshly queued, or paused by an outage (not by the user). */
+    fun nextPendingItem(ctx: Context): Item? {
+        // Treat a download left "downloading" by an app-kill as resumable.
+        val items = readIndex(ctx)
+        var changed = false
+        for (it in items) if (it.status == DOWNLOADING && !active.containsKey(it.id)) {
+            it.status = PAUSED; it.userPaused = false; changed = true
+        }
+        if (changed) writeIndex(ctx, items)
+        return items.firstOrNull { it.status == QUEUED || (it.status == PAUSED && !it.userPaused) }
+    }
+
+    private fun report(item: Item) { progressReporter?.invoke(item); notifyChanged() }
+
+    /** Run one item to completion / pause / error. Called by [DownloadWorker]. */
+    fun runItem(ctx: Context, item: Item, onProgress: (Item) -> Unit): Outcome {
         cancelled.remove(item.id)
         pauseFlags.remove(item.id)
         item.status = DOWNLOADING
         item.userPaused = false
         active[item.id] = item
+        currentId = item.id
+        progressReporter = onProgress
         upsert(ctx, item)
-        notifyChanged()
-        DownloadService.start(ctx.applicationContext)
-        exec.execute {
-            currentId = item.id
-            try {
-                if (cancelled.contains(item.id)) throw CancelledException()
-                if (pauseFlags[item.id] == true) throw PausedException()
-                val url = resolveSource(item.source) ?: throw IOException("no stream")
-                if (isHlsUrl(url) || item.hls) downloadHls(ctx, item, url) else downloadProgressive(ctx, item, url)
-                item.status = DONE
-                active.remove(item.id)
-                upsert(ctx, item)
-            } catch (e: CancelledException) {
-                active.remove(item.id); cancelled.remove(item.id)
-            } catch (e: PausedException) {
-                active.remove(item.id); pauseFlags.remove(item.id)
-                item.status = PAUSED; item.userPaused = true
-                upsert(ctx, item)
-            } catch (e: Exception) {
-                active.remove(item.id)
-                if (hasPartial(ctx, item)) { item.status = PAUSED; item.userPaused = false } // outage → resumable
-                else item.status = ERROR
-                upsert(ctx, item)
-            } finally {
-                currentId = null
-                notifyChanged()
+        report(item)
+        try {
+            if (cancelled.contains(item.id)) throw CancelledException()
+            val url = resolveSource(item.source) ?: throw IOException("no stream")
+            if (isHlsUrl(url) || item.hls) downloadHls(ctx, item, url) else downloadProgressive(ctx, item, url)
+            item.status = DONE
+            upsert(ctx, item)
+            return Outcome.DONE
+        } catch (e: CancelledException) {
+            return Outcome.SKIP // already removed by delete()
+        } catch (e: PausedException) {
+            item.status = PAUSED; item.userPaused = true
+            upsert(ctx, item)
+            return Outcome.USER_PAUSED
+        } catch (e: Exception) {
+            if (hasPartial(ctx, item)) {
+                item.status = PAUSED; item.userPaused = false; upsert(ctx, item); return Outcome.NETWORK
             }
+            item.status = ERROR; upsert(ctx, item); return Outcome.ERROR
+        } finally {
+            active.remove(item.id)
+            currentId = null
+            pauseFlags.remove(item.id)
+            progressReporter = null
+            notifyChanged()
         }
     }
 
@@ -234,7 +259,7 @@ object Downloads {
 
     private fun isHlsUrl(url: String) = url.substringBefore('?').endsWith(".m3u8", true)
 
-    // ---- progressive (single file, resumable via Range) ----
+    // ---- progressive (resumable via Range) ----
     private fun downloadProgressive(ctx: Context, item: Item, url: String) {
         val part = File(dir(ctx), "${item.id}.part")
         val have = if (part.exists()) part.length() else 0L
@@ -245,7 +270,7 @@ object Downloads {
             val ct = resp.header("Content-Type") ?: ""
             if (ct.contains("mpegurl", true)) { resp.close(); item.hls = true; downloadHls(ctx, item, url); return }
             val append = have > 0 && resp.code == 206
-            if (have > 0 && resp.code != 206) part.delete() // server ignored Range → restart
+            if (have > 0 && resp.code != 206) part.delete()
             val base = if (append) have else 0L
             item.total = base + body.contentLength()
             item.done = base
@@ -258,7 +283,7 @@ object Downloads {
                         checkpoint(item.id)
                         out.write(buf, 0, n)
                         item.done += n
-                        if (item.done - lastNotify > 2_000_000) { lastNotify = item.done; notifyChanged() }
+                        if (item.done - lastNotify > 2_000_000) { lastNotify = item.done; report(item) }
                     }
                 }
             }
@@ -267,7 +292,7 @@ object Downloads {
         }
     }
 
-    // ---- HLS (segments; resumes by skipping files already on disk) ----
+    // ---- HLS (resumes by skipping segments already on disk) ----
     private fun httpText(url: String): String {
         val req = Request.Builder().url(url).header("User-Agent", Portal.UA).build()
         client.newCall(req).execute().use { r ->
@@ -346,7 +371,7 @@ object Downloads {
                     out.add(name)
                     segIdx++
                     item.done = segIdx.toLong()
-                    notifyChanged()
+                    report(item)
                 }
             }
         }

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -57,10 +58,11 @@
             android:name=".DownloadsActivity"
             android:exported="false" />
 
+        <!-- WorkManager's foreground service needs the dataSync type on Android 14+ -->
         <service
-            android:name=".DownloadService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
