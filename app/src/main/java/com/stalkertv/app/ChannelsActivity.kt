@@ -288,6 +288,46 @@ class ChannelsActivity : AppCompatActivity() {
         b.loadingOverlay.visibility = View.GONE
     }
 
+    private val netMsg =
+        "No network connection — you can only watch offline Downloads. Please check your Wi-Fi."
+
+    private fun isOnline(): Boolean = try {
+        val cm = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        if (android.os.Build.VERSION.SDK_INT >= 23) {
+            val caps = cm.getNetworkCapabilities(cm.activeNetwork ?: return false) ?: return false
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } else {
+            @Suppress("DEPRECATION") (cm.activeNetworkInfo?.isConnected == true)
+        }
+    } catch (_: Exception) { false }
+
+    /** Show the network message briefly on the splash, then land on an offline home. */
+    private fun goOffline() {
+        showLoading(netMsg)
+        setProgress(100, netMsg, 400)
+        b.loadingMsg.text = netMsg
+        b.loadingOverlay.postDelayed({ showOfflineHome() }, 1500)
+    }
+
+    /** Home shown when there's no portal connection: Downloads (works offline) + Retry. */
+    private fun showOfflineHome() {
+        hideLoading()
+        backStack.clear()
+        b.title.text = "Stalker TV"
+        b.status.visibility = View.VISIBLE
+        b.status.text = "📡  $netMsg"
+        push(
+            Page(
+                "Stalker TV",
+                listOf(
+                    Row("⬇   Downloads (offline)", null) { startActivity(Intent(this, DownloadsActivity::class.java)) },
+                    Row("🔄   Retry connection", null) { connectAndLoad() }
+                ),
+                kind = SearchKind.LOCAL
+            )
+        )
+    }
+
     /** Read the active provider, connect in the background, then show the home menu. */
     private fun connectAndLoad() {
         parentalUnlocked = false // a fresh portal load re-locks restricted folders
@@ -307,16 +347,13 @@ class ChannelsActivity : AppCompatActivity() {
         Portal.portalUrl = acct.portal
         Portal.mac = acct.mac
         Portal.sn = acct.sn
+        if (!isOnline()) { goOffline(); return } // no network → straight to offline home
         showLoading("Connecting to portal…")
         setProgress(40, "Connecting to portal…", 2200) // creep up while the handshake runs
         io.execute {
             val err = Portal.connect() // resets the session and re-handshakes → a true fresh load
             if (err != null) {
-                runOnUiThread {
-                    hideLoading()
-                    b.status.visibility = View.VISIBLE
-                    b.status.text = err
-                }
+                runOnUiThread { goOffline() } // can't reach the portal → offline home with Downloads
                 return@execute
             }
             runOnUiThread { setProgress(65, "Authenticated ✓   Loading channels…", 700) }
