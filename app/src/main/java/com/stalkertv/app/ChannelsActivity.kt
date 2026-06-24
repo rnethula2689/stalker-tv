@@ -15,7 +15,9 @@ class ChannelsActivity : AppCompatActivity() {
     private lateinit var b: ActivityChannelsBinding
     private val adapter = RowAdapter()
 
-    data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val action: () -> Unit)
+    /** Optional favourite toggle for a row (channels / movies). Null = not favouritable (e.g. folders). */
+    class FavInfo(val isFav: () -> Boolean, val toggle: () -> Boolean)
+    data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val fav: FavInfo? = null, val action: () -> Unit)
     enum class SearchKind { LOCAL, GLOBAL, CHANNELS, VOD_ALL, VOD_CATEGORY }
     data class Page(
         val title: String,
@@ -438,7 +440,8 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun channelRow(ch: Portal.Channel): Row {
         val label = "📺  " + (if (ch.number.isNotEmpty()) "${ch.number}. " else "") + ch.name
-        return Row(label, ch.logoUrl, sortKey = ch.name) { playChannel(ch) }
+        val fav = FavInfo({ Configs.isFavorite(this, ch.id) }, { Configs.toggleFavorite(this, ch.id) })
+        return Row(label, ch.logoUrl, sortKey = ch.name, fav = fav) { playChannel(ch) }
     }
 
     /** Channels always open in the live (VLC) player — same as the Live TV grid, no seek controls. */
@@ -471,7 +474,12 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun vodItemRow(v: Portal.VodItem): Row {
         val label = (if (v.isSeries) "📁  " else "🎬  ") + v.name
-        return Row(label, v.posterUrl, sortKey = v.name) {
+        // Movies are favouritable here; series/episode favourites come with the nested folder.
+        val fav = if (v.isSeries) null else FavInfo(
+            { Favorites.isFav(this, "movie", v.id) },
+            { Favorites.toggle(this, Favorites.Entry("movie", v.id, v.name, v.posterUrl, "vod|${v.id}|${v.cmd}")) }
+        )
+        return Row(label, v.posterUrl, sortKey = v.name, fav = fav) {
             if (v.isSeries) showSeasons(v)
             else mediaActions(v.name, v.posterUrl, "movie_${v.id}", "vod|${v.id}|${v.cmd}")
         }
