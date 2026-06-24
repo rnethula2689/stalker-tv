@@ -350,7 +350,35 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun channelRow(ch: Portal.Channel): Row {
         val label = "📺  " + (if (ch.number.isNotEmpty()) "${ch.number}. " else "") + ch.name
-        return Row(label, ch.logoUrl, sortKey = ch.name) { play(ch.name) { Portal.createLink(ch.cmd) } }
+        return Row(label, ch.logoUrl, sortKey = ch.name) { playChannel(ch) }
+    }
+
+    /** Channels always open in the live (VLC) player — same as the Live TV grid, no seek controls. */
+    private fun playChannel(ch: Portal.Channel) {
+        b.status.visibility = View.VISIBLE
+        b.status.text = "Opening ${ch.name}…"
+        io.execute {
+            val url = Portal.createLink(ch.cmd)
+            runOnUiThread {
+                if (url.isNullOrEmpty()) {
+                    b.status.visibility = View.VISIBLE
+                    val why = Portal.lastError
+                    b.status.text = if (why == "nothing_to_play")
+                        "“${ch.name}” — no stream. The provider may be down, or your connection limit is reached (another device is already streaming)."
+                    else "Couldn't open “${ch.name}” — $why"
+                } else {
+                    b.status.visibility = View.GONE
+                    LiveVlcActivity.liveChannels = allChannels
+                    val idx = allChannels.indexOfFirst { it.id == ch.id }
+                    startActivity(
+                        Intent(this, LiveVlcActivity::class.java)
+                            .putExtra("url", url)
+                            .putExtra("title", ch.name)
+                            .putExtra("chIndex", idx)
+                    )
+                }
+            }
+        }
     }
 
     private fun vodItemRow(v: Portal.VodItem): Row {
