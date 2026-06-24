@@ -30,7 +30,8 @@ class ChannelGridAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val ch = items[position]
-        holder.b.name.text = if (ch.number.isNotEmpty()) "${ch.number}.  ${ch.name}" else ch.name
+        val star = if (Configs.isFavorite(holder.b.root.context, ch.id)) "★  " else ""
+        holder.b.name.text = star + (if (ch.number.isNotEmpty()) "${ch.number}.  ${ch.name}" else ch.name)
         if (ch.logoUrl.isEmpty()) {
             holder.b.thumb.visibility = View.GONE
             holder.b.thumb.setImageDrawable(null)

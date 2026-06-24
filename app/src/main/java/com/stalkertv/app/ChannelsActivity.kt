@@ -572,6 +572,10 @@ class ChannelsActivity : AppCompatActivity() {
     private fun showLiveGenres() {
         val rows = ArrayList<Row>()
         rows.add(Row("All Channels  (${allChannels.size})", null, sortKey = "All Channels") { openLiveGrid(allChannels, "All Channels") })
+        val favs = Configs.favorites(this)
+        val favChannels = allChannels.filter { favs.contains(it.id) }
+        if (favChannels.isNotEmpty())
+            rows.add(Row("⭐  Favourites  (${favChannels.size})", null, sortKey = "Favourites") { openLiveGrid(favChannels, "Favourites") })
         for (g in genres) {
             val list = byGenre[g.id] ?: emptyList()
             // Censored (adult/restricted) genres aren't returned by get_all_channels, so they look

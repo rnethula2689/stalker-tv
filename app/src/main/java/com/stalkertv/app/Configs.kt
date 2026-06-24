@@ -61,6 +61,29 @@ object Configs {
     fun parentalPin(ctx: Context): String = prefs(ctx).getString("parentalPin", "") ?: ""
     fun setParentalPin(ctx: Context, pin: String) { prefs(ctx).edit().putString("parentalPin", pin).apply() }
 
+    // ---- Favourite channels (per active provider) ----
+    private fun favKey(ctx: Context) = "fav:" + (active(ctx)?.sig() ?: "default")
+
+    fun favorites(ctx: Context): LinkedHashSet<String> {
+        val set = LinkedHashSet<String>()
+        try {
+            val a = JSONArray(prefs(ctx).getString(favKey(ctx), "[]") ?: "[]")
+            for (i in 0 until a.length()) set.add(a.getString(i))
+        } catch (_: Exception) {}
+        return set
+    }
+
+    fun isFavorite(ctx: Context, id: String): Boolean = favorites(ctx).contains(id)
+
+    /** @return true if it's now a favourite, false if removed. */
+    fun toggleFavorite(ctx: Context, id: String): Boolean {
+        val set = favorites(ctx)
+        val nowFav = if (set.contains(id)) { set.remove(id); false } else { set.add(id); true }
+        val a = JSONArray(); for (s in set) a.put(s)
+        prefs(ctx).edit().putString(favKey(ctx), a.toString()).apply()
+        return nowFav
+    }
+
     fun active(ctx: Context): Account? {
         val list = load(ctx)
         val i = activeIndex(ctx)
