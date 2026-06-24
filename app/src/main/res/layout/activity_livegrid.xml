@@ -130,13 +130,10 @@
             android:clickable="true"
             android:background="@drawable/preview_bg">
 
-            <androidx.media3.ui.PlayerView
+            <org.videolan.libvlc.util.VLCVideoLayout
                 android:id="@+id/preview"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                app:use_controller="false"
-                app:resize_mode="fit"
-                app:show_buffering="when_playing" />
+                android:layout_height="match_parent" />
 
             <TextView
                 android:id="@+id/previewHint"

@@ -18,9 +18,13 @@ android {
         applicationId = "com.stalkertv.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 42
-        versionName = "0.42"
+        versionCode = 43
+        versionName = "0.43"
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
+        // libVLC ships native libs per ABI; Fire/Android devices are ARM. Drop x86 to keep the APK small.
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+        }
     }
 
     signingConfigs {
@@ -53,6 +57,12 @@ android {
         viewBinding = true
         buildConfig = true
     }
+    packaging {
+        jniLibs {
+            // NextLib and libVLC both ship libc++_shared.so — keep one to avoid a duplicate-file build error.
+            pickFirsts += listOf("**/libc++_shared.so")
+        }
+    }
 }
 
 dependencies {
@@ -64,7 +74,9 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.7.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.7.1")
     implementation("androidx.media3:media3-ui:1.7.1")
-    // FFmpeg software decoders (AC-3, MP2, etc.) for ExoPlayer.
+    // FFmpeg software decoders (AC-3, MP2, etc.) for ExoPlayer (used by VOD/series).
     // Maven Central; version is <media3version>-<nextlibversion> and must match the Media3 above.
     implementation("io.github.anilbeesetti:nextlib-media3ext:1.7.1-0.9.0")
+    // libVLC — robust engine for live IPTV (handles any codec/protocol ExoPlayer can't).
+    implementation("org.videolan.android:libvlc-all:3.7.4")
 }
