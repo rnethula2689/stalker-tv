@@ -61,7 +61,7 @@ class DownloadsActivity : AppCompatActivity(), Downloads.Listener {
                 .show()
             else -> AlertDialog.Builder(this)
                 .setTitle(item.title)
-                .setMessage(if (item.status == Downloads.UNSUPPORTED) "This title is streamed in a format that can't be saved as a single file." else "Download failed.")
+                .setMessage("Download failed or was interrupted.")
                 .setPositiveButton("Remove") { _, _ -> Downloads.delete(this, item.id) }
                 .setNegativeButton("Close", null)
                 .show()
@@ -94,13 +94,16 @@ class DownloadsActivity : AppCompatActivity(), Downloads.Listener {
     }
 
     private fun subtitle(item: Downloads.Item): String = when (item.status) {
-        Downloads.DONE -> "Downloaded" + (if (item.total > 0) " • ${sizeStr(item.total)}" else "")
-        Downloads.DOWNLOADING ->
-            if (item.total > 0) {
-                val pct = (item.done * 100 / item.total).toInt()
-                "Downloading $pct%   (${sizeStr(item.done)} / ${sizeStr(item.total)})"
-            } else "Downloading…   ${sizeStr(item.done)}"
-        Downloads.UNSUPPORTED -> "Can't save this format"
+        Downloads.DONE -> if (item.hls) "Downloaded • offline ready"
+            else "Downloaded" + (if (item.total > 0) " • ${sizeStr(item.total)}" else "")
+        Downloads.DOWNLOADING -> {
+            val pct = if (item.total > 0) (item.done * 100 / item.total).toInt() else 0
+            when {
+                item.hls -> "Downloading $pct%   (${item.done} / ${item.total} segments)"
+                item.total > 0 -> "Downloading $pct%   (${sizeStr(item.done)} / ${sizeStr(item.total)})"
+                else -> "Downloading…   ${sizeStr(item.done)}"
+            }
+        }
         else -> "Download failed — tap to remove"
     }
 
