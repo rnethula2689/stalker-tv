@@ -28,9 +28,9 @@ object Portal {
 
     data class Channel(
         val id: String, val name: String, val number: String,
-        val cmd: String, val logoUrl: String, val genreId: String
+        val cmd: String, val logoUrl: String, val genreId: String, val censored: Boolean = false
     )
-    data class Genre(val id: String, val title: String)
+    data class Genre(val id: String, val title: String, val censored: Boolean = false)
     data class VodCat(val id: String, val title: String)
     data class VodItem(val id: String, val name: String, val cmd: String, val posterUrl: String, val isSeries: Boolean)
     data class Season(val id: String, val name: String)
@@ -140,8 +140,31 @@ object Portal {
             val id = o.optString("id")
             val title = o.optString("title")
             if (id == "*" || title.isEmpty()) continue
-            out.add(Genre(id, title))
+            out.add(Genre(id, title, censored = o.optInt("censored", 0) == 1))
         }
+        return out
+    }
+
+    /**
+     * Channels in one genre via the ordered list (paged). Unlike get_all_channels, this returns
+     * **censored** (adult / restricted) channels too — so it's used to open locked folders.
+     */
+    fun itvByGenre(genreId: String): List<Channel> {
+        val out = ArrayList<Channel>()
+        try {
+            var page = 1
+            while (page <= 40) {
+                val body = get("$base?type=itv&action=get_ordered_list&genre=$genreId&p=$page&JsHttpRequest=1-xml", true)
+                val js = JSONObject(body).optJSONObject("js") ?: break
+                val arr = js.optJSONArray("data") ?: break
+                if (arr.length() == 0) break
+                parseChannels(arr, out)
+                val total = js.optInt("total_items", arr.length())
+                val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
+                if (page >= Math.ceil(total.toDouble() / per).toInt()) break
+                page++
+            }
+        } catch (_: Exception) {}
         return out
     }
 
@@ -157,7 +180,8 @@ object Portal {
                     number = c.optString("number"),
                     cmd = c.optString("cmd"),
                     logoUrl = if (logo.isBlank() || logo == "null") "" else logosBase + logo,
-                    genreId = c.optString("tv_genre_id")
+                    genreId = c.optString("tv_genre_id"),
+                    censored = c.optInt("censored", 0) == 1
                 )
             )
         }

@@ -57,6 +57,10 @@ object Configs {
     fun ossKey(ctx: Context): String = prefs(ctx).getString("ossKey", "") ?: ""
     fun setOssKey(ctx: Context, key: String) { prefs(ctx).edit().putString("ossKey", key).apply() }
 
+    /** Parental PIN guarding adult / restricted (censored) channels. Empty = not set yet. */
+    fun parentalPin(ctx: Context): String = prefs(ctx).getString("parentalPin", "") ?: ""
+    fun setParentalPin(ctx: Context, pin: String) { prefs(ctx).edit().putString("parentalPin", pin).apply() }
+
     fun active(ctx: Context): Account? {
         val list = load(ctx)
         val i = activeIndex(ctx)

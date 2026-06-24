@@ -145,15 +145,16 @@ class ChannelsActivity : AppCompatActivity() {
     private var menuDialog: androidx.appcompat.app.AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("🔄   Refresh portal", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("🔄   Refresh portal", "⚙   Settings", "🔒   Parental PIN", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> connectAndLoad()
                     1 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    2 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
-                    3 -> About.show(this)
-                    4 -> finishAffinity()
+                    2 -> changePin()
+                    3 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
+                    4 -> About.show(this)
+                    5 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }
@@ -475,9 +476,102 @@ class ChannelsActivity : AppCompatActivity() {
         rows.add(Row("All Channels  (${allChannels.size})", null, sortKey = "All Channels") { openLiveGrid(allChannels, "All Channels") })
         for (g in genres) {
             val list = byGenre[g.id] ?: emptyList()
-            if (list.isNotEmpty()) rows.add(Row("${g.title}  (${list.size})", null, sortKey = g.title) { openLiveGrid(list, g.title) })
+            // Censored (adult/restricted) genres aren't returned by get_all_channels, so they look
+            // empty here — show them anyway (locked) and load their channels on demand.
+            if (list.isEmpty() && !g.censored) continue
+            val label = (if (g.censored) "🔒  " else "") + g.title + (if (list.isNotEmpty()) "  (${list.size})" else "")
+            rows.add(Row(label, null, sortKey = g.title) { openGenre(g) })
         }
         push(Page("Live TV", rows, kind = SearchKind.CHANNELS, scopeChannels = allChannels))
+    }
+
+    private var parentalUnlocked = false
+
+    private fun openGenre(g: Portal.Genre) {
+        val proceed = {
+            val cached = byGenre[g.id] ?: emptyList()
+            if (cached.isNotEmpty()) openLiveGrid(cached, g.title) else loadGenreAndOpen(g)
+        }
+        if (g.censored && !parentalUnlocked) requirePin { parentalUnlocked = true; proceed() }
+        else proceed()
+    }
+
+    /** Censored genres come from the ordered list (get_all_channels omits them). */
+    private fun loadGenreAndOpen(g: Portal.Genre) {
+        b.status.visibility = View.VISIBLE
+        b.status.text = "Loading ${g.title}…"
+        io.execute {
+            val list = Portal.itvByGenre(g.id)
+            runOnUiThread {
+                if (list.isEmpty()) {
+                    b.status.visibility = View.VISIBLE
+                    b.status.text = "No channels in ${g.title}."
+                } else {
+                    b.status.visibility = View.GONE
+                    openLiveGrid(list, g.title)
+                }
+            }
+        }
+    }
+
+    /** Prompt for the parental PIN (sets it on first use), then run [onOk] if it matches. */
+    private fun requirePin(onOk: () -> Unit) {
+        val saved = Configs.parentalPin(this)
+        val input = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            hint = "PIN"
+        }
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(if (saved.isBlank()) "Set a parental PIN" else "Enter parental PIN")
+            .setView(input)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("OK") { _, _ ->
+                val entered = input.text.toString().trim()
+                if (saved.isBlank()) {
+                    if (entered.length >= 3) { Configs.setParentalPin(this, entered); onOk() }
+                    else android.widget.Toast.makeText(this, "PIN must be at least 3 digits.", android.widget.Toast.LENGTH_SHORT).show()
+                } else if (entered == saved) onOk()
+                else android.widget.Toast.makeText(this, "Incorrect PIN.", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        if (saved.isBlank()) builder.setMessage("This locks adult / restricted channels. Enter the passcode from your provider, or choose your own (min 3 digits).")
+        builder.show()
+    }
+
+    /** Set or change the parental PIN from the menu (asks the current PIN first if one exists). */
+    private fun changePin() {
+        val saved = Configs.parentalPin(this)
+        if (saved.isBlank()) { requirePin {}; return }
+        val cur = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            hint = "Current PIN"
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Change parental PIN")
+            .setView(cur)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Next") { _, _ ->
+                if (cur.text.toString().trim() != saved) {
+                    android.widget.Toast.makeText(this, "Incorrect PIN.", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    val next = android.widget.EditText(this).apply {
+                        inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+                        hint = "New PIN"
+                    }
+                    androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("New parental PIN")
+                        .setView(next)
+                        .setNegativeButton("Cancel", null)
+                        .setPositiveButton("Save") { _, _ ->
+                            val n = next.text.toString().trim()
+                            if (n.length >= 3) {
+                                Configs.setParentalPin(this, n)
+                                android.widget.Toast.makeText(this, "Parental PIN updated.", android.widget.Toast.LENGTH_SHORT).show()
+                            } else android.widget.Toast.makeText(this, "PIN must be at least 3 digits.", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        .show()
+                }
+            }
+            .show()
     }
 
     private fun showChannels(list: List<Portal.Channel>, title: String) {
