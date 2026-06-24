@@ -110,6 +110,11 @@ class PlayerActivity : AppCompatActivity() {
                     rebuildSoftware()
                 }
             }
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                // Keep the screen awake while actually playing; let it sleep when paused.
+                if (isPlaying) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
         })
         return p
     }

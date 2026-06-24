@@ -35,6 +35,7 @@ class LiveVlcActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityLivevlcBinding.inflate(layoutInflater)
         setContentView(b.root)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) // don't sleep during live TV
 
         val url = intent.getStringExtra("url") ?: run { finish(); return }
         titleText = intent.getStringExtra("title") ?: ""

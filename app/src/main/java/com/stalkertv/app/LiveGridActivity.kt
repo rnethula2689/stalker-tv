@@ -41,6 +41,7 @@ class LiveGridActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityLivegridBinding.inflate(layoutInflater)
         setContentView(b.root)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) // preview is live video
 
         all = channels
         b.title.text = gridTitle
