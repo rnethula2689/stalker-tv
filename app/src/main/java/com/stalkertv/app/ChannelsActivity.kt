@@ -221,6 +221,15 @@ class ChannelsActivity : AppCompatActivity() {
         }
     }
 
+    private fun showLoading(msg: String) {
+        b.loadingMsg.text = msg
+        b.loadingOverlay.visibility = View.VISIBLE
+    }
+
+    private fun hideLoading() {
+        b.loadingOverlay.visibility = View.GONE
+    }
+
     /** Read the active provider, connect in the background, then show the home menu. */
     private fun connectAndLoad() {
         val acct = Configs.active(this)
@@ -228,7 +237,9 @@ class ChannelsActivity : AppCompatActivity() {
         b.search.setText("")
         backStack.clear()
         adapter.submit(emptyList())
+        b.status.visibility = View.GONE
         if (acct == null) {
+            hideLoading()
             b.status.visibility = View.VISIBLE
             b.status.text = "Welcome! Open Settings (⚙ top-right) to add your IPTV provider."
             showWelcome()
@@ -237,12 +248,12 @@ class ChannelsActivity : AppCompatActivity() {
         Portal.portalUrl = acct.portal
         Portal.mac = acct.mac
         Portal.sn = acct.sn
-        b.status.visibility = View.VISIBLE
-        b.status.text = "Loading ${acct.name}…"
+        showLoading("Connecting…")
         io.execute {
-            val err = Portal.connect()
+            val err = Portal.connect() // resets the session and re-handshakes → a true fresh load
             if (err != null) {
                 runOnUiThread {
+                    hideLoading()
                     b.status.visibility = View.VISIBLE
                     b.status.text = err
                 }
@@ -254,11 +265,11 @@ class ChannelsActivity : AppCompatActivity() {
                 allChannels = ch
                 genres = g
                 byGenre = ch.groupBy { it.genreId }
+                hideLoading()
                 if (ch.isEmpty()) {
                     b.status.visibility = View.VISIBLE
                     b.status.text = "No channels returned. Check the configuration (⚙)."
                 } else {
-                    b.status.visibility = View.GONE
                     showHome()
                 }
             }

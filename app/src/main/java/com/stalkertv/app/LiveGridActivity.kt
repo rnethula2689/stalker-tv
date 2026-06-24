@@ -35,6 +35,7 @@ class LiveGridActivity : AppCompatActivity() {
     private var currentUrlId: String? = null
     private var pendingPreview: Runnable? = null
     private var seq = 0
+    private var attached = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,9 +47,7 @@ class LiveGridActivity : AppCompatActivity() {
 
         val vlc = LibVLC(this, arrayListOf("--network-caching=1500", "--http-reconnect", "--no-drop-late-frames", "--no-skip-frames"))
         libVlc = vlc
-        val player = MediaPlayer(vlc)
-        mp = player
-        player.attachViews(b.preview, null, false, false)
+        mp = MediaPlayer(vlc) // attached to the surface in onStart (and re-attached on return from fullscreen)
 
         adapter = ChannelGridAdapter(all, { ch -> activate(ch) }, { ch -> select(ch) })
         b.list.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
@@ -67,7 +66,7 @@ class LiveGridActivity : AppCompatActivity() {
 
         if (all.isNotEmpty()) {
             b.epg.text = "Loading…"
-            select(all[0])
+            current = all[0] // onStart starts the preview (and restarts it when returning from fullscreen)
             b.list.post { b.list.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
         } else {
             b.epg.text = "No channels."
@@ -252,20 +251,24 @@ class LiveGridActivity : AppCompatActivity() {
         return super.onKeyUp(keyCode, event)
     }
 
+    override fun onStart() {
+        super.onStart()
+        // (Re)attach the VLC surface and (re)start the preview. Without re-attaching, the
+        // preview shows a blank surface after returning from the fullscreen player.
+        if (!attached) { mp?.attachViews(b.preview, null, false, false); attached = true }
+        current?.let { loadPreview(it) }
+    }
+
     override fun onStop() {
         super.onStop()
         mp?.stop() // free the stream while in fullscreen / background
-    }
-
-    override fun onRestart() {
-        super.onRestart()
-        current?.let { loadPreview(it) } // resume the preview when returning from fullscreen
+        if (attached) { mp?.detachViews(); attached = false }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         pendingPreview?.let { ui.removeCallbacks(it) }
-        mp?.let { it.stop(); it.detachViews(); it.release() }
+        mp?.let { it.stop(); if (attached) { it.detachViews(); attached = false }; it.release() }
         mp = null
         libVlc?.release()
         libVlc = null
