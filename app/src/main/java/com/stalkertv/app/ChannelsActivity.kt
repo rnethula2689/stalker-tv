@@ -415,8 +415,30 @@ class ChannelsActivity : AppCompatActivity() {
     private fun vodItemRow(v: Portal.VodItem): Row {
         val label = (if (v.isSeries) "📁  " else "🎬  ") + v.name
         return Row(label, v.posterUrl, sortKey = v.name) {
-            if (v.isSeries) showSeasons(v) else play(v.name) { Portal.playVodUrl(v.id, v.cmd) }
+            if (v.isSeries) showSeasons(v)
+            else mediaActions(v.name, v.posterUrl, "movie_${v.id}") { Portal.playVodUrl(v.id, v.cmd) }
         }
+    }
+
+    /** Movie / episode action sheet: play now, or download for offline. */
+    private fun mediaActions(title: String, poster: String?, id: String, resolve: () -> String?) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(arrayOf("▶  Play", "⬇  Download for offline", "📂  Go to Downloads")) { _, w ->
+                when (w) {
+                    0 -> play(title, resolve)
+                    1 -> {
+                        if (Downloads.has(applicationContext, id)) {
+                            android.widget.Toast.makeText(this, "Already saved (or downloading). See Downloads.", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            Downloads.enqueue(applicationContext, id, title, poster ?: "", resolve)
+                            android.widget.Toast.makeText(this, "Download started — see ⬇ Downloads.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    2 -> startActivity(Intent(this, DownloadsActivity::class.java))
+                }
+            }
+            .show()
     }
 
     /** In-memory channel search (Live TV scope). */
@@ -492,7 +514,8 @@ class ChannelsActivity : AppCompatActivity() {
                 "Stalker TV",
                 listOf(
                     Row("📺   Live TV", null) { showLiveGenres() },
-                    Row("🎬   Movies (VOD)", null) { showVodCategories() }
+                    Row("🎬   Movies (VOD)", null) { showVodCategories() },
+                    Row("⬇   Downloads", null) { startActivity(Intent(this, DownloadsActivity::class.java)) }
                 ),
                 kind = SearchKind.GLOBAL
             )
@@ -691,9 +714,11 @@ class ChannelsActivity : AppCompatActivity() {
                 }
                 push(Page("${series.name} — ${season.name}", eps.reversed().map { e ->
                     Row(e.name, null) {
-                        play("${series.name}  /  ${season.name}  /  ${e.name}") {
-                            Portal.playEpisodeUrl(series.id, season.id, e.id)
-                        }
+                        mediaActions(
+                            "${series.name}  /  ${season.name}  /  ${e.name}",
+                            series.posterUrl,
+                            "ep_${series.id}_${season.id}_${e.id}"
+                        ) { Portal.playEpisodeUrl(series.id, season.id, e.id) }
                     }
                 }))
             }

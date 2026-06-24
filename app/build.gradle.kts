@@ -18,8 +18,8 @@ android {
         applicationId = "com.stalkertv.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 53
-        versionName = "0.53"
+        versionCode = 54
+        versionName = "0.54"
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
         // libVLC ships native libs per ABI; Fire/Android devices are ARM. Drop x86 to keep the APK small.
         ndk {
