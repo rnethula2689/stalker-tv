@@ -112,12 +112,12 @@ class DownloadsActivity : AppCompatActivity(), Downloads.Listener {
             VH(ItemDownloadBinding.inflate(LayoutInflater.from(parent.context), parent, false))
         override fun getItemCount() = items.size
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val it = items[position]
-            holder.v.name.text = it.title
-            holder.v.sub.text = subtitle(it)
-            if (it.poster.isBlank()) holder.v.thumb.setImageResource(R.drawable.thumb_placeholder)
-            else holder.v.thumb.load(it.poster) { placeholder(R.drawable.thumb_placeholder); error(R.drawable.thumb_placeholder) }
-            holder.v.root.setOnClickListener { onClick(it) }
+            val item = items[position]
+            holder.v.name.text = item.title
+            holder.v.sub.text = subtitle(item)
+            if (item.poster.isBlank()) holder.v.thumb.setImageResource(R.drawable.thumb_placeholder)
+            else holder.v.thumb.load(item.poster) { placeholder(R.drawable.thumb_placeholder); error(R.drawable.thumb_placeholder) }
+            holder.v.root.setOnClickListener { onClick(item) }
         }
     }
 }
