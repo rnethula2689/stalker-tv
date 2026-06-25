@@ -18,8 +18,8 @@ android {
         applicationId = "com.stalkertv.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 88
-        versionName = "0.88"
+        versionCode = 89
+        versionName = "0.89"
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
         // libVLC ships native libs per ABI; Fire/Android devices are ARM. Drop x86 to keep the APK small.
         ndk {
@@ -82,4 +82,8 @@ dependencies {
     implementation("org.videolan.android:libvlc-all:3.7.4")
     // WorkManager — background downloads that resume automatically when the network returns.
     implementation("androidx.work:work-runtime-ktx:2.9.1")
+    // Casting: MediaRouter + Google Cast (Chromecast). Cast only functions where Google Play
+    // Services exists; on Fire OS it's inert (we guard every call). DLNA is implemented separately.
+    implementation("androidx.mediarouter:mediarouter:1.6.0")
+    implementation("com.google.android.gms:play-services-cast-framework:21.5.0")
 }

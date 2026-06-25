@@ -184,15 +184,16 @@ class PlayerActivity : AppCompatActivity() {
     private var menuDialog: AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("💬   Subtitles", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("📡   Cast to TV", "💬   Subtitles", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> searchSubtitles()
-                    1 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
-                    2 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
-                    3 -> About.show(this)
-                    4 -> finishAffinity()
+                    0 -> if (videoUrl.isNotEmpty()) CastHelper.show(this, videoUrl, titleText, isLive)
+                    1 -> searchSubtitles()
+                    2 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
+                    3 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
+                    4 -> About.show(this)
+                    5 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }

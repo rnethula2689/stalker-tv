@@ -40,6 +40,7 @@ class LiveVlcActivity : AppCompatActivity() {
     private var isArchive = false
     private var seeking = false      // user is dragging the slider
     private var durationMs = 0L
+    private var currentUrl = ""      // stream currently playing (for casting)
 
     private val poller = object : Runnable {
         override fun run() {
@@ -171,6 +172,7 @@ class LiveVlcActivity : AppCompatActivity() {
     private fun play(url: String) {
         val vlc = libVlc ?: return
         val player = mp ?: return
+        currentUrl = url
         b.status.visibility = View.VISIBLE
         b.status.text = "Loading…"
         player.stop()
@@ -221,14 +223,15 @@ class LiveVlcActivity : AppCompatActivity() {
     private var menuDialog: AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("📡   Cast to TV", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    1 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
-                    2 -> About.show(this)
-                    3 -> finishAffinity()
+                    0 -> if (currentUrl.isNotEmpty()) CastHelper.show(this, currentUrl, titleText, isLive = !isArchive)
+                    1 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    2 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
+                    3 -> About.show(this)
+                    4 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }
