@@ -1,6 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
-        <item name="android:windowBackground">#0b0f14</item>
+        <item name="android:windowBackground">@drawable/window_bg</item>
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorAccent">@color/accent</item>
+        <item name="android:textColor">@color/text</item>
+        <item name="android:colorControlActivated">@color/accent</item>
+        <item name="android:colorControlHighlight">#3319C37D</item>
+        <item name="alertDialogTheme">@style/AppDialog</item>
+        <item name="android:alertDialogTheme">@style/AppDialog</item>
+    </style>
+
+    <!-- Modern rounded dark dialogs (menus, programme details, date picker). -->
+    <style name="AppDialog" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/dialog_bg</item>
+        <item name="colorAccent">@color/accent</item>
+        <item name="android:textColorPrimary">@color/text</item>
+        <item name="android:textColorSecondary">@color/text_muted</item>
+        <item name="colorControlActivated">@color/accent</item>
     </style>
 </resources>

@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#0b0f14"
+    android:background="@drawable/window_bg"
     android:padding="20dp">
 
     <TextView
@@ -29,7 +29,7 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:layout_marginTop="12dp"
-        android:background="#0b0f14" />
+        android:background="@drawable/window_bg" />
 
     <Button
         android:id="@+id/dlBtn"

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_top">#0F1620</color>
+    <color name="bg_bottom">#090D14</color>
+    <color name="surface">#141C28</color>
+    <color name="surface_focus">#17291F</color>
+    <color name="surface_pressed">#102018</color>
+    <color name="stroke">#21303F</color>
+    <color name="accent">#19C37D</color>
+    <color name="accent_bright">#4DE8A6</color>
+    <color name="text">#EAF1F7</color>
+    <color name="text_muted">#93A1B0</color>
+    <color name="text_dim">#5A6675</color>
+    <color name="dialog_bg">#161D27</color>
+</resources>
