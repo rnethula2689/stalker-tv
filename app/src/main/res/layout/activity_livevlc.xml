@@ -72,4 +72,86 @@
         android:textSize="13sp"
         android:visibility="gone"
         android:text="▲ / ▼  change channel" />
+
+    <!-- Catch-up transport bar: skip / play-pause / seek slider. Shown only in archive mode. -->
+    <LinearLayout
+        android:id="@+id/controlBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="#cc000000"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/rewindBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⏪"
+            android:textSize="22sp"
+            android:textColor="#ffffff"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="4dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+
+        <TextView
+            android:id="@+id/playBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⏸"
+            android:textSize="22sp"
+            android:textColor="#ffffff"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="4dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+
+        <TextView
+            android:id="@+id/forwardBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⏩"
+            android:textSize="22sp"
+            android:textColor="#ffffff"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="4dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+
+        <TextView
+            android:id="@+id/posText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="0:00"
+            android:textSize="13sp"
+            android:textColor="#e6edf3"
+            android:minWidth="52dp"
+            android:gravity="center" />
+
+        <SeekBar
+            android:id="@+id/seek"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginHorizontal="6dp"
+            android:max="1000" />
+
+        <TextView
+            android:id="@+id/durText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0:00"
+            android:textSize="13sp"
+            android:textColor="#e6edf3"
+            android:minWidth="52dp"
+            android:gravity="center" />
+    </LinearLayout>
 </FrameLayout>

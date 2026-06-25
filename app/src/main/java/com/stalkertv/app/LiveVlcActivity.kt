@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
+import android.widget.SeekBar
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.stalkertv.app.databinding.ActivityLivevlcBinding
@@ -15,7 +16,12 @@ import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 import java.util.concurrent.Executors
 
-/** Fullscreen live-TV player backed by libVLC (handles any codec/protocol). */
+/**
+ * Fullscreen player backed by libVLC (handles any codec/protocol).
+ *  - Live TV: Up/Down (or swipe) change channels, no transport controls.
+ *  - Catch-up archive ("archive" extra): a finite, seekable VOD — shows a slider + skip controls
+ *    so the user can scrub, like a movie. VLC seeks HLS-VOD reliably where ExoPlayer stalls.
+ */
 class LiveVlcActivity : AppCompatActivity() {
     companion object {
         var liveChannels: List<Portal.Channel> = emptyList()
@@ -31,20 +37,40 @@ class LiveVlcActivity : AppCompatActivity() {
     private var titleText = ""
     private var hideBarRunnable: Runnable? = null
 
-    // Tablet swipe: up = previous, down = next, right = next, left = previous (like flicking photos).
+    private var isArchive = false
+    private var seeking = false      // user is dragging the slider
+    private var durationMs = 0L
+
+    private val poller = object : Runnable {
+        override fun run() {
+            val p = mp
+            if (p != null && isArchive) {
+                val len = p.length
+                if (len > 0) { durationMs = len; b.durText.text = fmt(len) }
+                if (!seeking) {
+                    val t = p.time
+                    b.posText.text = fmt(t)
+                    b.seek.progress = if (len > 0) ((t * 1000) / len).toInt() else 0
+                }
+            }
+            ui.postDelayed(this, 500)
+        }
+    }
+
+    // Tablet swipe (live only): up/right = previous, down/left = next (like flicking photos).
     private val gestureDetector by lazy {
         android.view.GestureDetector(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
-            override fun onDown(e: android.view.MotionEvent): Boolean = true // required so fling/tap events are delivered
+            override fun onDown(e: android.view.MotionEvent): Boolean = true
             override fun onSingleTapUp(e: android.view.MotionEvent): Boolean { showBar(); return true }
             override fun onFling(e1: android.view.MotionEvent?, e2: android.view.MotionEvent, vx: Float, vy: Float): Boolean {
-                if (e1 == null) return false
+                if (e1 == null || isArchive) return false
                 val dx = e2.x - e1.x
                 val dy = e2.y - e1.y
                 val min = 80f
                 if (Math.abs(dx) > Math.abs(dy)) {
-                    if (Math.abs(dx) > min) { switchChannel(if (dx > 0) -1 else 1); return true } // right = prev, left = next
+                    if (Math.abs(dx) > min) { switchChannel(if (dx > 0) -1 else 1); return true }
                 } else {
-                    if (Math.abs(dy) > min) { switchChannel(if (dy > 0) -1 else 1); return true } // down = prev, up = next
+                    if (Math.abs(dy) > min) { switchChannel(if (dy > 0) -1 else 1); return true }
                 }
                 return false
             }
@@ -56,11 +82,12 @@ class LiveVlcActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityLivevlcBinding.inflate(layoutInflater)
         setContentView(b.root)
-        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) // don't sleep during live TV
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val url = intent.getStringExtra("url") ?: run { finish(); return }
         titleText = intent.getStringExtra("title") ?: ""
         chIndex = intent.getIntExtra("chIndex", -1)
+        isArchive = intent.getBooleanExtra("archive", false)
         channels = liveChannels
         b.title.text = titleText
 
@@ -77,9 +104,11 @@ class LiveVlcActivity : AppCompatActivity() {
         player.attachViews(b.vlc, null, false, false)
         player.setEventListener { ev ->
             when (ev.type) {
-                MediaPlayer.Event.Playing -> b.status.visibility = View.GONE
+                MediaPlayer.Event.Playing -> { b.status.visibility = View.GONE; if (isArchive) b.playBtn.text = "⏸" }
+                MediaPlayer.Event.Paused -> { if (isArchive) b.playBtn.text = "▶" }
+                MediaPlayer.Event.EndReached -> { if (isArchive) b.playBtn.text = "▶" }
                 MediaPlayer.Event.EncounteredError ->
-                    b.status.apply { visibility = View.VISIBLE; text = "Couldn't play this channel." }
+                    b.status.apply { visibility = View.VISIBLE; text = "Couldn't play this." }
                 else -> {}
             }
         }
@@ -87,9 +116,50 @@ class LiveVlcActivity : AppCompatActivity() {
         b.menuBtn.setOnClickListener { showMenu() }
         b.root.setOnTouchListener { _, ev -> gestureDetector.onTouchEvent(ev) }
 
-        saveLastChannel()
+        if (isArchive) setupArchiveControls() else saveLastChannel()
         play(url)
         showBar()
+    }
+
+    private fun setupArchiveControls() {
+        b.controlBar.visibility = View.VISIBLE   // stays visible the whole time in catch-up
+        b.playBtn.setOnClickListener { togglePlay() }
+        b.rewindBtn.setOnClickListener { seekBy(-15_000) }
+        b.forwardBtn.setOnClickListener { seekBy(15_000) }
+        b.seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser && durationMs > 0) b.posText.text = fmt(durationMs * progress / 1000)
+            }
+            override fun onStartTrackingTouch(sb: SeekBar) { seeking = true }
+            override fun onStopTrackingTouch(sb: SeekBar) {
+                val p = mp
+                if (p != null && durationMs > 0) p.time = durationMs * sb.progress / 1000
+                seeking = false
+            }
+        })
+        ui.postDelayed(poller, 500)
+    }
+
+    private fun togglePlay() {
+        val p = mp ?: return
+        if (p.isPlaying) { p.pause(); b.playBtn.text = "▶" } else { p.play(); b.playBtn.text = "⏸" }
+    }
+
+    private fun seekBy(deltaMs: Long) {
+        val p = mp ?: return
+        val len = p.length
+        var t = p.time + deltaMs
+        if (t < 0) t = 0
+        if (len > 0 && t > len - 1000) t = len - 1000
+        p.time = t
+        b.posText.text = fmt(t)
+        if (len > 0) b.seek.progress = ((t * 1000) / len).toInt()
+    }
+
+    private fun fmt(ms: Long): String {
+        val s = (ms / 1000).toInt()
+        val h = s / 3600; val m = (s % 3600) / 60; val sec = s % 60
+        return if (h > 0) String.format("%d:%02d:%02d", h, m, sec) else String.format("%d:%02d", m, sec)
     }
 
     /** Remember the current channel for Continue Watching (single rolling "last live" entry). */
@@ -114,9 +184,9 @@ class LiveVlcActivity : AppCompatActivity() {
         player.play()
     }
 
-    /** Up = previous channel, Down = next. */
+    /** Live only: Up = previous channel, Down = next. */
     private fun switchChannel(delta: Int) {
-        if (channels.isEmpty() || chIndex < 0) return
+        if (isArchive || channels.isEmpty() || chIndex < 0) return
         var idx = chIndex + delta
         if (idx < 0) idx = 0
         if (idx > channels.size - 1) idx = channels.size - 1
@@ -141,7 +211,7 @@ class LiveVlcActivity : AppCompatActivity() {
 
     private fun showBar() {
         b.topBar.visibility = View.VISIBLE
-        b.hint.visibility = View.VISIBLE
+        if (!isArchive) b.hint.visibility = View.VISIBLE
         hideBarRunnable?.let { ui.removeCallbacks(it) }
         val r = Runnable { b.topBar.visibility = View.GONE; b.hint.visibility = View.GONE }
         hideBarRunnable = r
@@ -169,11 +239,20 @@ class LiveVlcActivity : AppCompatActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
-            when (event.keyCode) {
-                KeyEvent.KEYCODE_MENU -> { showMenu(); return true }
-                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> { switchChannel(-1); return true }
-                KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> { switchChannel(1); return true }
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { showBar(); return true }
+            if (isArchive) {
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_MENU -> { showMenu(); return true }
+                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> { seekBy(-15_000); showBar(); return true }
+                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { seekBy(15_000); showBar(); return true }
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { togglePlay(); return true }
+                }
+            } else {
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_MENU -> { showMenu(); return true }
+                    KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> { switchChannel(-1); return true }
+                    KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> { switchChannel(1); return true }
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { showBar(); return true }
+                }
             }
         }
         return super.dispatchKeyEvent(event)
@@ -187,6 +266,7 @@ class LiveVlcActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         hideBarRunnable?.let { ui.removeCallbacks(it) }
+        ui.removeCallbacks(poller)
         mp?.let { it.stop(); it.detachViews(); it.release() }
         mp = null
         libVlc?.release()
