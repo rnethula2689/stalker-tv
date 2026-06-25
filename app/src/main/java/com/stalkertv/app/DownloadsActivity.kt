@@ -115,10 +115,25 @@ class DownloadsActivity : AppCompatActivity(), Downloads.Listener {
     private fun playOffline(item: Downloads.Item) {
         val f = Downloads.fileFor(this, item)
         if (!f.exists()) { Downloads.delete(this, item.id); refresh(); return }
+        val r = Resume.get(applicationContext, item.id)
+        if (Resume.resumable(r)) {
+            AlertDialog.Builder(this)
+                .setTitle(item.title)
+                .setItems(arrayOf("▶  Resume", "↻  Start from beginning")) { _, w ->
+                    launchOffline(item, f, if (w == 0) r!!.position else 0L)
+                }.show()
+        } else launchOffline(item, f, 0L)
+    }
+
+    private fun launchOffline(item: Downloads.Item, f: java.io.File, startPos: Long) {
         startActivity(
             Intent(this, PlayerActivity::class.java)
                 .putExtra("url", Uri.fromFile(f).toString())
                 .putExtra("title", item.title)
+                .putExtra("resumeId", item.id)
+                .putExtra("resumeSource", item.source)
+                .putExtra("resumePoster", item.poster)
+                .putExtra("resumeStart", startPos)
         )
     }
 

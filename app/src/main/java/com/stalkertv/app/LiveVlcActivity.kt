@@ -87,8 +87,15 @@ class LiveVlcActivity : AppCompatActivity() {
         b.menuBtn.setOnClickListener { showMenu() }
         b.root.setOnTouchListener { _, ev -> gestureDetector.onTouchEvent(ev) }
 
+        saveLastChannel()
         play(url)
         showBar()
+    }
+
+    /** Remember the current channel for Continue Watching (single rolling "last live" entry). */
+    private fun saveLastChannel() {
+        val ch = channels.getOrNull(chIndex) ?: return
+        Resume.save(applicationContext, Resume.LIVE_ID, "live", ch.name, ch.logoUrl, "live|${ch.id}|${ch.cmd}", 0, 0)
     }
 
     private fun play(url: String) {
@@ -118,6 +125,7 @@ class LiveVlcActivity : AppCompatActivity() {
         val ch = channels[idx]
         titleText = ch.name
         b.title.text = ch.name
+        saveLastChannel()
         showBar()
         b.status.visibility = View.VISIBLE
         b.status.text = "▶  ${ch.name}…"

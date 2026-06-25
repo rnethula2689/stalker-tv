@@ -276,11 +276,10 @@ class ChannelsActivity : AppCompatActivity() {
             connectAndLoad()
             return
         }
-        // Returning to a Live TV / Movies page → refresh it so the Favourites count is current.
+        // Returning from a player/child → rebuild the current screen so counts and
+        // Continue-Watching progress are current (all in-memory; no portal reconnect).
         val top = backStack.lastOrNull()
-        if ((top?.title == "Live TV" || top?.title == "Movies") && top.rebuild != null) {
-            backStack.removeLast(); top.rebuild!!.invoke()
-        }
+        if (top?.rebuild != null) { backStack.removeLast(); top.rebuild!!.invoke() }
     }
 
     private var progressAnim: android.animation.ObjectAnimator? = null
@@ -507,7 +506,7 @@ class ChannelsActivity : AppCompatActivity() {
             .setTitle(title)
             .setItems(arrayOf("▶  Play", "⬇  Download for offline", "📂  Go to Downloads")) { _, w ->
                 when (w) {
-                    0 -> play(title) { Downloads.resolveSource(source) }
+                    0 -> play(title, id, poster, source)
                     1 -> {
                         if (Downloads.has(applicationContext, id)) {
                             android.widget.Toast.makeText(this, "Already saved (or downloading). See Downloads.", android.widget.Toast.LENGTH_SHORT).show()
@@ -590,18 +589,70 @@ class ChannelsActivity : AppCompatActivity() {
     // ---- screens ----
     private fun showHome() {
         backStack.clear()
-        push(
-            Page(
-                "Stalker TV",
-                listOf(
-                    Row("📺   Live TV", null) { showLiveGenres() },
-                    Row("🎬   Movies (VOD)", null) { showVodCategories() },
-                    Row("⬇   Downloads", null) { startActivity(Intent(this, DownloadsActivity::class.java)) }
-                ),
-                kind = SearchKind.GLOBAL,
-                rebuild = { showHome() }
-            )
-        )
+        val rows = ArrayList<Row>()
+        val cw = Resume.all(this)
+        if (cw.isNotEmpty())
+            rows.add(Row("▶   Continue Watching  (${cw.size})", null) { showContinueWatching() })
+        rows.add(Row("📺   Live TV", null) { showLiveGenres() })
+        rows.add(Row("🎬   Movies (VOD)", null) { showVodCategories() })
+        rows.add(Row("⬇   Downloads", null) { startActivity(Intent(this, DownloadsActivity::class.java)) })
+        push(Page("Stalker TV", rows, kind = SearchKind.GLOBAL, rebuild = { showHome() }))
+    }
+
+    private fun showContinueWatching() {
+        val rows = Resume.all(this).map { e ->
+            if (e.kind == "live") {
+                Row("📺  ${e.title}   •   Live", e.poster.ifBlank { null }, sortKey = e.title) { continueClick(e) }
+            } else {
+                val pct = if (e.duration > 0) (e.position * 100 / e.duration).toInt() else 0
+                val label = "🎬  ${e.title}" + (if (pct in 1..99) "   •   $pct%" else "")
+                Row(label, e.poster.ifBlank { null }, sortKey = e.title) { continueClick(e) }
+            }
+        }
+        push(Page("Continue Watching", rows, kind = SearchKind.LOCAL, rebuild = { showContinueWatching() }))
+    }
+
+    private fun continueClick(e: Resume.Entry) {
+        if (e.kind == "live") {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(e.title)
+                .setItems(arrayOf("▶  Play", "🗑  Remove from Continue Watching")) { _, w ->
+                    if (w == 0) playLiveResume(e) else { Resume.remove(this, e.id); refreshContinue() }
+                }
+                .show()
+        } else {
+            play(e.title, e.id, e.poster, e.source) // shows Resume / Start over / Remove
+        }
+    }
+
+    private fun playLiveResume(e: Resume.Entry) {
+        val p = e.source.split("|")
+        val chId = p.getOrElse(1) { "" }
+        val cmd = p.getOrElse(2) { "" }
+        b.status.visibility = View.VISIBLE
+        b.status.text = "Opening ${e.title}…"
+        playIo.execute {
+            val url = Portal.createLink(cmd)
+            runOnUiThread {
+                if (url.isNullOrEmpty()) {
+                    b.status.visibility = View.VISIBLE
+                    b.status.text = "Couldn't open “${e.title}”."
+                } else {
+                    b.status.visibility = View.GONE
+                    LiveVlcActivity.liveChannels = allChannels
+                    startActivity(
+                        Intent(this, LiveVlcActivity::class.java)
+                            .putExtra("url", url).putExtra("title", e.title)
+                            .putExtra("chIndex", allChannels.indexOfFirst { it.id == chId })
+                    )
+                }
+            }
+        }
+    }
+
+    private fun refreshContinue() {
+        val top = backStack.lastOrNull()
+        if (top?.title == "Continue Watching" && top.rebuild != null) { backStack.removeLast(); top.rebuild!!.invoke() }
     }
 
     private fun showLiveGenres() {
@@ -904,11 +955,28 @@ class ChannelsActivity : AppCompatActivity() {
         }
     }
 
-    private fun play(title: String, resolve: () -> String?) {
+    /** Play a movie/episode; if there's a saved position, ask Resume / Start over first. */
+    private fun play(title: String, resumeId: String, poster: String?, source: String) {
+        val r = Resume.get(this, resumeId)
+        if (Resume.resumable(r)) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(title)
+                .setItems(arrayOf("▶  Resume from ${fmtTime(r!!.position)}", "↻  Start from beginning", "🗑  Remove from Continue Watching")) { _, w ->
+                    when (w) {
+                        0 -> startPlayer(title, resumeId, poster, source, r.position)
+                        1 -> startPlayer(title, resumeId, poster, source, 0L)
+                        2 -> { Resume.remove(this, resumeId); refreshContinue() }
+                    }
+                }
+                .show()
+        } else startPlayer(title, resumeId, poster, source, 0L)
+    }
+
+    private fun startPlayer(title: String, resumeId: String, poster: String?, source: String, startPos: Long) {
         b.status.visibility = View.VISIBLE
         b.status.text = "Opening $title…"
         playIo.execute {
-            val url = resolve()
+            val url = Downloads.resolveSource(source)
             runOnUiThread {
                 if (url.isNullOrEmpty()) {
                     b.status.visibility = View.VISIBLE
@@ -922,9 +990,18 @@ class ChannelsActivity : AppCompatActivity() {
                         Intent(this, PlayerActivity::class.java)
                             .putExtra("url", url)
                             .putExtra("title", title)
+                            .putExtra("resumeId", resumeId)
+                            .putExtra("resumeSource", source)
+                            .putExtra("resumePoster", poster ?: "")
+                            .putExtra("resumeStart", startPos)
                     )
                 }
             }
         }
+    }
+
+    private fun fmtTime(ms: Long): String {
+        val s = ms / 1000; val h = s / 3600; val m = (s % 3600) / 60; val sec = s % 60
+        return if (h > 0) String.format("%d:%02d:%02d", h, m, sec) else String.format("%d:%02d", m, sec)
     }
 }
