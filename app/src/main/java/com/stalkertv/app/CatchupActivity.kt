@@ -117,12 +117,14 @@ class CatchupActivity : AppCompatActivity() {
                     b.status.text = "Couldn't open “${e.name}” — catch-up may not be available."
                 } else {
                     b.status.visibility = View.GONE
-                    LiveVlcActivity.liveChannels = emptyList()
+                    // Archive is a finite, seekable VOD — use the movie player (ExoPlayer) so the
+                    // user gets a slider, duration and skip controls. noPlaylist hides prev/next.
                     startActivity(
-                        Intent(this, LiveVlcActivity::class.java)
+                        Intent(this, PlayerActivity::class.java)
                             .putExtra("url", url)
                             .putExtra("title", "${e.start}  ${e.name}")
-                            .putExtra("chIndex", -1)
+                            .putExtra("live", false)
+                            .putExtra("noPlaylist", true)
                     )
                 }
             }

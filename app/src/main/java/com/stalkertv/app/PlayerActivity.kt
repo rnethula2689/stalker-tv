@@ -76,6 +76,10 @@ class PlayerActivity : AppCompatActivity() {
             b.playerView.setShowNextButton(false)
             b.playerView.setShowFastForwardButton(false)
             b.playerView.setShowRewindButton(false)
+        } else if (intent.getBooleanExtra("noPlaylist", false)) {
+            // Single item (e.g. catch-up archive): keep the seek bar + skip, hide episode prev/next.
+            b.playerView.setShowPreviousButton(false)
+            b.playerView.setShowNextButton(false)
         }
 
         val p = buildPlayer()
