@@ -26,6 +26,21 @@ class RowAdapter : RecyclerView.Adapter<RowAdapter.VH>() {
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val row = items[position]
+        if (row.isHeader) {
+            holder.b.name.text = row.label
+            holder.b.name.setTextColor(0xFF19C37D.toInt())
+            holder.b.thumb.visibility = View.GONE
+            holder.b.star.visibility = View.GONE
+            holder.b.root.isFocusable = false
+            holder.b.root.isClickable = false
+            holder.b.root.setOnClickListener(null)
+            holder.b.root.setOnLongClickListener(null)
+            holder.b.root.isLongClickable = false
+            return
+        }
+        holder.b.root.isFocusable = true
+        holder.b.root.isClickable = true
+        holder.b.name.setTextColor(0xFFE6EDF3.toInt())
         holder.b.name.text = row.label
         val url = row.iconUrl
         if (url.isNullOrEmpty()) {

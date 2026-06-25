@@ -17,7 +17,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     /** Optional favourite toggle for a row (channels / movies). Null = not favouritable (e.g. folders). */
     class FavInfo(val isFav: () -> Boolean, val toggle: () -> Boolean)
-    data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val fav: FavInfo? = null, val action: () -> Unit)
+    data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val fav: FavInfo? = null, val isHeader: Boolean = false, val action: () -> Unit)
     enum class SearchKind { LOCAL, GLOBAL, CHANNELS, VOD_ALL, VOD_CATEGORY }
     data class Page(
         val title: String,
@@ -621,15 +621,22 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     private fun showContinueWatching() {
-        val rows = Resume.all(this).map { e ->
-            if (e.kind == "live") {
-                Row("📺  ${e.title}   •   Live", e.poster.ifBlank { null }, sortKey = e.title) { continueClick(e) }
-            } else {
+        val all = Resume.all(this)
+        val live = all.filter { it.kind == "live" }
+        val vod = all.filter { it.kind != "live" }
+        val rows = ArrayList<Row>()
+        if (live.isNotEmpty()) {
+            rows.add(Row("📺   LIVE TV", null, isHeader = true) {})
+            for (e in live) rows.add(Row("📺  ${e.title}", e.poster.ifBlank { null }, sortKey = e.title) { continueClick(e) })
+        }
+        if (vod.isNotEmpty()) {
+            rows.add(Row("🎬   MOVIES & SHOWS", null, isHeader = true) {})
+            for (e in vod) {
                 val pct = if (e.duration > 0) (e.position * 100 / e.duration).toInt() else 0
                 val label = "🎬  ${e.title}" + (if (pct in 1..99) "   •   $pct%" else "")
-                Row(label, e.poster.ifBlank { null }, sortKey = e.title) { continueClick(e) }
+                rows.add(Row(label, e.poster.ifBlank { null }, sortKey = e.title) { continueClick(e) })
             }
-        }.toMutableList()
+        }
         if (rows.isNotEmpty())
             rows.add(Row("🗑   Clear Continue Watching", null) { confirmClearContinue() })
         push(Page("Continue Watching", rows, kind = SearchKind.LOCAL, rebuild = { showContinueWatching() }))
