@@ -37,7 +37,9 @@ class CatchupActivity : AppCompatActivity() {
         chId = intent.getStringExtra("chId") ?: ""
         chName = intent.getStringExtra("chName") ?: "Catch-up"
         chCmd = intent.getStringExtra("chCmd") ?: ""
-        val days = intent.getIntExtra("archiveDays", 0).let { if (it > 0) it else 7 }
+        // The intent carries tv_archive_duration, which the portal reports in HOURS (e.g. 120 = 5 days).
+        val archiveHours = intent.getIntExtra("archiveDays", 0)
+        val days = if (archiveHours > 0) Math.ceil(archiveHours / 24.0).toInt().coerceAtLeast(1) else 7
         b.title.text = "🕐  $chName"
         dates = buildDates(days)
         b.list.layoutManager = LinearLayoutManager(this)
@@ -107,7 +109,8 @@ class CatchupActivity : AppCompatActivity() {
         b.status.visibility = View.VISIBLE
         b.status.text = "Opening “${e.name}”…"
         io.execute {
-            val url = Portal.archiveLink(chCmd, e.startTs)
+            val durationSec = if (e.stopTs > e.startTs) e.stopTs - e.startTs else 3600
+            val url = Portal.archiveLink(chCmd, e.startTs, durationSec)
             runOnUiThread {
                 if (url.isNullOrEmpty()) {
                     b.status.visibility = View.VISIBLE

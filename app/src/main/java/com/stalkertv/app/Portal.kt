@@ -218,59 +218,56 @@ object Portal {
         if (ts <= 0) "" else java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(java.util.Date(ts * 1000))
 
     /**
-     * Full programme schedule for a channel around a given date (yyyy-mm-dd), for catch-up.
-     * Tries the dated table first; if the portal ignores/forbids the date param it falls back to the
-     * channel's whole table (the caller filters to the wanted day by timestamp).
+     * Full programme schedule for a channel on a given local date (yyyy-mm-dd), for catch-up.
+     *
+     * Uses the EPG grid table (`type=epg&action=get_data_table`). The portal keys the requested day
+     * off the `from`/`to` **string** params (it ignores `from_ts`/`to_ts` and `p` for date paging) and
+     * returns a flat list of programmes for *several* channels in that window — we keep only [chId].
      */
     fun epgForDate(chId: String, dateYmd: String): List<EpgItem> {
-        val dated = fetchSimpleTable(chId, "&date=$dateYmd")
-        if (dated.isNotEmpty()) return dated
-        return fetchSimpleTable(chId, "")
-    }
-
-    private fun fetchSimpleTable(chId: String, extra: String): List<EpgItem> {
         val out = ArrayList<EpgItem>()
         try {
-            var page = 1
-            while (page <= 12) {
-                val body = get("$base?type=itv&action=get_simple_data_table&ch_id=$chId$extra&p=$page&JsHttpRequest=1-xml", true)
-                // `js` can be a plain array (like get_short_epg) or an object with a "data" array.
-                val arr = jsArray(body) ?: break
-                if (arr.length() == 0) break
-                for (i in 0 until arr.length()) {
-                    val o = arr.optJSONObject(i) ?: continue
-                    out.add(
-                        EpgItem(
-                            name = o.optString("name"),
-                            start = o.optString("t_time"),
-                            end = o.optString("t_time_to"),
-                            descr = o.optString("descr"),
-                            hasArchive = o.optInt("mark_archive", 0) == 1,
-                            startTs = o.optLong("start_timestamp", 0),
-                            stopTs = o.optLong("stop_timestamp", 0)
-                        )
+            val dayFmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            val startMs = dayFmt.parse(dateYmd)?.time ?: return out   // local midnight
+            val endMs = startMs + 86_400_000L - 1000L
+            val from = URLEncoder.encode("$dateYmd 00:00:00", "UTF-8")
+            val to = URLEncoder.encode("$dateYmd 23:59:59", "UTF-8")
+            val url = "$base?type=epg&action=get_data_table&ch_id=$chId&fav=0" +
+                "&from_ts=$startMs&to_ts=$endMs&from=$from&to=$to&JsHttpRequest=1-xml"
+            val arr = JSONObject(get(url, true)).optJSONObject("js")?.optJSONArray("data") ?: return out
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                if (o.optString("ch_id") != chId) continue
+                out.add(
+                    EpgItem(
+                        name = o.optString("name"),
+                        start = o.optString("t_time"),
+                        end = o.optString("t_time_to"),
+                        descr = o.optString("descr"),
+                        hasArchive = o.optInt("mark_archive", 0) == 1,
+                        startTs = o.optLong("start_timestamp", 0),
+                        stopTs = o.optLong("stop_timestamp", 0)
                     )
-                }
-                // Paging info only exists when js is an object; otherwise it's a single-shot array.
-                val jsObj = try { JSONObject(body).optJSONObject("js") } catch (_: Exception) { null } ?: break
-                val total = jsObj.optInt("total_items", arr.length())
-                val per = jsObj.optInt("max_page_items", arr.length()).coerceAtLeast(1)
-                if (page >= Math.ceil(total.toDouble() / per).toInt()) break
-                page++
+                )
             }
         } catch (_: Exception) {}
         return out
     }
 
     /**
-     * Resolve a catch-up (archive) stream for a programme that started at [startTs].
-     * Standard Flussonic/Ministra approach: resolve the live link, then request the archive via utc.
+     * Resolve a catch-up (archive) stream for a programme that started at [startTs] and ran
+     * [durationSec] seconds. Flussonic DVR: take the live HLS link and swap its playlist filename for
+     * `archive-<start>-<duration>.m3u8`, preserving the auth token query string.
      */
-    fun archiveLink(channelCmd: String, startTs: Long): String? {
+    fun archiveLink(channelCmd: String, startTs: Long, durationSec: Long): String? {
         val live = resolve("itv", channelCmd) ?: return null
-        val now = System.currentTimeMillis() / 1000
-        val sep = if (live.contains("?")) "&" else "?"
-        return "$live${sep}utc=$startTs&lutc=$now"
+        val dur = if (durationSec > 0) durationSec else 3600
+        val path = live.substringBefore("?")
+        val query = if (live.contains("?")) live.substringAfter("?") else ""
+        val slash = path.lastIndexOf('/')
+        if (slash < 0) return null
+        val archive = path.substring(0, slash + 1) + "archive-$startTs-$dur.m3u8"
+        return if (query.isNotEmpty()) "$archive?$query" else archive
     }
 
     fun vodCategories(): List<VodCat> {
