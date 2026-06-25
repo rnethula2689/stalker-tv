@@ -46,6 +46,21 @@
             android:text="" />
 
         <TextView
+            android:id="@+id/tsBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:text="⏪ Rewind"
+            android:textSize="15sp"
+            android:textColor="#ffffff"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="8dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:visibility="gone"
+            android:background="@drawable/item_bg" />
+
+        <TextView
             android:id="@+id/menuBtn"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -153,5 +168,21 @@
             android:textColor="#e6edf3"
             android:minWidth="52dp"
             android:gravity="center" />
+
+        <TextView
+            android:id="@+id/liveBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="● LIVE"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#ff5a5a"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:visibility="gone"
+            android:background="@drawable/item_bg" />
     </LinearLayout>
 </FrameLayout>

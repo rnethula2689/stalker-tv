@@ -41,13 +41,19 @@ class LiveVlcActivity : AppCompatActivity() {
     private var seeking = false      // user is dragging the slider
     private var durationMs = 0L
     private var currentUrl = ""      // stream currently playing (for casting)
+    private var timeshifting = false // live rewind (DVR) mode
+    private var tsWindowSec = 0L     // scrubbable timeshift buffer length
+    private var startSeekTo = 0L     // pending seek (ms) to apply once the stream length is known
 
     private val poller = object : Runnable {
         override fun run() {
             val p = mp
-            if (p != null && isArchive) {
+            if (p != null && (isArchive || timeshifting)) {
                 val len = p.length
-                if (len > 0) { durationMs = len; b.durText.text = fmt(len) }
+                if (len > 0) {
+                    durationMs = len; b.durText.text = fmt(len)
+                    if (startSeekTo > 0) { p.time = minOf(startSeekTo, len - 2000); startSeekTo = 0 }
+                }
                 if (!seeking) {
                     val t = p.time
                     b.posText.text = fmt(t)
@@ -64,7 +70,7 @@ class LiveVlcActivity : AppCompatActivity() {
             override fun onDown(e: android.view.MotionEvent): Boolean = true
             override fun onSingleTapUp(e: android.view.MotionEvent): Boolean { showBar(); return true }
             override fun onFling(e1: android.view.MotionEvent?, e2: android.view.MotionEvent, vx: Float, vy: Float): Boolean {
-                if (e1 == null || isArchive) return false
+                if (e1 == null || isArchive || timeshifting) return false
                 val dx = e2.x - e1.x
                 val dy = e2.y - e1.y
                 val min = 80f
@@ -105,9 +111,9 @@ class LiveVlcActivity : AppCompatActivity() {
         player.attachViews(b.vlc, null, false, false)
         player.setEventListener { ev ->
             when (ev.type) {
-                MediaPlayer.Event.Playing -> { b.status.visibility = View.GONE; if (isArchive) b.playBtn.text = "⏸" }
-                MediaPlayer.Event.Paused -> { if (isArchive) b.playBtn.text = "▶" }
-                MediaPlayer.Event.EndReached -> { if (isArchive) b.playBtn.text = "▶" }
+                MediaPlayer.Event.Playing -> { b.status.visibility = View.GONE; if (isArchive || timeshifting) b.playBtn.text = "⏸" }
+                MediaPlayer.Event.Paused -> { if (isArchive || timeshifting) b.playBtn.text = "▶" }
+                MediaPlayer.Event.EndReached -> { if (isArchive) b.playBtn.text = "▶" else if (timeshifting) ui.post { returnToLive() } }
                 MediaPlayer.Event.EncounteredError ->
                     b.status.apply { visibility = View.VISIBLE; text = "Couldn't play this." }
                 else -> {}
@@ -117,16 +123,30 @@ class LiveVlcActivity : AppCompatActivity() {
         b.menuBtn.setOnClickListener { showMenu() }
         b.root.setOnTouchListener { _, ev -> gestureDetector.onTouchEvent(ev) }
 
-        if (isArchive) setupArchiveControls() else saveLastChannel()
+        if (isArchive) {
+            b.controlBar.visibility = View.VISIBLE   // catch-up: bar stays visible
+            wireTransportControls()
+        } else {
+            saveLastChannel()
+            // Live channels with an archive get timeshift (DVR rewind).
+            if (currentArchiveSec() > 0) {
+                wireTransportControls()
+                b.tsBtn.visibility = View.VISIBLE
+                b.tsBtn.setOnClickListener { enterTimeshift() }
+            }
+        }
         play(url)
         showBar()
     }
 
-    private fun setupArchiveControls() {
-        b.controlBar.visibility = View.VISIBLE   // stays visible the whole time in catch-up
+    /** Wire the transport bar (play/skip/seek). Step sizes and live-edge behaviour adapt to mode. */
+    private fun wireTransportControls() {
         b.playBtn.setOnClickListener { togglePlay() }
-        b.rewindBtn.setOnClickListener { seekBy(-15_000) }
-        b.forwardBtn.setOnClickListener { seekBy(15_000) }
+        b.rewindBtn.setOnClickListener { seekBy(if (timeshifting) -60_000 else -15_000) }
+        b.forwardBtn.setOnClickListener {
+            if (timeshifting && nearLiveEdge()) returnToLive() else seekBy(if (timeshifting) 60_000 else 15_000)
+        }
+        b.liveBtn.setOnClickListener { returnToLive() }
         b.seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
                 if (fromUser && durationMs > 0) b.posText.text = fmt(durationMs * progress / 1000)
@@ -139,6 +159,62 @@ class LiveVlcActivity : AppCompatActivity() {
             }
         })
         ui.postDelayed(poller, 500)
+    }
+
+    private fun currentArchiveSec(): Long = (channels.getOrNull(chIndex)?.archiveDays ?: 0).toLong() * 3600
+
+    private fun nearLiveEdge(): Boolean {
+        val p = mp ?: return false
+        val len = p.length
+        return len > 0 && p.time >= len - 15_000
+    }
+
+    /** Enter live timeshift: play the recent archive buffer as a seekable VOD, starting ~30s back. */
+    private fun enterTimeshift() {
+        if (timeshifting || isArchive) return
+        val ch = channels.getOrNull(chIndex) ?: return
+        val archiveSec = ch.archiveDays.toLong() * 3600
+        if (archiveSec <= 0) return
+        timeshifting = true
+        tsWindowSec = minOf(archiveSec, 10_800L)   // up to 3h scrubbable buffer
+        b.tsBtn.visibility = View.GONE
+        b.controlBar.visibility = View.VISIBLE
+        b.liveBtn.visibility = View.VISIBLE
+        b.hint.visibility = View.GONE
+        b.playBtn.text = "⏸"
+        b.status.visibility = View.VISIBLE
+        b.status.text = "Rewinding live…"
+        startSeekTo = (tsWindowSec - 30) * 1000     // start ~30s behind the live edge
+        val now = System.currentTimeMillis() / 1000
+        io.execute {
+            val u = Portal.archiveLink(ch.cmd, now - tsWindowSec, tsWindowSec)
+            runOnUiThread {
+                if (isFinishing || !timeshifting) return@runOnUiThread
+                if (u.isNullOrEmpty()) { b.status.text = "Timeshift unavailable"; returnToLive(); return@runOnUiThread }
+                play(u)
+            }
+        }
+    }
+
+    /** Leave timeshift and resume the live stream. */
+    private fun returnToLive() {
+        if (!timeshifting) return
+        timeshifting = false
+        startSeekTo = 0
+        seeking = false
+        b.controlBar.visibility = View.GONE
+        b.liveBtn.visibility = View.GONE
+        if (currentArchiveSec() > 0) b.tsBtn.visibility = View.VISIBLE
+        b.status.visibility = View.VISIBLE
+        b.status.text = "▶  LIVE…"
+        val ch = channels.getOrNull(chIndex) ?: run { finish(); return }
+        io.execute {
+            val u = Portal.createLink(ch.cmd)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (!u.isNullOrEmpty()) play(u) else b.status.text = "Couldn't return to live"
+            }
+        }
     }
 
     private fun togglePlay() {
@@ -213,7 +289,7 @@ class LiveVlcActivity : AppCompatActivity() {
 
     private fun showBar() {
         b.topBar.visibility = View.VISIBLE
-        if (!isArchive) b.hint.visibility = View.VISIBLE
+        if (!isArchive && !timeshifting) b.hint.visibility = View.VISIBLE
         hideBarRunnable?.let { ui.removeCallbacks(it) }
         val r = Runnable { b.topBar.visibility = View.GONE; b.hint.visibility = View.GONE }
         hideBarRunnable = r
@@ -249,9 +325,21 @@ class LiveVlcActivity : AppCompatActivity() {
                     KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { seekBy(15_000); showBar(); return true }
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { togglePlay(); return true }
                 }
+            } else if (timeshifting) {
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_MENU -> { showMenu(); return true }
+                    KeyEvent.KEYCODE_BACK -> { returnToLive(); return true }
+                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> { seekBy(-60_000); showBar(); return true }
+                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                        if (nearLiveEdge()) returnToLive() else seekBy(60_000); showBar(); return true
+                    }
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { togglePlay(); return true }
+                }
             } else {
                 when (event.keyCode) {
                     KeyEvent.KEYCODE_MENU -> { showMenu(); return true }
+                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND ->
+                        if (currentArchiveSec() > 0) { enterTimeshift(); return true }
                     KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> { switchChannel(-1); return true }
                     KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> { switchChannel(1); return true }
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { showBar(); return true }
