@@ -44,17 +44,26 @@ class ChannelGridAdapter(
         }
         holder.b.star.setOnClickListener { toggle() }              // tap the star (touch)
         holder.b.root.setOnLongClickListener { toggle(); true }     // long-press OK / long-tap = favourite
-        // Catch-up: tap the clock (touch), or press LEFT on the channel to jump to the clock (remote).
-        holder.b.clock.setOnClickListener { onCatchup(ch) }
-        holder.b.root.setOnKeyListener { _, keyCode, ev ->
-            if (ev.action == android.view.KeyEvent.ACTION_DOWN && keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) {
-                holder.b.clock.requestFocus(); true
-            } else false
-        }
-        holder.b.clock.setOnKeyListener { _, keyCode, ev ->
-            if (ev.action == android.view.KeyEvent.ACTION_DOWN && keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
-                holder.b.root.requestFocus(); true
-            } else false
+        // Catch-up clock only on channels that actually have an archive (tv_archive_duration > 0).
+        val hasCatchup = ch.archiveDays > 0
+        if (hasCatchup) {
+            holder.b.clock.visibility = View.VISIBLE
+            // tap the clock (touch), or press LEFT on the channel to jump to the clock (remote).
+            holder.b.clock.setOnClickListener { onCatchup(ch) }
+            holder.b.root.setOnKeyListener { _, keyCode, ev ->
+                if (ev.action == android.view.KeyEvent.ACTION_DOWN && keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) {
+                    holder.b.clock.requestFocus(); true
+                } else false
+            }
+            holder.b.clock.setOnKeyListener { _, keyCode, ev ->
+                if (ev.action == android.view.KeyEvent.ACTION_DOWN && keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    holder.b.root.requestFocus(); true
+                } else false
+            }
+        } else {
+            holder.b.clock.visibility = View.GONE
+            holder.b.clock.setOnClickListener(null)
+            holder.b.root.setOnKeyListener(null)
         }
         if (ch.logoUrl.isEmpty()) {
             holder.b.thumb.visibility = View.GONE

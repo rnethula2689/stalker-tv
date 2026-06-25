@@ -27,6 +27,7 @@ class LiveGridActivity : AppCompatActivity() {
     private lateinit var b: ActivityLivegridBinding
     private lateinit var adapter: ChannelGridAdapter
     private val epgAdapter = EpgPreviewAdapter()
+    private var nowItem: Portal.EpgItem? = null   // current programme, for the NOW-card synopsis tap
 
     private var libVlc: LibVLC? = null
     private var mp: MediaPlayer? = null
@@ -60,6 +61,7 @@ class LiveGridActivity : AppCompatActivity() {
         b.upNextList.isFocusable = false // rows handle focus; the list itself shouldn't trap it
 
         b.previewFrame.setOnClickListener { openFullscreen() }
+        b.nowCard.setOnClickListener { nowItem?.let { showEpgDetail(it) } } // NOW programme → full synopsis
         b.searchBtn.setOnClickListener { toggleSearch() }
         b.menuBtn.setOnClickListener { showMenu() }
         if (gridTitle == "Favourites") {
@@ -141,6 +143,7 @@ class LiveGridActivity : AppCompatActivity() {
         b.nowTime.text = ""
         b.nowTitle.text = msg
         b.nowDesc.text = ""
+        nowItem = null
         b.upNextHeader.visibility = View.GONE
         epgAdapter.submit(emptyList())
     }
@@ -155,6 +158,7 @@ class LiveGridActivity : AppCompatActivity() {
             b.nowDesc.text = if (url.isNullOrEmpty())
                 "No stream — the provider may be down, or another device is using your connection."
             else "No program guide for this channel."
+            nowItem = null
             b.upNextHeader.visibility = View.GONE
             epgAdapter.submit(emptyList())
             return
@@ -165,6 +169,7 @@ class LiveGridActivity : AppCompatActivity() {
         if (nowIdx < 0) nowIdx = epg.indexOfLast { it.startTs in 1..nowSec }
         if (nowIdx < 0) nowIdx = 0
         val now = epg[nowIdx]
+        nowItem = now
         b.nowBadge.visibility = View.VISIBLE
         b.nowTime.text = if (now.startTs > 0) "${Portal.localTime(now.startTs)} – ${Portal.localTime(now.stopTs)}" else "${now.start} – ${now.end}"
         b.nowTitle.text = now.name

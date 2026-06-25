@@ -475,7 +475,9 @@ class ChannelsActivity : AppCompatActivity() {
     private fun channelRow(ch: Portal.Channel): Row {
         val label = "📺  " + (if (ch.number.isNotEmpty()) "${ch.number}. " else "") + ch.name
         val fav = FavInfo({ Configs.isFavorite(this, ch.id) }, { Configs.toggleFavorite(this, ch.id) })
-        return Row(label, ch.logoUrl, sortKey = ch.name, fav = fav, catchup = { openCatchup(ch) }) { playChannel(ch) }
+        // Clock only on channels with an actual archive (tv_archive_duration > 0).
+        val catchup: (() -> Unit)? = if (ch.archiveDays > 0) ({ openCatchup(ch) }) else null
+        return Row(label, ch.logoUrl, sortKey = ch.name, fav = fav, catchup = catchup) { playChannel(ch) }
     }
 
     private fun openCatchup(ch: Portal.Channel) {
