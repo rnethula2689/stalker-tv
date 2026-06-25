@@ -143,6 +143,7 @@ class LiveGridActivity : AppCompatActivity() {
         b.nowTime.text = ""
         b.nowTitle.text = msg
         b.nowDesc.text = ""
+        b.nowDesc.visibility = View.GONE
         nowItem = null
         b.upNextHeader.visibility = View.GONE
         epgAdapter.submit(emptyList())
@@ -158,6 +159,8 @@ class LiveGridActivity : AppCompatActivity() {
             b.nowDesc.text = if (url.isNullOrEmpty())
                 "No stream — the provider may be down, or another device is using your connection."
             else "No program guide for this channel."
+            b.nowTime.text = ""
+            b.nowDesc.visibility = View.VISIBLE
             nowItem = null
             b.upNextHeader.visibility = View.GONE
             epgAdapter.submit(emptyList())
@@ -171,15 +174,16 @@ class LiveGridActivity : AppCompatActivity() {
         val now = epg[nowIdx]
         nowItem = now
         b.nowBadge.visibility = View.VISIBLE
-        b.nowTime.text = if (now.startTs > 0) "${Portal.localTime(now.startTs)} – ${Portal.localTime(now.stopTs)}" else "${now.start} – ${now.end}"
+        val range = if (now.startTs > 0) "${Portal.localTime(now.startTs)} – ${Portal.localTime(now.stopTs)}" else "${now.start} – ${now.end}"
         b.nowTitle.text = now.name
-        // Keep the card compact: programme name only, full synopsis on tap.
+        // Single-line card: name + time + ⓘ (tap the card for the full synopsis).
         if (url.isNullOrEmpty()) {
+            b.nowTime.text = "ⓘ"
+            b.nowDesc.visibility = View.VISIBLE
             b.nowDesc.text = "(no stream — provider down, or connection limit reached)"
-            b.nowDesc.setTextColor(0xFFaab7c4.toInt())
         } else {
-            b.nowDesc.text = "ⓘ  Tap for full details"
-            b.nowDesc.setTextColor(0xFF19C37D.toInt())
+            b.nowTime.text = "$range   ⓘ"
+            b.nowDesc.visibility = View.GONE
         }
         if (now.startTs > 0 && now.stopTs > now.startTs) {
             val pct = ((nowSec - now.startTs) * 100 / (now.stopTs - now.startTs)).coerceIn(0L, 100L)

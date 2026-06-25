@@ -199,31 +199,31 @@
                     android:layout_height="wrap_content"
                     android:text="● LIVE"
                     android:textColor="#19c37d"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:textStyle="bold" />
 
                 <TextView
-                    android:id="@+id/nowTime"
+                    android:id="@+id/nowTitle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:gravity="end"
-                    android:textColor="#9fb0c0"
-                    android:textSize="13sp"
+                    android:layout_marginStart="8dp"
+                    android:textColor="#ffffff"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="" />
+
+                <TextView
+                    android:id="@+id/nowTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:textColor="#19c37d"
+                    android:textSize="12sp"
                     android:text="" />
             </LinearLayout>
-
-            <TextView
-                android:id="@+id/nowTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:textColor="#ffffff"
-                android:textSize="17sp"
-                android:textStyle="bold"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:text="" />
 
             <ProgressBar
                 android:id="@+id/epgProgress"
@@ -241,25 +241,19 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:textColor="#aab7c4"
-                android:textSize="13sp"
-                android:lineSpacingExtra="2dp"
+                android:textSize="12sp"
                 android:maxLines="1"
                 android:ellipsize="end"
+                android:visibility="gone"
                 android:text="" />
             </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="8dp"
-                android:background="#1b2733" />
 
             <TextView
                 android:id="@+id/upNextHeader"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="7dp"
-                android:text="UP NEXT  ›  scroll for the full guide"
+                android:layout_marginTop="8dp"
+                android:text="UP NEXT  ·  tap a show for details"
                 android:textColor="#5a6675"
                 android:textSize="11sp"
                 android:textStyle="bold" />
