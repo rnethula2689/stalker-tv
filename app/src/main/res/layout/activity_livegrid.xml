@@ -144,7 +144,7 @@
             android:id="@+id/previewFrame"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="0.42"
+            android:layout_weight="0.60"
             android:focusable="true"
             android:clickable="true"
             android:background="@drawable/preview_bg">
@@ -171,7 +171,7 @@
             android:id="@+id/epgPanel"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="0.58"
+            android:layout_weight="0.40"
             android:layout_marginTop="10dp"
             android:orientation="vertical"
             android:background="@drawable/preview_bg"
@@ -185,7 +185,7 @@
                 android:focusable="true"
                 android:clickable="true"
                 android:background="@drawable/epg_row_bg"
-                android:padding="8dp">
+                android:padding="7dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -217,7 +217,7 @@
                 android:id="@+id/nowTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="3dp"
                 android:textColor="#ffffff"
                 android:textSize="17sp"
                 android:textStyle="bold"
@@ -229,8 +229,8 @@
                 android:id="@+id/epgProgress"
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
-                android:layout_height="6dp"
-                android:layout_marginTop="8dp"
+                android:layout_height="5dp"
+                android:layout_marginTop="6dp"
                 android:max="100"
                 android:progress="0"
                 android:progressDrawable="@drawable/progress_horizontal_green" />
@@ -239,7 +239,7 @@
                 android:id="@+id/nowDesc"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="4dp"
                 android:textColor="#aab7c4"
                 android:textSize="13sp"
                 android:lineSpacingExtra="2dp"
@@ -251,14 +251,14 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="8dp"
                 android:background="#1b2733" />
 
             <TextView
                 android:id="@+id/upNextHeader"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="7dp"
                 android:text="UP NEXT  ›  scroll for the full guide"
                 android:textColor="#5a6675"
                 android:textSize="11sp"
