@@ -42,9 +42,9 @@ class LiveVlcActivity : AppCompatActivity() {
                 val dy = e2.y - e1.y
                 val min = 80f
                 if (Math.abs(dx) > Math.abs(dy)) {
-                    if (Math.abs(dx) > min) { switchChannel(if (dx > 0) 1 else -1); return true } // right = next, left = prev
+                    if (Math.abs(dx) > min) { switchChannel(if (dx > 0) -1 else 1); return true } // right = prev, left = next
                 } else {
-                    if (Math.abs(dy) > min) { switchChannel(if (dy > 0) 1 else -1); return true } // down = next, up = prev
+                    if (Math.abs(dy) > min) { switchChannel(if (dy > 0) -1 else 1); return true } // down = prev, up = next
                 }
                 return false
             }
