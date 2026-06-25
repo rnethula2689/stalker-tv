@@ -213,13 +213,27 @@ object Portal {
         return out
     }
 
-    /** Full programme schedule for a channel on a given date (yyyy-mm-dd). Used for catch-up. */
+    /** Format an absolute (UTC) unix timestamp as local wall-clock time, e.g. "1:30 PM". */
+    fun localTime(ts: Long): String =
+        if (ts <= 0) "" else java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(java.util.Date(ts * 1000))
+
+    /**
+     * Full programme schedule for a channel around a given date (yyyy-mm-dd), for catch-up.
+     * Tries the dated table first; if the portal ignores/forbids the date param it falls back to the
+     * channel's whole table (the caller filters to the wanted day by timestamp).
+     */
     fun epgForDate(chId: String, dateYmd: String): List<EpgItem> {
+        val dated = fetchSimpleTable(chId, "&date=$dateYmd")
+        if (dated.isNotEmpty()) return dated
+        return fetchSimpleTable(chId, "")
+    }
+
+    private fun fetchSimpleTable(chId: String, extra: String): List<EpgItem> {
         val out = ArrayList<EpgItem>()
         try {
             var page = 1
-            while (page <= 8) {
-                val body = get("$base?type=itv&action=get_simple_data_table&ch_id=$chId&date=$dateYmd&p=$page&JsHttpRequest=1-xml", true)
+            while (page <= 12) {
+                val body = get("$base?type=itv&action=get_simple_data_table&ch_id=$chId$extra&p=$page&JsHttpRequest=1-xml", true)
                 val js = JSONObject(body).optJSONObject("js") ?: break
                 val arr = js.optJSONArray("data") ?: break
                 if (arr.length() == 0) break

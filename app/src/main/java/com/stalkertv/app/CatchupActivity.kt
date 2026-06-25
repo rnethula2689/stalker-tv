@@ -25,7 +25,7 @@ class CatchupActivity : AppCompatActivity() {
     private var chId = ""
     private var chName = ""
     private var chCmd = ""
-    private data class DateOpt(val display: String, val ymd: String)
+    private data class DateOpt(val display: String, val ymd: String, val dayStartSec: Long)
     private var dates = listOf<DateOpt>()
     private var loadSeq = 0
 
@@ -51,10 +51,11 @@ class CatchupActivity : AppCompatActivity() {
         val ymdFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val monthFmt = SimpleDateFormat("MMMM", Locale.US)
         val cal = Calendar.getInstance()
+        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
         for (i in 0..days) {
             val day = cal.get(Calendar.DAY_OF_MONTH)
             val display = "$day${ordinal(day)} ${monthFmt.format(cal.time)}, ${cal.get(Calendar.YEAR)}"
-            out.add(DateOpt(display, ymdFmt.format(cal.time)))
+            out.add(DateOpt(display, ymdFmt.format(cal.time), cal.timeInMillis / 1000))
             cal.add(Calendar.DAY_OF_MONTH, -1)
         }
         return out
@@ -78,8 +79,16 @@ class CatchupActivity : AppCompatActivity() {
         b.status.visibility = View.VISIBLE
         b.status.text = "Loading…"
         adapter.submit(emptyList())
+        val dayStart = d.dayStartSec
+        val dayEnd = dayStart + 86400
         io.execute {
-            val epg = Portal.epgForDate(chId, d.ymd).sortedBy { it.startTs }
+            val raw = Portal.epgForDate(chId, d.ymd)
+            val filtered = raw.filter { it.startTs in dayStart until dayEnd }.sortedBy { it.startTs }
+            // If items have timestamps but none fall on this day → genuinely empty; if none have
+            // timestamps, the portal already filtered by date server-side, so show what we got.
+            val epg = if (filtered.isNotEmpty()) filtered
+                else if (raw.any { it.startTs > 0 }) emptyList()
+                else raw
             runOnUiThread {
                 if (mine != loadSeq) return@runOnUiThread
                 b.status.visibility = if (epg.isEmpty()) View.VISIBLE else View.GONE
@@ -126,7 +135,9 @@ class CatchupActivity : AppCompatActivity() {
         override fun getItemCount() = items.size
         override fun onBindViewHolder(holder: VH, position: Int) {
             val e = items[position]
-            holder.v.time.text = if (e.end.isNotBlank()) "${e.start} – ${e.end}" else e.start
+            holder.v.time.text =
+                if (e.startTs > 0) "${Portal.localTime(e.startTs)} – ${Portal.localTime(e.stopTs)}"
+                else if (e.end.isNotBlank()) "${e.start} – ${e.end}" else e.start
             holder.v.name.text = e.name
             val future = e.startTs > System.currentTimeMillis() / 1000
             holder.v.name.setTextColor(if (future) 0xFF5A6675.toInt() else 0xFFE6EDF3.toInt())
