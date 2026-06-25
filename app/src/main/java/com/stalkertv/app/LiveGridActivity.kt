@@ -106,7 +106,10 @@ class LiveGridActivity : AppCompatActivity() {
             if (mine != seq) return@execute // superseded by a newer selection
             val url = Portal.createLink(ch.cmd)
             if (mine != seq) return@execute
-            val epg = Portal.shortEpg(ch.id)
+            // The real guide lives in the day table (get_data_table); get_short_epg returns
+            // "no guide" placeholders for many channels on this portal. Fall back to it only if empty.
+            val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+            val epg = Portal.epgForDate(ch.id, today).ifEmpty { Portal.shortEpg(ch.id) }
             runOnUiThread {
                 if (mine != seq || current != ch) return@runOnUiThread
                 currentUrl = url
