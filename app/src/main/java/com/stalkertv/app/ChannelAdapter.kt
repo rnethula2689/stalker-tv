@@ -11,6 +11,7 @@ import com.stalkertv.app.databinding.ItemChannelBinding
 class RowAdapter : RecyclerView.Adapter<RowAdapter.VH>() {
 
     private val items = ArrayList<ChannelsActivity.Row>()
+    var onFavToggled: (() -> Unit)? = null // lets the screen refresh (e.g. drop a row) after toggling
 
     fun submit(list: List<ChannelsActivity.Row>) {
         items.clear()
@@ -58,6 +59,7 @@ class RowAdapter : RecyclerView.Adapter<RowAdapter.VH>() {
                     if (now) "★  Added to Favourites" else "Removed from Favourites",
                     android.widget.Toast.LENGTH_SHORT
                 ).show()
+                onFavToggled?.invoke()
             }
             holder.b.star.setOnClickListener { toggle() }           // tap the star (touch)
             holder.b.root.setOnLongClickListener { toggle(); true }  // long-press OK / long-tap = favourite

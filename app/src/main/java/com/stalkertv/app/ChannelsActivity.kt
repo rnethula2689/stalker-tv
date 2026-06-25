@@ -51,6 +51,13 @@ class ChannelsActivity : AppCompatActivity() {
             if (r != null) { backStack.removeLast(); r() }
             b.swipe.isRefreshing = false
         }
+        // In a Favourites screen, un-favouriting should drop the row + update the count right away.
+        adapter.onFavToggled = {
+            val top = backStack.lastOrNull()
+            if (top != null && top.title.startsWith("Favourites") && top.rebuild != null) {
+                backStack.removeLast(); top.rebuild!!.invoke()
+            }
+        }
 
         b.search.addTextChangedListener(object : android.text.TextWatcher {
             override fun afterTextChanged(s: android.text.Editable?) = filter(s?.toString() ?: "")
@@ -422,7 +429,10 @@ class ChannelsActivity : AppCompatActivity() {
         }
         if (backStack.size > 1) {
             backStack.removeLast()
-            display(backStack.last())
+            val prev = backStack.last()
+            // Rebuild the screen we're returning to (refreshes favourite counts on TV, no pull needed).
+            if (prev.rebuild != null) { backStack.removeLast(); prev.rebuild!!.invoke() }
+            else display(prev)
         } else {
             super.onBackPressed()
         }
@@ -746,12 +756,16 @@ class ChannelsActivity : AppCompatActivity() {
                 mediaActions(m.title, m.poster, "movie_${m.id}", m.source)
             })
         }
-        // Whole-series favourites (open all seasons)
-        for (s in all.filter { it.kind == "series" })
-            rows.add(Row("📁  ${s.title}", s.poster.ifBlank { null }, sortKey = s.title) { openFavSeries(s) })
-        // Favourited seasons (open episodes)
-        for (se in all.filter { it.kind == "season" })
-            rows.add(Row("📁  ${se.title}", se.poster.ifBlank { null }, sortKey = se.title) { openFavSeason(se) })
+        // Whole-series favourites (open all seasons; long-press to un-favourite)
+        for (s in all.filter { it.kind == "series" }) {
+            val fav = FavInfo({ Favorites.isFav(this, "series", s.id) }, { Favorites.toggle(this, s) })
+            rows.add(Row("📁  ${s.title}", s.poster.ifBlank { null }, sortKey = s.title, fav = fav) { openFavSeries(s) })
+        }
+        // Favourited seasons (open episodes; long-press to un-favourite)
+        for (se in all.filter { it.kind == "season" }) {
+            val fav = FavInfo({ Favorites.isFav(this, "season", se.id) }, { Favorites.toggle(this, se) })
+            rows.add(Row("📁  ${se.title}", se.poster.ifBlank { null }, sortKey = se.title, fav = fav) { openFavSeason(se) })
+        }
         // Series → Season → Episode nesting for favourited episodes
         val episodes = all.filter { it.kind == "episode" }
         for (seriesName in episodes.map { e -> favParts(e.title).getOrElse(0) { e.title } }.distinct())
@@ -778,7 +792,7 @@ class ChannelsActivity : AppCompatActivity() {
                 mediaActions(e.title, e.poster, "ep_${e.id}", e.source)
             }
         }
-        push(Page("$seriesName — $season", rows, kind = SearchKind.LOCAL, rebuild = { showFavEpSeason(seriesName, season) }))
+        push(Page("Favourites — $seriesName — $season", rows, kind = SearchKind.LOCAL, rebuild = { showFavEpSeason(seriesName, season) }))
     }
 
     private fun openFavSeries(e: Favorites.Entry) {
