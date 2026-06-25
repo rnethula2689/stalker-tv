@@ -47,4 +47,6 @@ object Favorites {
     }
 
     fun byKind(ctx: Context, kind: String): List<Entry> = all(ctx).filter { it.kind == kind }
+
+    fun clearAll(ctx: Context) { prefs(ctx).edit().remove(key(ctx)).apply() }
 }

@@ -57,6 +57,10 @@ class LiveGridActivity : AppCompatActivity() {
         b.previewFrame.setOnClickListener { openFullscreen() }
         b.searchBtn.setOnClickListener { toggleSearch() }
         b.menuBtn.setOnClickListener { showMenu() }
+        if (gridTitle == "Favourites") {
+            b.clearFavBtn.visibility = View.VISIBLE
+            b.clearFavBtn.setOnClickListener { confirmClearFavorites() }
+        }
         b.clearBtn.setOnClickListener { b.search.setText(""); b.search.requestFocus() }
         b.search.addTextChangedListener(object : android.text.TextWatcher {
             override fun afterTextChanged(s: android.text.Editable?) = filter(s?.toString() ?: "")
@@ -292,6 +296,19 @@ class LiveGridActivity : AppCompatActivity() {
                 }, 450)
             }
         }
+    }
+
+    private fun confirmClearFavorites() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Clear all favourites?")
+            .setMessage("This removes all your favourite channels.")
+            .setPositiveButton("Clear all") { _, _ ->
+                Configs.clearFavorites(this)
+                android.widget.Toast.makeText(this, "Favourites cleared", android.widget.Toast.LENGTH_SHORT).show()
+                finish() // the Favourites folder is now empty
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun favToast(ch: Portal.Channel) {

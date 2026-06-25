@@ -75,6 +75,8 @@ object Configs {
 
     fun isFavorite(ctx: Context, id: String): Boolean = favorites(ctx).contains(id)
 
+    fun clearFavorites(ctx: Context) { prefs(ctx).edit().remove(favKey(ctx)).apply() }
+
     /** @return true if it's now a favourite, false if removed. */
     fun toggleFavorite(ctx: Context, id: String): Boolean {
         val set = favorites(ctx)

@@ -770,7 +770,22 @@ class ChannelsActivity : AppCompatActivity() {
         val episodes = all.filter { it.kind == "episode" }
         for (seriesName in episodes.map { e -> favParts(e.title).getOrElse(0) { e.title } }.distinct())
             rows.add(Row("📁  $seriesName", null, sortKey = seriesName) { showFavEpSeries(seriesName) })
+        if (rows.isNotEmpty())
+            rows.add(Row("🗑   Clear all favourites", null) { confirmClearVodFavorites() })
         push(Page("Favourites", rows, kind = SearchKind.LOCAL, rebuild = { showFavVod() }))
+    }
+
+    private fun confirmClearVodFavorites() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Clear all favourites?")
+            .setMessage("This removes all your favourite movies and shows.")
+            .setPositiveButton("Clear all") { _, _ ->
+                Favorites.clearAll(this)
+                android.widget.Toast.makeText(this, "Favourites cleared", android.widget.Toast.LENGTH_SHORT).show()
+                onBackPressed() // back to Movies; the Favourites folder is now empty
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showFavEpSeries(seriesName: String) {

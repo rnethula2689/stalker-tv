@@ -31,6 +31,26 @@ class LiveVlcActivity : AppCompatActivity() {
     private var titleText = ""
     private var hideBarRunnable: Runnable? = null
 
+    // Tablet swipe: up = previous, down = next, right = next, left = previous (like flicking photos).
+    private val gestureDetector by lazy {
+        android.view.GestureDetector(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapUp(e: android.view.MotionEvent): Boolean { showBar(); return true }
+            override fun onFling(e1: android.view.MotionEvent?, e2: android.view.MotionEvent, vx: Float, vy: Float): Boolean {
+                if (e1 == null) return false
+                val dx = e2.x - e1.x
+                val dy = e2.y - e1.y
+                val min = 80f
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    if (Math.abs(dx) > min) { switchChannel(if (dx > 0) 1 else -1); return true } // right = next, left = prev
+                } else {
+                    if (Math.abs(dy) > min) { switchChannel(if (dy > 0) 1 else -1); return true } // down = next, up = prev
+                }
+                return false
+            }
+        })
+    }
+
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         b = ActivityLivevlcBinding.inflate(layoutInflater)
@@ -64,7 +84,7 @@ class LiveVlcActivity : AppCompatActivity() {
         }
 
         b.menuBtn.setOnClickListener { showMenu() }
-        b.root.setOnClickListener { showBar() }
+        b.root.setOnTouchListener { _, ev -> gestureDetector.onTouchEvent(ev) }
 
         play(url)
         showBar()
