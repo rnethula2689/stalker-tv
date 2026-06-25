@@ -221,8 +221,11 @@ object Portal {
      * Full programme schedule for a channel on a given local date (yyyy-mm-dd), for catch-up.
      *
      * Uses the EPG grid table (`type=epg&action=get_data_table`). The portal keys the requested day
-     * off the `from`/`to` **string** params (it ignores `from_ts`/`to_ts` and `p` for date paging) and
-     * returns a flat list of programmes for *several* channels in that window — we keep only [chId].
+     * off the `from`/`to` **string** params (it ignores `from_ts`/`to_ts` and `p` for date paging).
+     *
+     * Response shape: `js.data` is an array of *channel* objects (a page of ~10 channels around
+     * [chId]), each `{ch_id, name, …, epg:[…]}`. We find our channel and read its nested `epg` list —
+     * the programmes (NOT the channel rows) carry start_timestamp / t_time / mark_archive.
      */
     fun epgForDate(chId: String, dateYmd: String): List<EpgItem> {
         val out = ArrayList<EpgItem>()
@@ -234,21 +237,26 @@ object Portal {
             val to = URLEncoder.encode("$dateYmd 23:59:59", "UTF-8")
             val url = "$base?type=epg&action=get_data_table&ch_id=$chId&fav=0" +
                 "&from_ts=$startMs&to_ts=$endMs&from=$from&to=$to&JsHttpRequest=1-xml"
-            val arr = JSONObject(get(url, true)).optJSONObject("js")?.optJSONArray("data") ?: return out
-            for (i in 0 until arr.length()) {
-                val o = arr.optJSONObject(i) ?: continue
-                if (o.optString("ch_id") != chId) continue
-                out.add(
-                    EpgItem(
-                        name = o.optString("name"),
-                        start = o.optString("t_time"),
-                        end = o.optString("t_time_to"),
-                        descr = o.optString("descr"),
-                        hasArchive = o.optInt("mark_archive", 0) == 1,
-                        startTs = o.optLong("start_timestamp", 0),
-                        stopTs = o.optLong("stop_timestamp", 0)
+            val data = JSONObject(get(url, true)).optJSONObject("js")?.optJSONArray("data") ?: return out
+            for (i in 0 until data.length()) {
+                val chObj = data.optJSONObject(i) ?: continue
+                if (chObj.optString("ch_id") != chId && chObj.optString("id") != chId) continue
+                val epg = chObj.optJSONArray("epg") ?: continue
+                for (k in 0 until epg.length()) {
+                    val o = epg.optJSONObject(k) ?: continue
+                    out.add(
+                        EpgItem(
+                            name = o.optString("name"),
+                            start = o.optString("t_time"),
+                            end = o.optString("t_time_to"),
+                            descr = o.optString("descr"),
+                            hasArchive = o.optInt("mark_archive", 0) == 1,
+                            startTs = o.optLong("start_timestamp", 0),
+                            stopTs = o.optLong("stop_timestamp", 0)
+                        )
                     )
-                )
+                }
+                break   // found our channel — the rest of the page is neighbouring channels
             }
         } catch (_: Exception) {}
         return out
