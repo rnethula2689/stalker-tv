@@ -234,8 +234,8 @@ object Portal {
             var page = 1
             while (page <= 12) {
                 val body = get("$base?type=itv&action=get_simple_data_table&ch_id=$chId$extra&p=$page&JsHttpRequest=1-xml", true)
-                val js = JSONObject(body).optJSONObject("js") ?: break
-                val arr = js.optJSONArray("data") ?: break
+                // `js` can be a plain array (like get_short_epg) or an object with a "data" array.
+                val arr = jsArray(body) ?: break
                 if (arr.length() == 0) break
                 for (i in 0 until arr.length()) {
                     val o = arr.optJSONObject(i) ?: continue
@@ -251,8 +251,10 @@ object Portal {
                         )
                     )
                 }
-                val total = js.optInt("total_items", arr.length())
-                val per = js.optInt("max_page_items", arr.length()).coerceAtLeast(1)
+                // Paging info only exists when js is an object; otherwise it's a single-shot array.
+                val jsObj = try { JSONObject(body).optJSONObject("js") } catch (_: Exception) { null } ?: break
+                val total = jsObj.optInt("total_items", arr.length())
+                val per = jsObj.optInt("max_page_items", arr.length()).coerceAtLeast(1)
                 if (page >= Math.ceil(total.toDouble() / per).toInt()) break
                 page++
             }
