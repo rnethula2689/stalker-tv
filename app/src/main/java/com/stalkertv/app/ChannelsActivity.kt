@@ -17,7 +17,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     /** Optional favourite toggle for a row (channels / movies). Null = not favouritable (e.g. folders). */
     class FavInfo(val isFav: () -> Boolean, val toggle: () -> Boolean)
-    data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val fav: FavInfo? = null, val isHeader: Boolean = false, val action: () -> Unit)
+    data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val fav: FavInfo? = null, val isHeader: Boolean = false, val catchup: (() -> Unit)? = null, val action: () -> Unit)
     enum class SearchKind { LOCAL, GLOBAL, CHANNELS, VOD_ALL, VOD_CATEGORY }
     data class Page(
         val title: String,
@@ -475,7 +475,15 @@ class ChannelsActivity : AppCompatActivity() {
     private fun channelRow(ch: Portal.Channel): Row {
         val label = "📺  " + (if (ch.number.isNotEmpty()) "${ch.number}. " else "") + ch.name
         val fav = FavInfo({ Configs.isFavorite(this, ch.id) }, { Configs.toggleFavorite(this, ch.id) })
-        return Row(label, ch.logoUrl, sortKey = ch.name, fav = fav) { playChannel(ch) }
+        return Row(label, ch.logoUrl, sortKey = ch.name, fav = fav, catchup = { openCatchup(ch) }) { playChannel(ch) }
+    }
+
+    private fun openCatchup(ch: Portal.Channel) {
+        startActivity(
+            Intent(this, CatchupActivity::class.java)
+                .putExtra("chId", ch.id).putExtra("chName", ch.name)
+                .putExtra("chCmd", ch.cmd).putExtra("archiveDays", ch.archiveDays)
+        )
     }
 
     /** Channels always open in the live (VLC) player — same as the Live TV grid, no seek controls. */

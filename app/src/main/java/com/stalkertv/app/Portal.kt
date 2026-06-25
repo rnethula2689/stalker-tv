@@ -28,7 +28,8 @@ object Portal {
 
     data class Channel(
         val id: String, val name: String, val number: String,
-        val cmd: String, val logoUrl: String, val genreId: String, val censored: Boolean = false
+        val cmd: String, val logoUrl: String, val genreId: String, val censored: Boolean = false,
+        val archiveDays: Int = 0
     )
     data class Genre(val id: String, val title: String, val censored: Boolean = false)
     data class VodCat(val id: String, val title: String)
@@ -181,7 +182,8 @@ object Portal {
                     cmd = c.optString("cmd"),
                     logoUrl = if (logo.isBlank() || logo == "null") "" else logosBase + logo,
                     genreId = c.optString("tv_genre_id"),
-                    censored = c.optInt("censored", 0) == 1
+                    censored = c.optInt("censored", 0) == 1,
+                    archiveDays = c.optInt("tv_archive_duration", 0)
                 )
             )
         }
@@ -209,6 +211,50 @@ object Portal {
             }
         } catch (_: Exception) {}
         return out
+    }
+
+    /** Full programme schedule for a channel on a given date (yyyy-mm-dd). Used for catch-up. */
+    fun epgForDate(chId: String, dateYmd: String): List<EpgItem> {
+        val out = ArrayList<EpgItem>()
+        try {
+            var page = 1
+            while (page <= 8) {
+                val body = get("$base?type=itv&action=get_simple_data_table&ch_id=$chId&date=$dateYmd&p=$page&JsHttpRequest=1-xml", true)
+                val js = JSONObject(body).optJSONObject("js") ?: break
+                val arr = js.optJSONArray("data") ?: break
+                if (arr.length() == 0) break
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    out.add(
+                        EpgItem(
+                            name = o.optString("name"),
+                            start = o.optString("t_time"),
+                            end = o.optString("t_time_to"),
+                            descr = o.optString("descr"),
+                            hasArchive = o.optInt("mark_archive", 0) == 1,
+                            startTs = o.optLong("start_timestamp", 0),
+                            stopTs = o.optLong("stop_timestamp", 0)
+                        )
+                    )
+                }
+                val total = js.optInt("total_items", arr.length())
+                val per = js.optInt("max_page_items", arr.length()).coerceAtLeast(1)
+                if (page >= Math.ceil(total.toDouble() / per).toInt()) break
+                page++
+            }
+        } catch (_: Exception) {}
+        return out
+    }
+
+    /**
+     * Resolve a catch-up (archive) stream for a programme that started at [startTs].
+     * Standard Flussonic/Ministra approach: resolve the live link, then request the archive via utc.
+     */
+    fun archiveLink(channelCmd: String, startTs: Long): String? {
+        val live = resolve("itv", channelCmd) ?: return null
+        val now = System.currentTimeMillis() / 1000
+        val sep = if (live.contains("?")) "&" else "?"
+        return "$live${sep}utc=$startTs&lutc=$now"
     }
 
     fun vodCategories(): List<VodCat> {

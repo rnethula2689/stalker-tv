@@ -27,6 +27,19 @@
         android:textSize="18sp" />
 
     <TextView
+        android:id="@+id/clock"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🕐"
+        android:textSize="22sp"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="6dp"
+        android:focusable="true"
+        android:clickable="true"
+        android:visibility="gone"
+        android:background="@drawable/item_bg" />
+
+    <TextView
         android:id="@+id/star"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

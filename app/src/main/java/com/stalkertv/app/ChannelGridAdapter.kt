@@ -16,7 +16,8 @@ class ChannelGridAdapter(
     private var items: List<Portal.Channel>,
     private val onActivate: (Portal.Channel) -> Unit,
     private val onFocus: (Portal.Channel) -> Unit = {},
-    private val onToggleFav: (Portal.Channel) -> Unit = {}
+    private val onToggleFav: (Portal.Channel) -> Unit = {},
+    private val onCatchup: (Portal.Channel) -> Unit = {}
 ) : RecyclerView.Adapter<ChannelGridAdapter.VH>() {
 
     fun submit(list: List<Portal.Channel>) {
@@ -43,6 +44,18 @@ class ChannelGridAdapter(
         }
         holder.b.star.setOnClickListener { toggle() }              // tap the star (touch)
         holder.b.root.setOnLongClickListener { toggle(); true }     // long-press OK / long-tap = favourite
+        // Catch-up: tap the clock (touch), or press LEFT on the channel to jump to the clock (remote).
+        holder.b.clock.setOnClickListener { onCatchup(ch) }
+        holder.b.root.setOnKeyListener { _, keyCode, ev ->
+            if (ev.action == android.view.KeyEvent.ACTION_DOWN && keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) {
+                holder.b.clock.requestFocus(); true
+            } else false
+        }
+        holder.b.clock.setOnKeyListener { _, keyCode, ev ->
+            if (ev.action == android.view.KeyEvent.ACTION_DOWN && keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
+                holder.b.root.requestFocus(); true
+            } else false
+        }
         if (ch.logoUrl.isEmpty()) {
             holder.b.thumb.visibility = View.GONE
             holder.b.thumb.setImageDrawable(null)

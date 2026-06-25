@@ -50,7 +50,7 @@ class LiveGridActivity : AppCompatActivity() {
         libVlc = vlc
         mp = MediaPlayer(vlc) // attached to the surface in onStart (and re-attached on return from fullscreen)
 
-        adapter = ChannelGridAdapter(all, { ch -> activate(ch) }, { ch -> select(ch) }, { ch -> favToast(ch) })
+        adapter = ChannelGridAdapter(all, { ch -> activate(ch) }, { ch -> select(ch) }, { ch -> favToast(ch) }, { ch -> openCatchup(ch) })
         b.list.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
         b.list.adapter = adapter
 
@@ -309,6 +309,14 @@ class LiveGridActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun openCatchup(ch: Portal.Channel) {
+        startActivity(
+            Intent(this, CatchupActivity::class.java)
+                .putExtra("chId", ch.id).putExtra("chName", ch.name)
+                .putExtra("chCmd", ch.cmd).putExtra("archiveDays", ch.archiveDays)
+        )
     }
 
     private fun favToast(ch: Portal.Channel) {
