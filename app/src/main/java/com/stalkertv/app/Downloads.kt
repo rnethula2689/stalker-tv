@@ -124,6 +124,15 @@ object Downloads {
     fun has(ctx: Context, id: String): Boolean =
         active.containsKey(id) || readIndex(ctx).any { it.id == id && it.status == DONE }
 
+    /** Delete every download (files + queue) and free the disk space. */
+    fun deleteAll(ctx: Context) {
+        try { WorkManager.getInstance(ctx.applicationContext).cancelUniqueWork("downloads") } catch (_: Exception) {}
+        for (it in readIndex(ctx)) cancelled.add(it.id)
+        active.clear()
+        dir(ctx).listFiles()?.forEach { it.deleteRecursively() } // removes .part, .mp4, HLS folders, index.json
+        notifyChanged()
+    }
+
     @Synchronized
     private fun upsert(ctx: Context, item: Item) {
         val items = readIndex(ctx)
