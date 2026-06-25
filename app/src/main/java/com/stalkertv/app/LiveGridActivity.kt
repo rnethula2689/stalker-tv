@@ -26,6 +26,7 @@ class LiveGridActivity : AppCompatActivity() {
     private val ui = Handler(Looper.getMainLooper())
     private lateinit var b: ActivityLivegridBinding
     private lateinit var adapter: ChannelGridAdapter
+    private val epgAdapter = EpgPreviewAdapter()
 
     private var libVlc: LibVLC? = null
     private var mp: MediaPlayer? = null
@@ -53,6 +54,10 @@ class LiveGridActivity : AppCompatActivity() {
         adapter = ChannelGridAdapter(all, { ch -> activate(ch) }, { ch -> select(ch) }, { ch -> favToast(ch) }, { ch -> openCatchup(ch) })
         b.list.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
         b.list.adapter = adapter
+
+        b.upNextList.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+        b.upNextList.adapter = epgAdapter
+        b.upNextList.isFocusable = false // rows handle focus; the list itself shouldn't trap it
 
         b.previewFrame.setOnClickListener { openFullscreen() }
         b.searchBtn.setOnClickListener { toggleSearch() }
@@ -134,7 +139,7 @@ class LiveGridActivity : AppCompatActivity() {
         b.nowTitle.text = msg
         b.nowDesc.text = ""
         b.upNextHeader.visibility = View.GONE
-        b.upNext.removeAllViews()
+        epgAdapter.submit(emptyList())
     }
 
     /** Render the guide for [ch]: a NOW card (title, time, live progress, description) + an Up Next list. */
@@ -148,7 +153,7 @@ class LiveGridActivity : AppCompatActivity() {
                 "No stream — the provider may be down, or another device is using your connection."
             else "No program guide for this channel."
             b.upNextHeader.visibility = View.GONE
-            b.upNext.removeAllViews()
+            epgAdapter.submit(emptyList())
             return
         }
         val nowSec = System.currentTimeMillis() / 1000
@@ -171,32 +176,48 @@ class LiveGridActivity : AppCompatActivity() {
             b.epgProgress.visibility = View.GONE
         }
         val upcoming = if (nowIdx + 1 < epg.size) epg.subList(nowIdx + 1, epg.size) else emptyList()
-        b.upNext.removeAllViews()
         b.upNextHeader.visibility = if (upcoming.isEmpty()) View.GONE else View.VISIBLE
-        for (e in upcoming) b.upNext.addView(upNextRow(e))
+        epgAdapter.submit(upcoming)
+        b.upNextList.scrollToPosition(0)
     }
 
-    private fun upNextRow(e: Portal.EpgItem): View {
-        val row = android.widget.LinearLayout(this)
-        row.orientation = android.widget.LinearLayout.HORIZONTAL
-        row.setPadding(0, dp(5), 0, dp(5))
-        val time = android.widget.TextView(this)
-        time.text = if (e.startTs > 0) Portal.localTime(e.startTs) else e.start
-        time.setTextColor(0xFF19C37D.toInt())
-        time.textSize = 13f
-        time.width = dp(58)
-        val title = android.widget.TextView(this)
-        title.text = e.name
-        title.setTextColor(0xFFD7E0EA.toInt())
-        title.textSize = 13f
-        title.maxLines = 1
-        title.ellipsize = android.text.TextUtils.TruncateAt.END
-        row.addView(time)
-        row.addView(title)
-        return row
+    private fun durLabel(e: Portal.EpgItem): String {
+        if (e.startTs > 0 && e.stopTs > e.startTs) {
+            val mins = ((e.stopTs - e.startTs) / 60).toInt()
+            return if (mins >= 60) "${mins / 60}h ${mins % 60}m" else "${mins}m"
+        }
+        return ""
     }
 
-    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+    /** Tap an upcoming programme → show its full details (time + synopsis). */
+    private fun showEpgDetail(e: Portal.EpgItem) {
+        val time = if (e.startTs > 0) "${Portal.localTime(e.startTs)} – ${Portal.localTime(e.stopTs)}"
+                   else "${e.start} – ${e.end}"
+        val msg = if (e.descr.isNotBlank()) "$time\n\n${e.descr}" else time
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(e.name)
+            .setMessage(msg)
+            .setPositiveButton("Close", null)
+            .show()
+    }
+
+    private inner class EpgPreviewAdapter :
+        androidx.recyclerview.widget.RecyclerView.Adapter<EpgPreviewAdapter.VH>() {
+        private var items = listOf<Portal.EpgItem>()
+        fun submit(l: List<Portal.EpgItem>) { items = l; notifyDataSetChanged() }
+        inner class VH(val v: com.stalkertv.app.databinding.ItemEpgPreviewBinding) :
+            androidx.recyclerview.widget.RecyclerView.ViewHolder(v.root)
+        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int) =
+            VH(com.stalkertv.app.databinding.ItemEpgPreviewBinding.inflate(layoutInflater, parent, false))
+        override fun getItemCount() = items.size
+        override fun onBindViewHolder(holder: VH, position: Int) {
+            val e = items[position]
+            holder.v.time.text = if (e.startTs > 0) Portal.localTime(e.startTs) else e.start
+            holder.v.name.text = e.name
+            holder.v.dur.text = durLabel(e)
+            holder.v.root.setOnClickListener { showEpgDetail(e) }
+        }
+    }
 
     private fun openFullscreen() {
         val ch = current ?: return

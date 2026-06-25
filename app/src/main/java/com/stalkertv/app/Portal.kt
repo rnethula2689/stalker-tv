@@ -193,7 +193,7 @@ object Portal {
     fun shortEpg(chId: String): List<EpgItem> {
         val out = ArrayList<EpgItem>()
         try {
-            val body = get("$base?type=itv&action=get_short_epg&ch_id=$chId&size=6&JsHttpRequest=1-xml", true)
+            val body = get("$base?type=itv&action=get_short_epg&ch_id=$chId&size=24&JsHttpRequest=1-xml", true)
             val arr = JSONObject(body).optJSONArray("js") ?: return out
             for (i in 0 until arr.length()) {
                 val o = arr.optJSONObject(i) ?: continue

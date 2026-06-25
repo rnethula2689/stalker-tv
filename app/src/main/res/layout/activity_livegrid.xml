@@ -144,7 +144,7 @@
             android:id="@+id/previewFrame"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="0.62"
+            android:layout_weight="0.54"
             android:focusable="true"
             android:clickable="true"
             android:background="@drawable/preview_bg">
@@ -171,7 +171,7 @@
             android:id="@+id/epgPanel"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="0.38"
+            android:layout_weight="0.46"
             android:layout_marginTop="10dp"
             android:orientation="vertical"
             android:background="@drawable/preview_bg"
@@ -233,7 +233,7 @@
                 android:textColor="#aab7c4"
                 android:textSize="13sp"
                 android:lineSpacingExtra="2dp"
-                android:maxLines="3"
+                android:maxLines="2"
                 android:ellipsize="end"
                 android:text="" />
 
@@ -248,24 +248,20 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:text="UP NEXT"
+                android:text="UP NEXT  ›  scroll for the full guide"
                 android:textColor="#5a6675"
                 android:textSize="11sp"
                 android:textStyle="bold" />
 
-            <ScrollView
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/upNextList"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:layout_marginTop="6dp"
-                android:scrollbars="none">
-
-                <LinearLayout
-                    android:id="@+id/upNext"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical" />
-            </ScrollView>
+                android:clipToPadding="false"
+                android:nestedScrollingEnabled="true"
+                android:scrollbars="vertical" />
         </LinearLayout>
     </LinearLayout>
     </LinearLayout>
