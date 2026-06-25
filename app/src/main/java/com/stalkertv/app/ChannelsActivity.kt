@@ -202,7 +202,7 @@ class ChannelsActivity : AppCompatActivity() {
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> connectAndLoad()
+                    0 -> connectAndLoad(true)
                     1 -> startActivity(Intent(this, SettingsActivity::class.java))
                     2 -> changePin()
                     3 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
@@ -273,7 +273,7 @@ class ChannelsActivity : AppCompatActivity() {
         super.onResume()
         if (Configs.dirty) {
             Configs.dirty = false
-            connectAndLoad()
+            connectAndLoad(true)
             return
         }
         // Returning from a player/child → rebuild the current screen so counts and
@@ -342,17 +342,25 @@ class ChannelsActivity : AppCompatActivity() {
                 "Stalker TV",
                 listOf(
                     Row("⬇   Downloads (offline)", null) { startActivity(Intent(this, DownloadsActivity::class.java)) },
-                    Row("🔄   Retry connection", null) { connectAndLoad() }
+                    Row("🔄   Retry connection", null) { connectAndLoad(true) }
                 ),
                 kind = SearchKind.LOCAL
             )
         )
     }
 
+    // Cached portal data, kept across activity recreation so returning to the app (e.g. after a
+    // movie) reuses it instead of reconnecting and showing the loading splash again.
+    companion object {
+        private var cachedSig: String? = null
+        private var cachedChannels: List<Portal.Channel> = emptyList()
+        private var cachedGenres: List<Portal.Genre> = emptyList()
+        private var cachedVodCats: List<Portal.VodCat> = emptyList()
+    }
+
     /** Read the active provider, connect in the background, then show the home menu. */
-    private fun connectAndLoad() {
+    private fun connectAndLoad(force: Boolean = false) {
         parentalUnlocked = false // a fresh portal load re-locks restricted folders
-        vodCats = emptyList() // drop cached categories on a fresh load
         val acct = Configs.active(this)
         b.title.text = "Stalker TV"
         b.search.setText("")
@@ -369,6 +377,18 @@ class ChannelsActivity : AppCompatActivity() {
         Portal.portalUrl = acct.portal
         Portal.mac = acct.mac
         Portal.sn = acct.sn
+        // Reuse cached data (same provider, app still in memory) → no reconnect, no splash.
+        if (!force && cachedSig == acct.sig() && cachedChannels.isNotEmpty()) {
+            allChannels = cachedChannels
+            genres = cachedGenres
+            byGenre = cachedChannels.groupBy { it.genreId }
+            vodCats = cachedVodCats
+            hideLoading()
+            showHome()
+            return
+        }
+        vodCats = emptyList()
+        cachedVodCats = emptyList()
         if (!isOnline()) { goOffline(); return } // no network → straight to offline home
         showLoading("Connecting to portal…")
         setProgress(40, "Connecting to portal…", 2200) // creep up while the handshake runs
@@ -386,6 +406,7 @@ class ChannelsActivity : AppCompatActivity() {
                 allChannels = ch
                 genres = g
                 byGenre = ch.groupBy { it.genreId }
+                cachedSig = acct.sig(); cachedChannels = ch; cachedGenres = g // cache for next launch
                 if (ch.isEmpty()) {
                     hideLoading()
                     b.status.visibility = View.VISIBLE
@@ -608,8 +629,23 @@ class ChannelsActivity : AppCompatActivity() {
                 val label = "🎬  ${e.title}" + (if (pct in 1..99) "   •   $pct%" else "")
                 Row(label, e.poster.ifBlank { null }, sortKey = e.title) { continueClick(e) }
             }
-        }
+        }.toMutableList()
+        if (rows.isNotEmpty())
+            rows.add(Row("🗑   Clear Continue Watching", null) { confirmClearContinue() })
         push(Page("Continue Watching", rows, kind = SearchKind.LOCAL, rebuild = { showContinueWatching() }))
+    }
+
+    private fun confirmClearContinue() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Clear Continue Watching?")
+            .setMessage("This removes everything from your Continue Watching list.")
+            .setPositiveButton("Clear all") { _, _ ->
+                Resume.clearAll(this)
+                android.widget.Toast.makeText(this, "Continue Watching cleared", android.widget.Toast.LENGTH_SHORT).show()
+                onBackPressed() // back to home; the row is gone
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun continueClick(e: Resume.Entry) {
@@ -780,6 +816,7 @@ class ChannelsActivity : AppCompatActivity() {
                     return@runOnUiThread
                 }
                 vodCats = cats
+                cachedVodCats = cats
                 displayVodCategories()
             }
         }
