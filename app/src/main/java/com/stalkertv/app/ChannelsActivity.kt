@@ -754,7 +754,7 @@ class ChannelsActivity : AppCompatActivity() {
             rows.add(Row("📁  ${se.title}", se.poster.ifBlank { null }, sortKey = se.title) { openFavSeason(se) })
         // Series → Season → Episode nesting for favourited episodes
         val episodes = all.filter { it.kind == "episode" }
-        for (seriesName in episodes.map { favParts(it.title).getOrElse(0) { it.title } }.distinct())
+        for (seriesName in episodes.map { e -> favParts(e.title).getOrElse(0) { e.title } }.distinct())
             rows.add(Row("📁  $seriesName", null, sortKey = seriesName) { showFavEpSeries(seriesName) })
         push(Page("Favourites", rows, kind = SearchKind.LOCAL, rebuild = { showFavVod() }))
     }
