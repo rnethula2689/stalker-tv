@@ -478,8 +478,10 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun vodItemRow(v: Portal.VodItem): Row {
         val label = (if (v.isSeries) "📁  " else "🎬  ") + v.name
-        // Movies are favouritable here; series/episode favourites come with the nested folder.
-        val fav = if (v.isSeries) null else FavInfo(
+        val fav = if (v.isSeries) FavInfo(
+            { Favorites.isFav(this, "series", v.id) },
+            { Favorites.toggle(this, Favorites.Entry("series", v.id, v.name, v.posterUrl, "series|${v.id}")) }
+        ) else FavInfo(
             { Favorites.isFav(this, "movie", v.id) },
             { Favorites.toggle(this, Favorites.Entry("movie", v.id, v.name, v.posterUrl, "vod|${v.id}|${v.cmd}")) }
         )
@@ -724,21 +726,73 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun displayVodCategories() {
         val rows = ArrayList<Row>()
-        val favCount = Favorites.byKind(this, "movie").size
+        val favCount = Favorites.all(this).size
         if (favCount > 0)
-            rows.add(Row("⭐  Favourites  ($favCount)", null, sortKey = "Favourites") { showFavMovies() })
+            rows.add(Row("⭐  Favourites  ($favCount)", null, sortKey = "Favourites") { showFavVod() })
         rows.addAll(vodCats.map { c -> Row(c.title, null, sortKey = c.title) { showVodList(c) } })
         push(Page("Movies", rows, kind = SearchKind.VOD_ALL, rebuild = { showVodCategories() }))
     }
 
-    private fun showFavMovies() {
-        val rows = Favorites.byKind(this, "movie").map { e ->
-            val fav = FavInfo({ Favorites.isFav(this, "movie", e.id) }, { Favorites.toggle(this, e) })
-            Row("🎬  ${e.title}", e.poster.ifBlank { null }, sortKey = e.title, fav = fav) {
-                mediaActions(e.title, e.poster, "movie_${e.id}", e.source)
+    /** Title for episodes/seasons is "Series  /  Season  /  Episode" → split for nesting. */
+    private fun favParts(title: String) = title.split("/").map { it.trim() }
+
+    private fun showFavVod() {
+        val all = Favorites.all(this)
+        val rows = ArrayList<Row>()
+        // Movies (play directly)
+        for (m in all.filter { it.kind == "movie" }) {
+            val fav = FavInfo({ Favorites.isFav(this, "movie", m.id) }, { Favorites.toggle(this, m) })
+            rows.add(Row("🎬  ${m.title}", m.poster.ifBlank { null }, sortKey = m.title, fav = fav) {
+                mediaActions(m.title, m.poster, "movie_${m.id}", m.source)
+            })
+        }
+        // Whole-series favourites (open all seasons)
+        for (s in all.filter { it.kind == "series" })
+            rows.add(Row("📁  ${s.title}", s.poster.ifBlank { null }, sortKey = s.title) { openFavSeries(s) })
+        // Favourited seasons (open episodes)
+        for (se in all.filter { it.kind == "season" })
+            rows.add(Row("📁  ${se.title}", se.poster.ifBlank { null }, sortKey = se.title) { openFavSeason(se) })
+        // Series → Season → Episode nesting for favourited episodes
+        val episodes = all.filter { it.kind == "episode" }
+        for (seriesName in episodes.map { favParts(it.title).getOrElse(0) { it.title } }.distinct())
+            rows.add(Row("📁  $seriesName", null, sortKey = seriesName) { showFavEpSeries(seriesName) })
+        push(Page("Favourites", rows, kind = SearchKind.LOCAL, rebuild = { showFavVod() }))
+    }
+
+    private fun showFavEpSeries(seriesName: String) {
+        val eps = Favorites.byKind(this, "episode").filter { favParts(it.title).getOrElse(0) { "" } == seriesName }
+        val rows = eps.map { favParts(it.title).getOrElse(1) { "" } }.distinct().map { season ->
+            Row("📁  $season", null, sortKey = season) { showFavEpSeason(seriesName, season) }
+        }
+        push(Page("Favourites — $seriesName", rows, kind = SearchKind.LOCAL, rebuild = { showFavEpSeries(seriesName) }))
+    }
+
+    private fun showFavEpSeason(seriesName: String, season: String) {
+        val eps = Favorites.byKind(this, "episode").filter {
+            val p = favParts(it.title); p.getOrElse(0) { "" } == seriesName && p.getOrElse(1) { "" } == season
+        }
+        val rows = eps.map { e ->
+            val epName = favParts(e.title).getOrElse(2) { e.title }
+            val fav = FavInfo({ Favorites.isFav(this, "episode", e.id) }, { Favorites.toggle(this, e) })
+            Row("🎬  $epName", e.poster.ifBlank { null }, sortKey = epName, fav = fav) {
+                mediaActions(e.title, e.poster, "ep_${e.id}", e.source)
             }
         }
-        push(Page("Favourites — Movies", rows, kind = SearchKind.LOCAL, rebuild = { showFavMovies() }))
+        push(Page("$seriesName — $season", rows, kind = SearchKind.LOCAL, rebuild = { showFavEpSeason(seriesName, season) }))
+    }
+
+    private fun openFavSeries(e: Favorites.Entry) {
+        val id = e.source.split("|").getOrElse(1) { e.id }
+        showSeasons(Portal.VodItem(id, e.title, "", e.poster, true))
+    }
+
+    private fun openFavSeason(e: Favorites.Entry) {
+        val p = e.source.split("|")
+        val parts = favParts(e.title)
+        showEpisodes(
+            Portal.VodItem(p.getOrElse(1) { "" }, parts.getOrElse(0) { e.title }, "", e.poster, true),
+            Portal.Season(p.getOrElse(2) { "" }, parts.getOrElse(1) { "Season" })
+        )
     }
 
     private fun showVodList(cat: Portal.VodCat) {
@@ -789,7 +843,9 @@ class ChannelsActivity : AppCompatActivity() {
                     return@runOnUiThread
                 }
                 push(Page(series.name, seasons.reversed().map { s ->
-                    Row(s.name, null) { showEpisodes(series, s) }
+                    val favE = Favorites.Entry("season", "${series.id}_${s.id}", "${series.name}  /  ${s.name}", series.posterUrl, "season|${series.id}|${s.id}")
+                    val fav = FavInfo({ Favorites.isFav(this, "season", favE.id) }, { Favorites.toggle(this, favE) })
+                    Row(s.name, null, fav = fav) { showEpisodes(series, s) }
                 }))
             }
         }
@@ -808,13 +864,11 @@ class ChannelsActivity : AppCompatActivity() {
                     return@runOnUiThread
                 }
                 push(Page("${series.name} — ${season.name}", eps.reversed().map { e ->
-                    Row(e.name, null) {
-                        mediaActions(
-                            "${series.name}  /  ${season.name}  /  ${e.name}",
-                            series.posterUrl,
-                            "ep_${series.id}_${season.id}_${e.id}",
-                            "ep|${series.id}|${season.id}|${e.id}"
-                        )
+                    val title = "${series.name}  /  ${season.name}  /  ${e.name}"
+                    val favE = Favorites.Entry("episode", "${series.id}_${season.id}_${e.id}", title, series.posterUrl, "ep|${series.id}|${season.id}|${e.id}")
+                    val fav = FavInfo({ Favorites.isFav(this, "episode", favE.id) }, { Favorites.toggle(this, favE) })
+                    Row(e.name, null, fav = fav) {
+                        mediaActions(title, series.posterUrl, "ep_${series.id}_${season.id}_${e.id}", "ep|${series.id}|${season.id}|${e.id}")
                     }
                 }))
             }
