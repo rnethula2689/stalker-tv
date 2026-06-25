@@ -144,7 +144,7 @@
             android:id="@+id/previewFrame"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="0.48"
+            android:layout_weight="0.42"
             android:focusable="true"
             android:clickable="true"
             android:background="@drawable/preview_bg">
@@ -171,7 +171,7 @@
             android:id="@+id/epgPanel"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="0.52"
+            android:layout_weight="0.58"
             android:layout_marginTop="10dp"
             android:orientation="vertical"
             android:background="@drawable/preview_bg"
@@ -233,14 +233,14 @@
                 android:textColor="#aab7c4"
                 android:textSize="13sp"
                 android:lineSpacingExtra="2dp"
-                android:maxLines="2"
+                android:maxLines="1"
                 android:ellipsize="end"
                 android:text="" />
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="10dp"
                 android:background="#1b2733" />
 
             <TextView
