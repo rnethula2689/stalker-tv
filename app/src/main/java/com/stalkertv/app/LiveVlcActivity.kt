@@ -34,6 +34,7 @@ class LiveVlcActivity : AppCompatActivity() {
     // Tablet swipe: up = previous, down = next, right = next, left = previous (like flicking photos).
     private val gestureDetector by lazy {
         android.view.GestureDetector(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: android.view.MotionEvent): Boolean = true // required so fling/tap events are delivered
             override fun onSingleTapUp(e: android.view.MotionEvent): Boolean { showBar(); return true }
             override fun onFling(e1: android.view.MotionEvent?, e2: android.view.MotionEvent, vx: Float, vy: Float): Boolean {
                 if (e1 == null) return false
