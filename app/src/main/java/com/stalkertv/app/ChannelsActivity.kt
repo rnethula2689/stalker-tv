@@ -16,7 +16,7 @@ class ChannelsActivity : AppCompatActivity() {
     private val adapter = RowAdapter()
 
     /** Optional favourite toggle for a row (channels / movies). Null = not favouritable (e.g. folders). */
-    class FavInfo(val isFav: () -> Boolean, val toggle: () -> Boolean)
+    class FavInfo(val isFav: () -> Boolean, val toggle: () -> Boolean, val onAdded: (() -> Unit)? = null)
     data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val fav: FavInfo? = null, val isHeader: Boolean = false, val catchup: (() -> Unit)? = null, val action: () -> Unit)
     enum class SearchKind { LOCAL, GLOBAL, CHANNELS, VOD_ALL, VOD_CATEGORY }
     data class Page(
@@ -478,9 +478,38 @@ class ChannelsActivity : AppCompatActivity() {
         }
     }
 
+    /** Favourite handle for a live channel: toggles the id-set, clears its group on removal,
+     *  and prompts for a group when newly added. */
+    private fun liveFav(ch: Portal.Channel) = FavInfo(
+        isFav = { Configs.isFavorite(this, ch.id) },
+        toggle = {
+            val now = Configs.toggleFavorite(this, ch.id)
+            if (!now) FavGroups.setGroup(this, "live", ch.id, null)
+            now
+        },
+        onAdded = { FavGroupPicker.show(this, "live", ch.id) { afterFavChange() } }
+    )
+
+    /** Favourite handle for a VOD entry (movie/series/season/episode). */
+    private fun vodFav(kind: String, e: Favorites.Entry) = FavInfo(
+        isFav = { Favorites.isFav(this, kind, e.id) },
+        toggle = {
+            val now = Favorites.toggle(this, e)
+            if (!now) FavGroups.setGroup(this, "vod", e.id, null)
+            now
+        },
+        onAdded = { FavGroupPicker.show(this, "vod", e.id) { afterFavChange() } }
+    )
+
+    /** Rebuild the current screen after a favourite/group change so counts/rows refresh. */
+    private fun afterFavChange() {
+        val top = backStack.lastOrNull()
+        if (top?.rebuild != null) { backStack.removeLast(); top.rebuild!!.invoke() }
+    }
+
     private fun channelRow(ch: Portal.Channel): Row {
         val label = "📺  " + (if (ch.number.isNotEmpty()) "${ch.number}. " else "") + ch.name
-        val fav = FavInfo({ Configs.isFavorite(this, ch.id) }, { Configs.toggleFavorite(this, ch.id) })
+        val fav = liveFav(ch)
         // Clock only on channels with an actual archive (tv_archive_duration > 0).
         val catchup: (() -> Unit)? = if (ch.archiveDays > 0) ({ openCatchup(ch) }) else null
         return Row(label, ch.logoUrl, sortKey = ch.name, fav = fav, catchup = catchup) { playChannel(ch) }
@@ -524,13 +553,10 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun vodItemRow(v: Portal.VodItem): Row {
         val label = (if (v.isSeries) "📁  " else "🎬  ") + v.name
-        val fav = if (v.isSeries) FavInfo(
-            { Favorites.isFav(this, "series", v.id) },
-            { Favorites.toggle(this, Favorites.Entry("series", v.id, v.name, v.posterUrl, "series|${v.id}")) }
-        ) else FavInfo(
-            { Favorites.isFav(this, "movie", v.id) },
-            { Favorites.toggle(this, Favorites.Entry("movie", v.id, v.name, v.posterUrl, "vod|${v.id}|${v.cmd}")) }
-        )
+        val fav = if (v.isSeries)
+            vodFav("series", Favorites.Entry("series", v.id, v.name, v.posterUrl, "series|${v.id}"))
+        else
+            vodFav("movie", Favorites.Entry("movie", v.id, v.name, v.posterUrl, "vod|${v.id}|${v.cmd}"))
         return Row(label, v.posterUrl, sortKey = v.name, fav = fav) {
             if (v.isSeries) showSeasons(v)
             else mediaActions(v.name, v.posterUrl, "movie_${v.id}", "vod|${v.id}|${v.cmd}")
@@ -638,6 +664,7 @@ class ChannelsActivity : AppCompatActivity() {
         val wl = WatchLater.all(this)
         if (wl.isNotEmpty())
             rows.add(Row("🕒   Watch Later  (${wl.size})", null) { startActivity(Intent(this, WatchLaterActivity::class.java)) })
+        rows.add(Row("⭐   Favourites", null) { showFavouritesHome() })
         rows.add(Row("📺   Live TV", null) { showLiveGenres() })
         rows.add(Row("🎬   Movies (VOD)", null) { showVodCategories() })
         rows.add(Row("⬇   Downloads", null) { startActivity(Intent(this, DownloadsActivity::class.java)) })
@@ -727,7 +754,7 @@ class ChannelsActivity : AppCompatActivity() {
         val favs = Configs.favorites(this)
         val favChannels = allChannels.filter { favs.contains(it.id) }
         if (favChannels.isNotEmpty())
-            rows.add(Row("⭐  Favourites  (${favChannels.size})", null, sortKey = "Favourites") { openLiveGrid(favChannels, "Favourites") })
+            rows.add(Row("⭐  Favourites  (${favChannels.size})", null, sortKey = "Favourites") { showLiveFavRoot() })
         rows.add(Row("All Channels  (${allChannels.size})", null, sortKey = "All Channels") { openLiveGrid(allChannels, "All Channels") })
         for (g in genres) {
             val list = byGenre[g.id] ?: emptyList()
@@ -875,7 +902,7 @@ class ChannelsActivity : AppCompatActivity() {
         val rows = ArrayList<Row>()
         val favCount = Favorites.all(this).size
         if (favCount > 0)
-            rows.add(Row("⭐  Favourites  ($favCount)", null, sortKey = "Favourites") { showFavVod() })
+            rows.add(Row("⭐  Favourites  ($favCount)", null, sortKey = "Favourites") { showVodFavRoot() })
         rows.addAll(vodCats.map { c -> Row(c.title, null, sortKey = c.title) { showVodList(c) } })
         push(Page("Movies", rows, kind = SearchKind.VOD_ALL, rebuild = { showVodCategories() }))
     }
@@ -883,24 +910,143 @@ class ChannelsActivity : AppCompatActivity() {
     /** Title for episodes/seasons is "Series  /  Season  /  Episode" → split for nesting. */
     private fun favParts(title: String) = title.split("/").map { it.trim() }
 
+    // ---- Favourites (grouped) ----
+
+    /** Top-level Favourites: two folders — Live TV and Movies & VOD. */
+    private fun showFavouritesHome() {
+        val liveN = allChannels.count { Configs.isFavorite(this, it.id) }
+        val vodN = Favorites.all(this).size
+        val rows = ArrayList<Row>()
+        rows.add(Row("📺   Live TV — Favourites  ($liveN)", null) { showLiveFavRoot() })
+        rows.add(Row("🎬   Movies & VOD — Favourites  ($vodN)", null) { showVodFavRoot() })
+        push(Page("Favourites", rows, kind = SearchKind.LOCAL, rebuild = { showFavouritesHome() }))
+    }
+
+    /** Live favourites: if no groups exist, open the grid directly; otherwise show group folders. */
+    private fun showLiveFavRoot() {
+        val favChannels = allChannels.filter { Configs.isFavorite(this, it.id) }
+        val groups = FavGroups.groups(this, "live")
+        if (groups.isEmpty() && favChannels.isNotEmpty()) {
+            openLiveGrid(favChannels, "Favourites"); return
+        }
+        val rows = ArrayList<Row>()
+        rows.add(Row("➕   New group", null) { promptCreateGroup("live") })
+        for (g in groups) {
+            val list = favChannels.filter { FavGroups.groupOf(this, "live", it.id) == g }
+            rows.add(Row("📁  $g  (${list.size})", null, sortKey = g) { openLiveGrid(list, g) })
+        }
+        val ungrouped = favChannels.filter { FavGroups.groupOf(this, "live", it.id) == null }
+        if (ungrouped.isNotEmpty())
+            rows.add(Row("📁  Ungrouped  (${ungrouped.size})", null) { openLiveGrid(ungrouped, "Ungrouped") })
+        if (groups.isNotEmpty()) rows.add(Row("⚙   Manage groups", null) { manageGroups("live") })
+        push(Page("Live TV — Favourites", rows, kind = SearchKind.LOCAL, rebuild = { showLiveFavRoot() }))
+    }
+
+    /** Movies & VOD favourites: if no groups exist, show the flat/nested list; else group folders. */
+    private fun showVodFavRoot() {
+        val groups = FavGroups.groups(this, "vod")
+        if (groups.isEmpty()) { showFavVod(); return }
+        val all = Favorites.all(this)
+        val rows = ArrayList<Row>()
+        rows.add(Row("➕   New group", null) { promptCreateGroup("vod") })
+        for (g in groups) {
+            val n = all.count { FavGroups.groupOf(this, "vod", it.id) == g }
+            rows.add(Row("📁  $g  ($n)", null, sortKey = g) { showVodFavGroup(g) })
+        }
+        val ungroupedN = all.count { FavGroups.groupOf(this, "vod", it.id) == null }
+        if (ungroupedN > 0) rows.add(Row("📁  Ungrouped  ($ungroupedN)", null) { showVodFavGroup(null) })
+        rows.add(Row("⚙   Manage groups", null) { manageGroups("vod") })
+        if (all.isNotEmpty()) rows.add(Row("🗑   Clear all favourites", null) { confirmClearVodFavorites() })
+        push(Page("Movies & VOD — Favourites", rows, kind = SearchKind.LOCAL, rebuild = { showVodFavRoot() }))
+    }
+
+    /** Flat list of a single VOD favourite group (movies play; series/season open; episodes play). */
+    private fun showVodFavGroup(group: String?) {
+        val all = Favorites.all(this).filter { FavGroups.groupOf(this, "vod", it.id) == group }
+        val rows = ArrayList<Row>()
+        for (m in all.filter { it.kind == "movie" })
+            rows.add(Row("🎬  ${m.title}", m.poster.ifBlank { null }, sortKey = m.title, fav = vodFav("movie", m)) {
+                mediaActions(m.title, m.poster, "movie_${m.id}", m.source)
+            })
+        for (s in all.filter { it.kind == "series" })
+            rows.add(Row("📁  ${s.title}", s.poster.ifBlank { null }, sortKey = s.title, fav = vodFav("series", s)) { openFavSeries(s) })
+        for (se in all.filter { it.kind == "season" })
+            rows.add(Row("📁  ${se.title}", se.poster.ifBlank { null }, sortKey = se.title, fav = vodFav("season", se)) { openFavSeason(se) })
+        for (e in all.filter { it.kind == "episode" })
+            rows.add(Row("🎬  ${e.title}", e.poster.ifBlank { null }, sortKey = e.title, fav = vodFav("episode", e)) {
+                mediaActions(e.title, e.poster, "ep_${e.id}", e.source)
+            })
+        val title = "Favourites — " + (group ?: "Ungrouped")
+        push(Page(title, rows, kind = SearchKind.LOCAL, rebuild = { showVodFavGroup(group) }))
+    }
+
+    private fun promptCreateGroup(scope: String) {
+        val input = android.widget.EditText(this).apply { hint = "Group name (e.g. Sports)" }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("New group")
+            .setView(input)
+            .setPositiveButton("Create") { _, _ ->
+                val n = input.text.toString().trim()
+                if (n.isNotEmpty()) FavGroups.addGroup(this, scope, n)
+                afterFavChange()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun manageGroups(scope: String) {
+        val groups = FavGroups.groups(this, scope)
+        if (groups.isEmpty()) { android.widget.Toast.makeText(this, "No groups yet.", android.widget.Toast.LENGTH_SHORT).show(); return }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Manage groups")
+            .setItems(groups.toTypedArray()) { _, w -> groupActions(scope, groups[w]) }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun groupActions(scope: String, name: String) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(name)
+            .setItems(arrayOf("✏  Rename", "🗑  Delete group")) { _, w ->
+                if (w == 0) {
+                    val input = android.widget.EditText(this).apply { setText(name) }
+                    androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Rename group")
+                        .setView(input)
+                        .setPositiveButton("Save") { _, _ ->
+                            val n = input.text.toString().trim()
+                            if (n.isNotEmpty()) FavGroups.renameGroup(this, scope, name, n)
+                            afterFavChange()
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                } else {
+                    FavGroups.deleteGroup(this, scope, name)
+                    android.widget.Toast.makeText(this, "Deleted “$name” — items moved to Ungrouped", android.widget.Toast.LENGTH_SHORT).show()
+                    afterFavChange()
+                }
+            }
+            .show()
+    }
+
     private fun showFavVod() {
         val all = Favorites.all(this)
         val rows = ArrayList<Row>()
         // Movies (play directly)
         for (m in all.filter { it.kind == "movie" }) {
-            val fav = FavInfo({ Favorites.isFav(this, "movie", m.id) }, { Favorites.toggle(this, m) })
+            val fav = vodFav("movie", m)
             rows.add(Row("🎬  ${m.title}", m.poster.ifBlank { null }, sortKey = m.title, fav = fav) {
                 mediaActions(m.title, m.poster, "movie_${m.id}", m.source)
             })
         }
         // Whole-series favourites (open all seasons; long-press to un-favourite)
         for (s in all.filter { it.kind == "series" }) {
-            val fav = FavInfo({ Favorites.isFav(this, "series", s.id) }, { Favorites.toggle(this, s) })
+            val fav = vodFav("series", s)
             rows.add(Row("📁  ${s.title}", s.poster.ifBlank { null }, sortKey = s.title, fav = fav) { openFavSeries(s) })
         }
         // Favourited seasons (open episodes; long-press to un-favourite)
         for (se in all.filter { it.kind == "season" }) {
-            val fav = FavInfo({ Favorites.isFav(this, "season", se.id) }, { Favorites.toggle(this, se) })
+            val fav = vodFav("season", se)
             rows.add(Row("📁  ${se.title}", se.poster.ifBlank { null }, sortKey = se.title, fav = fav) { openFavSeason(se) })
         }
         // Series → Season → Episode nesting for favourited episodes
@@ -1016,7 +1162,7 @@ class ChannelsActivity : AppCompatActivity() {
                 }
                 push(Page(series.name, seasons.reversed().map { s ->
                     val favE = Favorites.Entry("season", "${series.id}_${s.id}", "${series.name}  /  ${s.name}", series.posterUrl, "season|${series.id}|${s.id}")
-                    val fav = FavInfo({ Favorites.isFav(this, "season", favE.id) }, { Favorites.toggle(this, favE) })
+                    val fav = vodFav("season", favE)
                     Row(s.name, null, fav = fav) { showEpisodes(series, s) }
                 }))
             }
@@ -1038,7 +1184,7 @@ class ChannelsActivity : AppCompatActivity() {
                 push(Page("${series.name} — ${season.name}", eps.reversed().map { e ->
                     val title = "${series.name}  /  ${season.name}  /  ${e.name}"
                     val favE = Favorites.Entry("episode", "${series.id}_${season.id}_${e.id}", title, series.posterUrl, "ep|${series.id}|${season.id}|${e.id}")
-                    val fav = FavInfo({ Favorites.isFav(this, "episode", favE.id) }, { Favorites.toggle(this, favE) })
+                    val fav = vodFav("episode", favE)
                     Row(e.name, null, fav = fav) {
                         mediaActions(title, series.posterUrl, "ep_${series.id}_${season.id}_${e.id}", "ep|${series.id}|${season.id}|${e.id}")
                     }

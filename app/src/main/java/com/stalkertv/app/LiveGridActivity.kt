@@ -54,7 +54,10 @@ class LiveGridActivity : AppCompatActivity() {
         libVlc = vlc
         mp = MediaPlayer(vlc) // attached to the surface in onStart (and re-attached on return from fullscreen)
 
-        adapter = ChannelGridAdapter(all, { ch -> activate(ch) }, { ch -> select(ch) }, { ch -> favToast(ch) }, { ch -> openCatchup(ch) })
+        adapter = ChannelGridAdapter(
+            all, { ch -> activate(ch) }, { ch -> select(ch) }, { ch -> favToast(ch) }, { ch -> openCatchup(ch) },
+            { ch -> FavGroupPicker.show(this, "live", ch.id) { adapter.notifyDataSetChanged() } }
+        )
         b.list.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
         b.list.adapter = adapter
 

@@ -17,7 +17,8 @@ class ChannelGridAdapter(
     private val onActivate: (Portal.Channel) -> Unit,
     private val onFocus: (Portal.Channel) -> Unit = {},
     private val onToggleFav: (Portal.Channel) -> Unit = {},
-    private val onCatchup: (Portal.Channel) -> Unit = {}
+    private val onCatchup: (Portal.Channel) -> Unit = {},
+    private val onAddFavGroup: (Portal.Channel) -> Unit = {}
 ) : RecyclerView.Adapter<ChannelGridAdapter.VH>() {
 
     fun submit(list: List<Portal.Channel>) {
@@ -37,10 +38,12 @@ class ChannelGridAdapter(
         holder.b.star.text = if (fav) "★" else "☆"
         holder.b.star.setTextColor(if (fav) 0xFFFFD54F.toInt() else 0xFF5A6675.toInt())
         val toggle = {
-            Configs.toggleFavorite(holder.b.root.context, ch.id)
+            val now = Configs.toggleFavorite(holder.b.root.context, ch.id)
+            if (!now) FavGroups.setGroup(holder.b.root.context, "live", ch.id, null)
             val pos = holder.bindingAdapterPosition
             if (pos != RecyclerView.NO_POSITION) notifyItemChanged(pos) // refresh just this star
             onToggleFav(ch)
+            if (now) onAddFavGroup(ch) // newly added → ask which group
         }
         holder.b.star.setOnClickListener { toggle() }              // tap the star (touch)
         holder.b.root.setOnLongClickListener { toggle(); true }     // long-press OK / long-tap = favourite

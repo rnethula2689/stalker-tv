@@ -76,6 +76,7 @@ class RowAdapter : RecyclerView.Adapter<RowAdapter.VH>() {
                     if (now) "★  Added to Favourites" else "Removed from Favourites",
                     android.widget.Toast.LENGTH_SHORT
                 ).show()
+                if (now) fav.onAdded?.invoke() // newly added → ask which group
                 onFavToggled?.invoke()
             }
             holder.b.star.setOnClickListener { toggle() }           // tap the star (touch)
