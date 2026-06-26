@@ -541,10 +541,15 @@ class ChannelsActivity : AppCompatActivity() {
     private fun mediaActions(title: String, poster: String?, id: String, source: String) {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(title)
-            .setItems(arrayOf("▶  Play", "⬇  Download for offline", "📂  Go to Downloads")) { _, w ->
+            .setItems(arrayOf("▶  Play", "🕒  Watch later", "⬇  Download for offline", "📂  Go to Downloads")) { _, w ->
                 when (w) {
                     0 -> play(title, id, poster, source)
                     1 -> {
+                        val kind = if (source.startsWith("ep|")) "episode" else "movie"
+                        val added = WatchLater.add(applicationContext, kind, id, title, poster ?: "", source)
+                        android.widget.Toast.makeText(this, if (added) "Added to Watch Later" else "Already in Watch Later", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    2 -> {
                         if (Downloads.has(applicationContext, id)) {
                             android.widget.Toast.makeText(this, "Already saved (or downloading). See Downloads.", android.widget.Toast.LENGTH_SHORT).show()
                         } else {
@@ -552,7 +557,7 @@ class ChannelsActivity : AppCompatActivity() {
                             android.widget.Toast.makeText(this, "Download started — see ⬇ Downloads.", android.widget.Toast.LENGTH_LONG).show()
                         }
                     }
-                    2 -> startActivity(Intent(this, DownloadsActivity::class.java))
+                    3 -> startActivity(Intent(this, DownloadsActivity::class.java))
                 }
             }
             .show()
@@ -630,6 +635,9 @@ class ChannelsActivity : AppCompatActivity() {
         val cw = Resume.all(this)
         if (cw.isNotEmpty())
             rows.add(Row("▶   Continue Watching  (${cw.size})", null) { showContinueWatching() })
+        val wl = WatchLater.all(this)
+        if (wl.isNotEmpty())
+            rows.add(Row("🕒   Watch Later  (${wl.size})", null) { startActivity(Intent(this, WatchLaterActivity::class.java)) })
         rows.add(Row("📺   Live TV", null) { showLiveGenres() })
         rows.add(Row("🎬   Movies (VOD)", null) { showVodCategories() })
         rows.add(Row("⬇   Downloads", null) { startActivity(Intent(this, DownloadsActivity::class.java)) })

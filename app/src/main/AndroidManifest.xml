@@ -70,6 +70,11 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
 
+        <activity
+            android:name=".WatchLaterActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
+
         <!-- WorkManager's foreground service needs the dataSync type on Android 14+ -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
