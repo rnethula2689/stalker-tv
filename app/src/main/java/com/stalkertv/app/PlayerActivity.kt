@@ -530,23 +530,29 @@ class PlayerActivity : AppCompatActivity() {
 
     /** Shrink to the floating pop-up player (needs the "display over other apps" permission once). */
     private fun enterPipFlow() {
-        if (Build.VERSION.SDK_INT >= 23 && !android.provider.Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "Turn on “Display over other apps” for the pop-up player, then tap ⧉ again.", Toast.LENGTH_LONG).show()
-            try {
-                startActivity(
-                    android.content.Intent(
-                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:$packageName")
-                    )
-                )
-            } catch (_: Exception) {}
-            return
-        }
+        if (!PipLauncher.hasPermission(this)) { PipLauncher.requestPermission(this); return }
         val pos = player?.currentPosition ?: 0L
         saveResume()
         player?.playWhenReady = false // hand audio over to the pop-up cleanly
         PipService.start(this, videoUrl, titleText, resumeSource, resumeId, resumePoster, pos, isLive)
         finish()
+    }
+
+    // Swipe down on the video → shrink to the pop-up (PiP), YouTube-style.
+    private val pipGesture by lazy {
+        android.view.GestureDetector(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
+            override fun onFling(e1: android.view.MotionEvent?, e2: android.view.MotionEvent, vx: Float, vy: Float): Boolean {
+                if (e1 != null && vy > 0 && (e2.y - e1.y) > 180f && Math.abs(e2.y - e1.y) > Math.abs(e2.x - e1.x)) {
+                    enterPipFlow(); return true
+                }
+                return false
+            }
+        })
+    }
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        pipGesture.onTouchEvent(ev)
+        return super.dispatchTouchEvent(ev)
     }
 
     /** Open one panel (and close the other). While a panel is open, keep the controller up. */

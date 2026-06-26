@@ -108,6 +108,7 @@ class LiveVlcActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityLivevlcBinding.inflate(layoutInflater)
         setContentView(b.root)
+        PipService.stop(this) // opening fullscreen playback closes any existing pop-up
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val url = intent.getStringExtra("url") ?: run { finish(); return }
@@ -142,6 +143,8 @@ class LiveVlcActivity : AppCompatActivity() {
         b.menuBtn.setOnClickListener { showMenu() }
         b.root.setOnTouchListener { _, ev -> gestureDetector.onTouchEvent(ev) }
         wireQuickControls()
+        b.pipBtn.setOnClickListener { enterPipFlow() }
+        b.pipBtn.visibility = if (!isArchive) View.VISIBLE else View.GONE
 
         if (isArchive) {
             knownDurationMs = intent.getLongExtra("durationSec", 0) * 1000 // program length → stable scrub timeline
@@ -517,6 +520,14 @@ class LiveVlcActivity : AppCompatActivity() {
         nightOn = !nightOn
         b.nightOverlay.visibility = if (nightOn) View.VISIBLE else View.GONE
         b.nightBtn.text = if (nightOn) "🌙  Night mode: ON" else "🌙  Night mode"
+    }
+
+    /** Shrink the live stream to the floating pop-up player (plays via ExoPlayer in the overlay). */
+    private fun enterPipFlow() {
+        if (!PipLauncher.hasPermission(this)) { PipLauncher.requestPermission(this); return }
+        if (currentUrl.isEmpty()) return
+        PipService.start(this, currentUrl, titleText, "", "", "", 0L, true)
+        finish()
     }
 
     private var menuDialog: AlertDialog? = null
