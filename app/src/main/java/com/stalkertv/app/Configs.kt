@@ -75,6 +75,10 @@ object Configs {
     fun parentalPin(ctx: Context): String = prefs(ctx).getString("parentalPin", "") ?: ""
     fun setParentalPin(ctx: Context, pin: String) { prefs(ctx).edit().putString("parentalPin", pin).apply() }
 
+    // ---- Autoplay next episode (global toggle, default on) ----
+    fun autoplay(ctx: Context): Boolean = prefs(ctx).getBoolean("autoplay_next", true)
+    fun setAutoplay(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("autoplay_next", on).apply() }
+
     // ---- Favourite channels (per active provider) ----
     private fun favKey(ctx: Context) = "fav:" + (active(ctx)?.sig() ?: "default")
 

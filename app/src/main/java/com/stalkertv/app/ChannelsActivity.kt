@@ -564,12 +564,15 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     /** Movie / episode action sheet: play now, or download for offline. [source] lets a download resume later. */
-    private fun mediaActions(title: String, poster: String?, id: String, source: String) {
+    private fun mediaActions(
+        title: String, poster: String?, id: String, source: String,
+        playlist: List<PlayerActivity.PlaylistItem> = emptyList(), plIndex: Int = -1
+    ) {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(title)
             .setItems(arrayOf("▶  Play", "🕒  Watch later", "⬇  Download for offline", "📂  Go to Downloads")) { _, w ->
                 when (w) {
-                    0 -> play(title, id, poster, source)
+                    0 -> play(title, id, poster, source, playlist, plIndex)
                     1 -> {
                         val kind = if (source.startsWith("ep|")) "episode" else "movie"
                         val added = WatchLater.add(applicationContext, kind, id, title, poster ?: "", source)
@@ -1181,12 +1184,22 @@ class ChannelsActivity : AppCompatActivity() {
                     b.status.text = "No episodes found."
                     return@runOnUiThread
                 }
+                // Playlist in natural episode order (E1, E2…) so autoplay advances forward.
+                val playlist = eps.map { ep ->
+                    PlayerActivity.PlaylistItem(
+                        "${series.name}  /  ${season.name}  /  ${ep.name}",
+                        "ep_${series.id}_${season.id}_${ep.id}",
+                        series.posterUrl,
+                        "ep|${series.id}|${season.id}|${ep.id}"
+                    )
+                }
                 push(Page("${series.name} — ${season.name}", eps.reversed().map { e ->
                     val title = "${series.name}  /  ${season.name}  /  ${e.name}"
                     val favE = Favorites.Entry("episode", "${series.id}_${season.id}_${e.id}", title, series.posterUrl, "ep|${series.id}|${season.id}|${e.id}")
                     val fav = vodFav("episode", favE)
+                    val idx = eps.indexOfFirst { it.id == e.id }
                     Row(e.name, null, fav = fav) {
-                        mediaActions(title, series.posterUrl, "ep_${series.id}_${season.id}_${e.id}", "ep|${series.id}|${season.id}|${e.id}")
+                        mediaActions(title, series.posterUrl, "ep_${series.id}_${season.id}_${e.id}", "ep|${series.id}|${season.id}|${e.id}", playlist, idx)
                     }
                 }))
             }
@@ -1194,23 +1207,29 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     /** Play a movie/episode; if there's a saved position, ask Resume / Start over first. */
-    private fun play(title: String, resumeId: String, poster: String?, source: String) {
+    private fun play(
+        title: String, resumeId: String, poster: String?, source: String,
+        playlist: List<PlayerActivity.PlaylistItem> = emptyList(), plIndex: Int = -1
+    ) {
         val r = Resume.get(this, resumeId)
         if (Resume.resumable(r)) {
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle(title)
                 .setItems(arrayOf("▶  Resume from ${fmtTime(r!!.position)}", "↻  Start from beginning", "🗑  Remove from Continue Watching")) { _, w ->
                     when (w) {
-                        0 -> startPlayer(title, resumeId, poster, source, r.position)
-                        1 -> startPlayer(title, resumeId, poster, source, 0L)
+                        0 -> startPlayer(title, resumeId, poster, source, r.position, playlist, plIndex)
+                        1 -> startPlayer(title, resumeId, poster, source, 0L, playlist, plIndex)
                         2 -> { Resume.remove(this, resumeId); refreshContinue() }
                     }
                 }
                 .show()
-        } else startPlayer(title, resumeId, poster, source, 0L)
+        } else startPlayer(title, resumeId, poster, source, 0L, playlist, plIndex)
     }
 
-    private fun startPlayer(title: String, resumeId: String, poster: String?, source: String, startPos: Long) {
+    private fun startPlayer(
+        title: String, resumeId: String, poster: String?, source: String, startPos: Long,
+        playlist: List<PlayerActivity.PlaylistItem> = emptyList(), plIndex: Int = -1
+    ) {
         b.status.visibility = View.VISIBLE
         b.status.text = "Opening $title…"
         playIo.execute {
@@ -1224,6 +1243,8 @@ class ChannelsActivity : AppCompatActivity() {
                     else "Couldn't open “$title” — $why"
                 } else {
                     b.status.visibility = View.GONE
+                    PlayerActivity.playlist = playlist
+                    PlayerActivity.playlistIndex = plIndex
                     startActivity(
                         Intent(this, PlayerActivity::class.java)
                             .putExtra("url", url)

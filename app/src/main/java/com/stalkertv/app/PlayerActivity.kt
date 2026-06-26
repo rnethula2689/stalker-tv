@@ -52,8 +52,15 @@ class PlayerActivity : AppCompatActivity() {
     private var aspectIdx = 0
     private var nightOn = false
 
+    private var epList: List<PlaylistItem> = emptyList()
+    private var epIndex = -1
+
     companion object {
         var liveChannels: List<Portal.Channel> = emptyList()
+        data class PlaylistItem(val title: String, val resumeId: String, val poster: String, val source: String)
+        // Set just before launching an episode so the player can auto-advance to the next one.
+        var playlist: List<PlaylistItem> = emptyList()
+        var playlistIndex = -1
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,6 +88,11 @@ class PlayerActivity : AppCompatActivity() {
         b.subBtn.setOnClickListener { searchSubtitles() }
         b.menuBtn.setOnClickListener { showMenu() }
         wireQuickControls()
+
+        // Episode playlist (for autoplay-next), handed over via the companion then consumed once.
+        epList = playlist
+        epIndex = playlistIndex
+        playlist = emptyList(); playlistIndex = -1
 
         isLive = intent.getBooleanExtra("live", false)
         chIndex = intent.getIntExtra("chIndex", -1)
@@ -151,6 +163,9 @@ class PlayerActivity : AppCompatActivity() {
                 if (isPlaying) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == androidx.media3.common.Player.STATE_ENDED) maybeAutoplayNext()
+            }
         })
         return p
     }
@@ -202,16 +217,21 @@ class PlayerActivity : AppCompatActivity() {
     private var menuDialog: AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("📡   Cast to TV", "💬   Subtitles", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val autoLabel = if (Configs.autoplay(this)) "🔁   Autoplay next: ON" else "🔁   Autoplay next: OFF"
+        val items = arrayOf("📡   Cast to TV", "💬   Subtitles", autoLabel, "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> if (videoUrl.isNotEmpty()) CastHelper.show(this, videoUrl, titleText, isLive)
                     1 -> searchSubtitles()
-                    2 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
-                    3 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
-                    4 -> About.show(this)
-                    5 -> finishAffinity()
+                    2 -> {
+                        Configs.setAutoplay(this, !Configs.autoplay(this))
+                        Toast.makeText(this, if (Configs.autoplay(this)) "Autoplay next: ON" else "Autoplay next: OFF", Toast.LENGTH_SHORT).show()
+                    }
+                    3 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
+                    4 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
+                    5 -> About.show(this)
+                    6 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }
@@ -302,6 +322,37 @@ class PlayerActivity : AppCompatActivity() {
                 pl.trackSelectionParameters = pl.trackSelectionParameters.buildUpon()
                     .setPreferredTextLanguage("en").build()
                 Toast.makeText(this, "Subtitle applied ✓", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /** When an episode ends, advance to the next one in the season (if autoplay is on). */
+    private fun maybeAutoplayNext() {
+        if (isLive || !Configs.autoplay(this)) return
+        if (epList.isEmpty() || epIndex < 0 || epIndex + 1 >= epList.size) return
+        saveResume()
+        val next = epList[epIndex + 1]
+        epIndex += 1
+        titleText = next.title
+        b.title.text = next.title
+        resumeId = next.resumeId
+        resumeSource = next.source
+        resumePoster = next.poster
+        forceSoftware = false
+        Toast.makeText(this, "▶  Next: ${next.title}", Toast.LENGTH_SHORT).show()
+        io.execute {
+            val url = Downloads.resolveSource(next.source)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (url.isNullOrEmpty()) {
+                    Toast.makeText(this, "Couldn't load the next episode.", Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+                videoUrl = url
+                val p = player ?: return@runOnUiThread
+                p.setMediaItem(MediaItem.fromUri(url))
+                p.prepare()
+                p.playWhenReady = true
             }
         }
     }
