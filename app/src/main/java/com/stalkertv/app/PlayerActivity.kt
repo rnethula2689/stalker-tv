@@ -55,9 +55,10 @@ class PlayerActivity : AppCompatActivity() {
     private var epList: List<PlaylistItem> = emptyList()
     private var epIndex = -1
 
+    data class PlaylistItem(val title: String, val resumeId: String, val poster: String, val source: String)
+
     companion object {
         var liveChannels: List<Portal.Channel> = emptyList()
-        data class PlaylistItem(val title: String, val resumeId: String, val poster: String, val source: String)
         // Set just before launching an episode so the player can auto-advance to the next one.
         var playlist: List<PlaylistItem> = emptyList()
         var playlistIndex = -1
