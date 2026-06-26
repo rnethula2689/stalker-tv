@@ -129,7 +129,6 @@ class PlayerActivity : AppCompatActivity() {
 
         b.playerView.controllerShowTimeoutMs = 6000
         b.playerView.requestFocus()
-        wireScrubReadout()
         goImmersive()
     }
 
@@ -144,30 +143,6 @@ class PlayerActivity : AppCompatActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) goImmersive()
-    }
-
-    /** Show a large "position / duration" readout while the user drags the seek bar. */
-    private fun wireScrubReadout() {
-        val bar = b.playerView.findViewById<androidx.media3.ui.DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress) ?: return
-        bar.addListener(object : androidx.media3.ui.TimeBar.OnScrubListener {
-            override fun onScrubStart(timeBar: androidx.media3.ui.TimeBar, position: Long) = showScrubTime(position)
-            override fun onScrubMove(timeBar: androidx.media3.ui.TimeBar, position: Long) = showScrubTime(position)
-            override fun onScrubStop(timeBar: androidx.media3.ui.TimeBar, position: Long, canceled: Boolean) {
-                b.timeText.visibility = View.GONE
-            }
-        })
-    }
-
-    private fun showScrubTime(pos: Long) {
-        val dur = player?.duration ?: 0
-        b.timeText.text = if (dur > 0) "${fmtTime(pos)}  /  ${fmtTime(dur)}" else fmtTime(pos)
-        b.timeText.visibility = View.VISIBLE
-    }
-
-    private fun fmtTime(ms: Long): String {
-        if (ms < 0) return "0:00"
-        val s = ms / 1000; val h = s / 3600; val m = (s % 3600) / 60; val sec = s % 60
-        return if (h > 0) String.format("%d:%02d:%02d", h, m, sec) else String.format("%d:%02d", m, sec)
     }
 
     private fun buildPlayer(): ExoPlayer {
