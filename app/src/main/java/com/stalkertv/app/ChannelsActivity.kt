@@ -666,6 +666,9 @@ class ChannelsActivity : AppCompatActivity() {
         val wl = WatchLater.all(this)
         if (wl.isNotEmpty())
             rows.add(Row("🕒   Watch Later  (${wl.size})", null) { startActivity(Intent(this, WatchLaterActivity::class.java)) })
+        val recN = Recordings.list(this).size
+        if (recN > 0)
+            rows.add(Row("⏺   Recordings  ($recN)", null) { startActivity(Intent(this, RecordingsActivity::class.java)) })
         rows.add(Row("⭐   Favourites", null) { showFavouritesHome() })
         rows.add(Row("📺   Live TV", null) { showLiveGenres() })
         rows.add(Row("🎬   Movies (VOD)", null) { showVodCategories() })

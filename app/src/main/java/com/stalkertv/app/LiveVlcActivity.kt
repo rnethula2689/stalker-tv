@@ -55,6 +55,8 @@ class LiveVlcActivity : AppCompatActivity() {
     private val aspectModes = listOf("Fit", "16:9", "4:3", "Stretch")
     private var aspectIdx = 0
     private var nightOn = false
+    private var isRecording = false
+    private var recChannel = ""
 
     private val poller = object : Runnable {
         override fun run() {
@@ -136,6 +138,7 @@ class LiveVlcActivity : AppCompatActivity() {
                 MediaPlayer.Event.EndReached -> { if (isArchive) b.playBtn.text = "▶" else if (timeshifting) ui.post { returnToLive() } }
                 MediaPlayer.Event.EncounteredError ->
                     b.status.apply { visibility = View.VISIBLE; text = "Couldn't play this." }
+                MediaPlayer.Event.RecordChanged -> { if (!ev.recording) ui.post { onRecordingStopped() } }
                 else -> {}
             }
         }
@@ -145,6 +148,8 @@ class LiveVlcActivity : AppCompatActivity() {
         wireQuickControls()
         b.pipBtn.setOnClickListener { enterPipFlow() }
         b.pipBtn.visibility = if (!isArchive) View.VISIBLE else View.GONE
+        b.recBtn.visibility = View.VISIBLE
+        b.recBtn.setOnClickListener { toggleRecord() }
 
         if (isArchive) {
             knownDurationMs = intent.getLongExtra("durationSec", 0) * 1000 // program length → stable scrub timeline
@@ -522,6 +527,37 @@ class LiveVlcActivity : AppCompatActivity() {
         b.nightBtn.text = if (nightOn) "🌙  Night mode: ON" else "🌙  Night mode"
     }
 
+    /** Start/stop recording the current stream (video + audio) to local storage → Recordings. */
+    private fun toggleRecord() {
+        val p = mp ?: return
+        if (!isRecording) {
+            val ok = try { p.record(Recordings.dir(this).absolutePath) } catch (_: Exception) { false }
+            if (ok) {
+                isRecording = true
+                recChannel = titleText
+                b.recDot.visibility = View.VISIBLE
+                b.recBtn.text = "⏹"
+                android.widget.Toast.makeText(this, "● Recording…", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                android.widget.Toast.makeText(this, "Couldn't start recording.", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            try { p.record(null) } catch (_: Exception) {} // RecordChanged(false) finalizes + saves
+        }
+    }
+
+    /** Called when libVLC has finished writing the recording (or playback ended/changed). */
+    private fun onRecordingStopped() {
+        if (!isRecording) return
+        isRecording = false
+        b.recDot.visibility = View.GONE
+        b.recBtn.text = "⏺"
+        Recordings.newestFile(applicationContext)?.let {
+            Recordings.add(applicationContext, it, recChannel.ifBlank { "Recording" }, recChannel, System.currentTimeMillis())
+            android.widget.Toast.makeText(this, "Saved to Recordings ✓", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     /** Shrink the live stream to the floating pop-up player (plays via ExoPlayer in the overlay). */
     private fun enterPipFlow() {
         if (!PipLauncher.hasPermission(this)) { PipLauncher.requestPermission(this); return }
@@ -585,6 +621,7 @@ class LiveVlcActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        if (isRecording) { try { mp?.record(null) } catch (_: Exception) {}; onRecordingStopped() }
         mp?.stop()
     }
 
