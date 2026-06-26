@@ -31,7 +31,8 @@ class LiveGridActivity : AppCompatActivity() {
 
     private var libVlc: LibVLC? = null
     private var mp: MediaPlayer? = null
-    private var all = listOf<Portal.Channel>()
+    private var all = listOf<Portal.Channel>()          // current (sorted/filtered) view
+    private var originalOrder = listOf<Portal.Channel>() // provider order, for the "Default" sort
     private var current: Portal.Channel? = null
     private var currentUrl: String? = null
     private var currentUrlId: String? = null
@@ -45,7 +46,8 @@ class LiveGridActivity : AppCompatActivity() {
         setContentView(b.root)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) // preview is live video
 
-        all = channels
+        originalOrder = channels
+        all = sortedChannels()
         b.title.text = gridTitle
 
         val vlc = LibVLC(this, arrayListOf("--network-caching=1500", "--http-reconnect", "--no-drop-late-frames", "--no-skip-frames"))
@@ -63,6 +65,8 @@ class LiveGridActivity : AppCompatActivity() {
         b.previewFrame.setOnClickListener { openFullscreen() }
         b.nowCard.setOnClickListener { nowItem?.let { showEpgDetail(it) } } // NOW programme → full synopsis
         b.searchBtn.setOnClickListener { toggleSearch() }
+        b.sortBtn.setOnClickListener { cycleSort() }
+        updateSortBtn()
         b.menuBtn.setOnClickListener { showMenu() }
         if (gridTitle == "Favourites") {
             b.clearFavBtn.visibility = View.VISIBLE
@@ -273,6 +277,32 @@ class LiveGridActivity : AppCompatActivity() {
     private fun filter(q: String) {
         val query = q.trim()
         adapter.submit(if (query.isEmpty()) all else all.filter { it.name.contains(query, ignoreCase = true) })
+    }
+
+    /** Channels in the chosen order: provider order (Default), or by name A–Z / Z–A. */
+    private fun sortedChannels(): List<Portal.Channel> = when (Configs.sortMode(this)) {
+        Configs.SORT_AZ -> originalOrder.sortedBy { it.name.trim().lowercase() }
+        Configs.SORT_ZA -> originalOrder.sortedByDescending { it.name.trim().lowercase() }
+        else -> originalOrder
+    }
+
+    /** ⇅ button: cycle Default → A–Z → Z–A, re-sort in place, keep any active filter. */
+    private fun cycleSort() {
+        Configs.cycleSortMode(this)
+        all = sortedChannels()
+        updateSortBtn()
+        val q = b.search.text?.toString()?.trim().orEmpty()
+        if (q.isNotEmpty()) filter(q) else adapter.submit(all)
+        b.list.scrollToPosition(0)
+        b.list.post { b.list.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
+    }
+
+    private fun updateSortBtn() {
+        b.sortBtn.text = when (Configs.sortMode(this)) {
+            Configs.SORT_AZ -> "⇅ A–Z"
+            Configs.SORT_ZA -> "⇅ Z–A"
+            else -> "⇅ #"
+        }
     }
 
     private fun buildAzBar() {

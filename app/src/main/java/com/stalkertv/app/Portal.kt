@@ -291,13 +291,13 @@ object Portal {
         return out
     }
 
-    /** @return Pair(items, totalPages) */
-    fun vodList(catId: String, page: Int): Pair<List<VodItem>, Int> {
+    /** @return Pair(items, totalPages). [sortby] is the portal's server-side order ("added" or "name"). */
+    fun vodList(catId: String, page: Int, sortby: String = "added"): Pair<List<VodItem>, Int> {
         val out = ArrayList<VodItem>()
         var pages = 1
         try {
             val body = get(
-                "$base?type=vod&action=get_ordered_list&category=$catId&p=$page&sortby=added&JsHttpRequest=1-xml",
+                "$base?type=vod&action=get_ordered_list&category=$catId&p=$page&sortby=$sortby&JsHttpRequest=1-xml",
                 true
             )
             val js = JSONObject(body).optJSONObject("js") ?: return Pair(out, pages)

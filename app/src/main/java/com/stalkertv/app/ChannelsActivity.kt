@@ -69,6 +69,7 @@ class ChannelsActivity : AppCompatActivity() {
 
         b.searchBtn.setOnClickListener { toggleSearch() }
         b.reloadBtn.setOnClickListener { connectAndLoad(true) } // true = real portal reconnect, not a cache rebuild
+        b.sortBtn.setOnClickListener { cycleVodSort() }
         b.menuBtn.setOnClickListener { showMenu() }
 
         registerForegroundWatch()
@@ -435,6 +436,9 @@ class ChannelsActivity : AppCompatActivity() {
             SearchKind.LOCAL -> "Filter…"
         }
         adapter.submit(page.rows)
+        // The ⇅ sort button only applies inside a movie category.
+        b.sortBtn.visibility = if (page.kind == SearchKind.VOD_CATEGORY) View.VISIBLE else View.GONE
+        updateSortBtn()
         if (b.search.text.isNotEmpty()) b.search.setText("")
         b.searchRow.visibility = View.GONE
         b.list.scrollToPosition(0)
@@ -821,6 +825,24 @@ class ChannelsActivity : AppCompatActivity() {
         push(Page(title, list.map { channelRow(it) }, kind = SearchKind.CHANNELS, scopeChannels = list))
     }
 
+    /** ⇅ button (movie category): cycle Default → A–Z → Z–A and reload this category from page 1. */
+    private fun cycleVodSort() {
+        val page = backStack.lastOrNull() ?: return
+        if (page.kind != SearchKind.VOD_CATEGORY || page.scopeId == null) return
+        Configs.cycleSortMode(this)
+        updateSortBtn()
+        backStack.removeLast() // replace the current category page with a freshly-sorted one
+        showVodList(Portal.VodCat(page.scopeId!!, page.title))
+    }
+
+    private fun updateSortBtn() {
+        b.sortBtn.text = when (Configs.sortMode(this)) {
+            Configs.SORT_AZ -> "⇅ A–Z"
+            Configs.SORT_ZA -> "⇅ Z–A"
+            else -> "⇅ New"
+        }
+    }
+
     private fun showVodCategories() {
         if (vodCats.isNotEmpty()) { displayVodCategories(); return } // cached → in-memory rebuild
         b.status.visibility = View.VISIBLE
@@ -931,11 +953,17 @@ class ChannelsActivity : AppCompatActivity() {
         )
     }
 
+    /** Server-side order for the current global sort. Default = newest ("added"); A–Z/Z–A both fetch
+     *  "name" (ascending) and Z–A is reversed client-side (the portal has no descending option). */
+    private fun vodSortby(): String = if (Configs.sortMode(this) == Configs.SORT_DEFAULT) "added" else "name"
+    private fun orderedVod(acc: List<Portal.VodItem>): List<Portal.VodItem> =
+        if (Configs.sortMode(this) == Configs.SORT_ZA) acc.reversed() else acc
+
     private fun showVodList(cat: Portal.VodCat) {
         b.status.visibility = View.VISIBLE
         b.status.text = "Loading ${cat.title}…"
         io.execute {
-            val (items, pages) = Portal.vodList(cat.id, 1)
+            val (items, pages) = Portal.vodList(cat.id, 1, vodSortby())
             runOnUiThread {
                 b.status.visibility = View.GONE
                 push(Page(cat.title, vodRows(cat, ArrayList(items), 1, pages), kind = SearchKind.VOD_CATEGORY, scopeId = cat.id))
@@ -945,13 +973,13 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun vodRows(cat: Portal.VodCat, acc: ArrayList<Portal.VodItem>, loaded: Int, total: Int): List<Row> {
         val rows = ArrayList<Row>()
-        acc.forEach { v -> rows.add(vodItemRow(v)) }
+        orderedVod(acc).forEach { v -> rows.add(vodItemRow(v)) }
         if (loaded < total) {
             rows.add(Row("⬇  Load more  ($loaded/$total)", null) {
                 b.status.visibility = View.VISIBLE
                 b.status.text = "Loading…"
                 io.execute {
-                    val (more, _) = Portal.vodList(cat.id, loaded + 1)
+                    val (more, _) = Portal.vodList(cat.id, loaded + 1, vodSortby())
                     runOnUiThread {
                         b.status.visibility = View.GONE
                         acc.addAll(more)

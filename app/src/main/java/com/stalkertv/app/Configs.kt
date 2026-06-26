@@ -57,6 +57,20 @@ object Configs {
     fun ossKey(ctx: Context): String = prefs(ctx).getString("ossKey", "") ?: ""
     fun setOssKey(ctx: Context, key: String) { prefs(ctx).edit().putString("ossKey", key).apply() }
 
+    /** Sort order for folder contents (live channels & movies), shared across all folders.
+     *  0 = Default (provider order: channel number / newest movies), 1 = Name A–Z, 2 = Name Z–A. */
+    const val SORT_DEFAULT = 0
+    const val SORT_AZ = 1
+    const val SORT_ZA = 2
+    fun sortMode(ctx: Context): Int = prefs(ctx).getInt("sortMode", SORT_DEFAULT)
+    fun setSortMode(ctx: Context, mode: Int) { prefs(ctx).edit().putInt("sortMode", mode).apply() }
+    /** Advance to the next sort mode in the cycle and return it. */
+    fun cycleSortMode(ctx: Context): Int {
+        val next = (sortMode(ctx) + 1) % 3
+        setSortMode(ctx, next)
+        return next
+    }
+
     /** Parental PIN guarding adult / restricted (censored) channels. Empty = not set yet. */
     fun parentalPin(ctx: Context): String = prefs(ctx).getString("parentalPin", "") ?: ""
     fun setParentalPin(ctx: Context, pin: String) { prefs(ctx).edit().putString("parentalPin", pin).apply() }
