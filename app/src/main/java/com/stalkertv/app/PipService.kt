@@ -17,6 +17,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import androidx.annotation.OptIn
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -120,7 +122,7 @@ class PipService : Service() {
         val binding = PipOverlayBinding.inflate(LayoutInflater.from(this))
         b = binding
         val dm = resources.displayMetrics
-        val w = (dm.widthPixels * 0.33f).toInt().coerceAtLeast(240)
+        val w = (dm.widthPixels * 0.39f).toInt().coerceAtLeast(280)
         val h = w * 9 / 16
         val type = if (Build.VERSION.SDK_INT >= 26)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -190,6 +192,11 @@ class PipService : Service() {
         else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
         val renderers = NextRenderersFactory(this).setExtensionRendererMode(mode).setEnableDecoderFallback(true)
         val p = ExoPlayer.Builder(this, renderers).setMediaSourceFactory(DefaultMediaSourceFactory(ds)).setLoadControl(load).build()
+        // Respect audio focus: pause the pop-up when another app (YouTube, a call, etc.) starts audio.
+        p.setAudioAttributes(
+            AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
+            /* handleAudioFocus = */ true
+        )
         p.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
                 if (!forceSoftware) { forceSoftware = true; rebuildSoftware() }
