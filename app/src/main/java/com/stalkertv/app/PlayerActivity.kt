@@ -2,6 +2,7 @@ package com.stalkertv.app
 
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.SeekBar
@@ -68,6 +69,7 @@ class PlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(b.root)
+        PipService.stop(this) // opening fullscreen playback closes any existing pop-up
 
         videoUrl = intent.getStringExtra("url") ?: run { finish(); return }
         titleText = intent.getStringExtra("title") ?: ""
@@ -517,6 +519,28 @@ class PlayerActivity : AppCompatActivity() {
         updateSpeedBtn()
         b.speedBtn.setOnClickListener { showSpeedDialog() }
         b.audioBtn.setOnClickListener { showAudioDialog() }
+        b.pipBtn.setOnClickListener { enterPipFlow() }
+    }
+
+    /** Shrink to the floating pop-up player (needs the "display over other apps" permission once). */
+    private fun enterPipFlow() {
+        if (Build.VERSION.SDK_INT >= 23 && !android.provider.Settings.canDrawOverlays(this)) {
+            Toast.makeText(this, "Turn on “Display over other apps” for the pop-up player, then tap ⧉ again.", Toast.LENGTH_LONG).show()
+            try {
+                startActivity(
+                    android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    )
+                )
+            } catch (_: Exception) {}
+            return
+        }
+        val pos = player?.currentPosition ?: 0L
+        saveResume()
+        player?.playWhenReady = false // hand audio over to the pop-up cleanly
+        PipService.start(this, videoUrl, titleText, resumeSource, resumeId, resumePoster, pos, isLive)
+        finish()
     }
 
     /** Open one panel (and close the other). While a panel is open, keep the controller up. */
