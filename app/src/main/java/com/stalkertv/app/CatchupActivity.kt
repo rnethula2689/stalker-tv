@@ -126,6 +126,7 @@ class CatchupActivity : AppCompatActivity() {
                             .putExtra("title", "${e.start}  ${e.name}")
                             .putExtra("chIndex", -1)
                             .putExtra("archive", true)
+                            .putExtra("durationSec", durationSec) // true programme length → accurate scrubbing
                     )
                 }
             }

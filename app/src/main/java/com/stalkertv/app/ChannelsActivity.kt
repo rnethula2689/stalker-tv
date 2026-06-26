@@ -68,7 +68,7 @@ class ChannelsActivity : AppCompatActivity() {
         buildAzBar()
 
         b.searchBtn.setOnClickListener { toggleSearch() }
-        b.reloadBtn.setOnClickListener { connectAndLoad() }
+        b.reloadBtn.setOnClickListener { connectAndLoad(true) } // true = real portal reconnect, not a cache rebuild
         b.menuBtn.setOnClickListener { showMenu() }
 
         registerForegroundWatch()
@@ -438,7 +438,9 @@ class ChannelsActivity : AppCompatActivity() {
         if (b.search.text.isNotEmpty()) b.search.setText("")
         b.searchRow.visibility = View.GONE
         b.list.scrollToPosition(0)
-        b.list.requestFocus()
+        // Defer until the rebuilt rows are laid out; requesting focus on a not-yet-populated
+        // list silently fails and focus falls back to the first toolbar icon (the 🔍 button).
+        b.list.post { if (!b.list.hasFocus()) b.list.requestFocus() }
     }
 
     override fun onBackPressed() {

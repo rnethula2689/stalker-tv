@@ -40,6 +40,9 @@ class LiveVlcActivity : AppCompatActivity() {
     private var isArchive = false
     private var seeking = false      // user is dragging the slider
     private var durationMs = 0L
+    private var knownDurationMs = 0L // authoritative timeline length (program / timeshift window); 0 = fall back to VLC length
+    private var seekTarget = -1L     // ms we just seeked to; poller holds the UI here until VLC catches up
+    private var seekDeadline = 0L    // uptime cutoff so a clamped/failed seek can't freeze the UI
     private var currentUrl = ""      // stream currently playing (for casting)
     private var timeshifting = false // live rewind (DVR) mode
     private var tsWindowSec = 0L     // scrubbable timeshift buffer length
@@ -52,13 +55,21 @@ class LiveVlcActivity : AppCompatActivity() {
             if (p != null && (isArchive || timeshifting)) {
                 val len = p.length
                 if (len > 0) {
-                    durationMs = len; b.durText.text = fmt(len)
+                    if (knownDurationMs <= 0) durationMs = len
+                    b.durText.text = fmt(scaleMs())
                     if (startSeekTo > 0) { p.time = minOf(startSeekTo, len - 2000); startSeekTo = 0 }
                 }
                 if (!seeking) {
                     val t = p.time
-                    b.posText.text = fmt(t)
-                    b.seek.progress = if (len > 0) ((t * 1000) / len).toInt() else 0
+                    // Hold the UI on the requested position until the (async) seek lands, so the
+                    // thumb/time don't snap back to the pre-seek spot for a frame.
+                    if (seekTarget >= 0 && (Math.abs(t - seekTarget) < 3000 || android.os.SystemClock.uptimeMillis() > seekDeadline))
+                        seekTarget = -1L
+                    if (seekTarget < 0) {
+                        val sc = scaleMs()
+                        b.posText.text = fmt(t)
+                        b.seek.progress = if (sc > 0) ((t * 1000) / sc).toInt().coerceIn(0, 1000) else 0
+                    }
                 }
             }
             ui.postDelayed(this, 500)
@@ -125,6 +136,7 @@ class LiveVlcActivity : AppCompatActivity() {
         b.root.setOnTouchListener { _, ev -> gestureDetector.onTouchEvent(ev) }
 
         if (isArchive) {
+            knownDurationMs = intent.getLongExtra("durationSec", 0) * 1000 // program length → stable scrub timeline
             b.controlBar.visibility = View.VISIBLE   // catch-up: bar stays visible
             wireTransportControls()
         } else {
@@ -151,16 +163,33 @@ class LiveVlcActivity : AppCompatActivity() {
         b.liveBtn.setOnClickListener { returnToLive() }
         b.seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
-                if (fromUser && durationMs > 0) b.posText.text = fmt(durationMs * progress / 1000)
+                if (fromUser && scaleMs() > 0) b.posText.text = fmt(scaleMs() * progress / 1000)
             }
             override fun onStartTrackingTouch(sb: SeekBar) { seeking = true }
             override fun onStopTrackingTouch(sb: SeekBar) {
                 val p = mp
-                if (p != null && durationMs > 0) p.time = durationMs * sb.progress / 1000
+                val sc = scaleMs()
+                if (p != null && sc > 0) seekTo(p, sc * sb.progress / 1000)
                 seeking = false
             }
         })
         ui.postDelayed(poller, 500)
+    }
+
+    /** Timeline length used to map slider ⇄ time. Prefer the known, fixed duration (program length
+     *  for catch-up, the timeshift window for DVR) over VLC's HLS length estimate, which drifts by
+     *  minutes and makes scrubbing land far off the requested spot. */
+    private fun scaleMs(): Long = if (knownDurationMs > 0) knownDurationMs else durationMs
+
+    /** Seek to [target] ms and hold the UI there until VLC reports it has arrived. */
+    private fun seekTo(p: MediaPlayer, target: Long) {
+        val t = target.coerceAtLeast(0)
+        p.time = t
+        b.posText.text = fmt(t)
+        val sc = scaleMs()
+        if (sc > 0) b.seek.progress = ((t * 1000) / sc).toInt().coerceIn(0, 1000)
+        seekTarget = t
+        seekDeadline = android.os.SystemClock.uptimeMillis() + 1500
     }
 
     private fun currentArchiveSec(): Long = (channels.getOrNull(chIndex)?.archiveDays ?: 0).toLong() * 3600
@@ -183,6 +212,7 @@ class LiveVlcActivity : AppCompatActivity() {
         if (archiveSec <= 0) return
         timeshifting = true
         tsWindowSec = minOf(archiveSec, 7_200L)     // up to 2h scrubbable buffer
+        knownDurationMs = tsWindowSec * 1000        // fixed buffer length → stable scrub timeline
         b.tsBtn.visibility = View.GONE
         b.controlBar.visibility = View.VISIBLE
         b.liveBtn.visibility = View.VISIBLE
@@ -212,6 +242,8 @@ class LiveVlcActivity : AppCompatActivity() {
         timeshifting = false
         startSeekTo = 0
         seeking = false
+        knownDurationMs = 0
+        seekTarget = -1L
         b.controlBar.visibility = View.GONE
         b.liveBtn.visibility = View.GONE
         if (currentArchiveSec() > 0) b.tsBtn.visibility = View.VISIBLE
@@ -235,13 +267,11 @@ class LiveVlcActivity : AppCompatActivity() {
 
     private fun seekBy(deltaMs: Long) {
         val p = mp ?: return
-        val len = p.length
+        val cap = if (scaleMs() > 0) scaleMs() else p.length
         var t = p.time + deltaMs
         if (t < 0) t = 0
-        if (len > 0 && t > len - 1000) t = len - 1000
-        p.time = t
-        b.posText.text = fmt(t)
-        if (len > 0) b.seek.progress = ((t * 1000) / len).toInt()
+        if (cap > 0 && t > cap - 1000) t = cap - 1000
+        seekTo(p, t)
     }
 
     private fun fmt(ms: Long): String {
