@@ -257,4 +257,18 @@
             android:clickable="true"
             android:background="@drawable/item_bg" />
     </LinearLayout>
+
+    <!-- Big time readout shown while scrubbing the slider (position / duration). -->
+    <TextView
+        android:id="@+id/timeText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="#B3000000"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="10dp"
+        android:textColor="#ffffff"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 </FrameLayout>
