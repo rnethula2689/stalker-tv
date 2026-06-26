@@ -363,7 +363,6 @@ class LiveVlcActivity : AppCompatActivity() {
 
     private fun showBar() {
         b.topBar.visibility = View.VISIBLE
-        b.leftControls.visibility = View.VISIBLE
         if (!isArchive && !timeshifting) b.hint.visibility = View.VISIBLE
         scheduleHide()
     }
@@ -379,7 +378,6 @@ class LiveVlcActivity : AppCompatActivity() {
         hideBarRunnable?.let { ui.removeCallbacks(it) }
         b.topBar.visibility = View.GONE
         b.hint.visibility = View.GONE
-        b.leftControls.visibility = View.GONE
         b.volumePanel.visibility = View.GONE
         b.brightnessPanel.visibility = View.GONE
     }
@@ -421,6 +419,51 @@ class LiveVlcActivity : AppCompatActivity() {
             openPanel(b.brightnessPanel)
         }
         b.nightBtn.setOnClickListener { toggleNight() }
+
+        updateSpeedBtn()
+        b.speedBtn.setOnClickListener { showSpeedDialog() }
+        b.audioBtn.setOnClickListener { showAudioDialog() }
+    }
+
+    private val speeds = floatArrayOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
+    private var speedIdx = 2
+
+    private fun updateSpeedBtn() {
+        val s = speeds[speedIdx]
+        b.speedBtn.text = if (s == 1f) "1×" else (if (s % 1f == 0f) "${s.toInt()}×" else "${s}×")
+    }
+
+    private fun showSpeedDialog() {
+        val labels = speeds.map { if (it == 1f) "Normal (1×)" else "${it}×" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Playback speed")
+            .setSingleChoiceItems(labels, speedIdx) { d, w ->
+                speedIdx = w
+                mp?.rate = speeds[w]
+                updateSpeedBtn()
+                d.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showAudioDialog() {
+        val p = mp ?: return
+        val tracks = p.audioTracks
+        if (tracks == null || tracks.isEmpty()) {
+            android.widget.Toast.makeText(this, "No alternate audio tracks.", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val labels = tracks.map { it.name }.toTypedArray()
+        val checked = tracks.indexOfFirst { it.id == p.audioTrack }
+        AlertDialog.Builder(this)
+            .setTitle("Audio track")
+            .setSingleChoiceItems(labels, checked) { d, w ->
+                p.audioTrack = tracks[w].id
+                d.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     /** Open one panel (and close the other). While a panel is open the auto-hide timer is paused. */

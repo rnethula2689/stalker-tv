@@ -79,7 +79,6 @@ class PlayerActivity : AppCompatActivity() {
         b.playerView.setControllerVisibilityListener(
             PlayerView.ControllerVisibilityListener { visibility ->
                 b.topBar.visibility = visibility
-                b.leftControls.visibility = visibility
                 if (visibility != View.VISIBLE) {
                     b.volumePanel.visibility = View.GONE
                     b.brightnessPanel.visibility = View.GONE
@@ -94,6 +93,11 @@ class PlayerActivity : AppCompatActivity() {
         epList = playlist
         epIndex = playlistIndex
         playlist = emptyList(); playlistIndex = -1
+        if (epList.isNotEmpty()) {
+            b.nextBtn.visibility = View.VISIBLE
+            b.nextBtn.setOnClickListener { advanceEpisode() }
+            resumeHandler.postDelayed(endWatcher, 1000) // near-end fallback if STATE_ENDED never fires
+        }
 
         isLive = intent.getBooleanExtra("live", false)
         chIndex = intent.getIntExtra("chIndex", -1)
@@ -327,10 +331,31 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    /** When an episode ends, advance to the next one in the season (if autoplay is on). */
+    private var advancing = false
+
+    /** Periodic fallback: some HLS VOD streams never emit STATE_ENDED, so also advance when the
+     *  position reaches the known duration. No-op for movies (empty playlist) and live. */
+    private val endWatcher = object : Runnable {
+        override fun run() {
+            val p = player
+            if (p != null && epList.isNotEmpty() && !advancing && Configs.autoplay(this@PlayerActivity)) {
+                val dur = p.duration
+                if (dur > 0 && p.currentPosition >= dur - 800) advanceEpisode()
+            }
+            resumeHandler.postDelayed(this, 1000)
+        }
+    }
+
+    /** Autoplay path: only when the setting is on. */
     private fun maybeAutoplayNext() {
-        if (isLive || !Configs.autoplay(this)) return
+        if (Configs.autoplay(this)) advanceEpisode()
+    }
+
+    /** Advance to the next episode in the season (also called by the ⏭ button, ignoring the setting). */
+    private fun advanceEpisode() {
+        if (isLive || advancing) return
         if (epList.isEmpty() || epIndex < 0 || epIndex + 1 >= epList.size) return
+        advancing = true
         saveResume()
         val next = epList[epIndex + 1]
         epIndex += 1
@@ -344,6 +369,7 @@ class PlayerActivity : AppCompatActivity() {
         io.execute {
             val url = Downloads.resolveSource(next.source)
             runOnUiThread {
+                advancing = false
                 if (isFinishing) return@runOnUiThread
                 if (url.isNullOrEmpty()) {
                     Toast.makeText(this, "Couldn't load the next episode.", Toast.LENGTH_SHORT).show()
@@ -356,6 +382,34 @@ class PlayerActivity : AppCompatActivity() {
                 p.playWhenReady = true
             }
         }
+    }
+
+    private val speeds = floatArrayOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
+    private var speedIdx = 2
+
+    private fun updateSpeedBtn() {
+        val s = speeds[speedIdx]
+        b.speedBtn.text = if (s == 1f) "1×" else (if (s % 1f == 0f) "${s.toInt()}×" else "${s}×")
+    }
+
+    private fun showSpeedDialog() {
+        val labels = speeds.map { if (it == 1f) "Normal (1×)" else "${it}×" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Playback speed")
+            .setSingleChoiceItems(labels, speedIdx) { d, w ->
+                speedIdx = w
+                player?.setPlaybackSpeed(speeds[w])
+                updateSpeedBtn()
+                d.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showAudioDialog() {
+        val p = player ?: return
+        androidx.media3.ui.TrackSelectionDialogBuilder(this, "Audio track", p, androidx.media3.common.C.TRACK_TYPE_AUDIO)
+            .build().show()
     }
 
     /** Wire the top-left quick controls: aspect ratio, volume (+ mute), brightness (+ night mode). */
@@ -390,6 +444,10 @@ class PlayerActivity : AppCompatActivity() {
             openPanel(b.brightnessPanel)
         }
         b.nightBtn.setOnClickListener { toggleNight() }
+
+        updateSpeedBtn()
+        b.speedBtn.setOnClickListener { showSpeedDialog() }
+        b.audioBtn.setOnClickListener { showAudioDialog() }
     }
 
     /** Open one panel (and close the other). While a panel is open, keep the controller up. */
@@ -454,6 +512,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         resumeHandler.removeCallbacks(resumeSaver)
+        resumeHandler.removeCallbacks(endWatcher)
         saveResume()
         player?.release()
         player = null

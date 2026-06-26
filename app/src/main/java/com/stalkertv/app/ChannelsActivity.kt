@@ -570,7 +570,7 @@ class ChannelsActivity : AppCompatActivity() {
     ) {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(title)
-            .setItems(arrayOf("▶  Play", "🕒  Watch later", "⬇  Download for offline", "📂  Go to Downloads")) { _, w ->
+            .setItems(arrayOf("▶  Play", "🕒  Watch later", "⬇  Download for offline")) { _, w ->
                 when (w) {
                     0 -> play(title, id, poster, source, playlist, plIndex)
                     1 -> {
@@ -586,7 +586,6 @@ class ChannelsActivity : AppCompatActivity() {
                             android.widget.Toast.makeText(this, "Download started — see ⬇ Downloads.", android.widget.Toast.LENGTH_LONG).show()
                         }
                     }
-                    3 -> startActivity(Intent(this, DownloadsActivity::class.java))
                 }
             }
             .show()

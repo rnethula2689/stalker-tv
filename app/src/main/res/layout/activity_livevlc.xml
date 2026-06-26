@@ -54,6 +54,76 @@
             android:text="" />
 
         <TextView
+            android:id="@+id/aspectBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:text="⤢ Fit"
+            android:textColor="#ffffff"
+            android:textSize="14sp"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="6dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+
+        <TextView
+            android:id="@+id/speedBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:text="1×"
+            android:textColor="#ffffff"
+            android:textSize="14sp"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="6dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+
+        <TextView
+            android:id="@+id/audioBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:text="🎧"
+            android:textColor="#ffffff"
+            android:textSize="16sp"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="6dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+
+        <TextView
+            android:id="@+id/volBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:text="🔊"
+            android:textColor="#ffffff"
+            android:textSize="16sp"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="6dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+
+        <TextView
+            android:id="@+id/brightBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:text="☀"
+            android:textColor="#ffffff"
+            android:textSize="16sp"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="6dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+
+        <TextView
             android:id="@+id/tsBtn"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -223,67 +293,14 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Top-left quick controls (shown on tap with the bar): aspect / volume / brightness. -->
-    <LinearLayout
-        android:id="@+id/leftControls"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_marginTop="62dp"
-        android:layout_marginStart="14dp"
-        android:orientation="horizontal"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/aspectBtn"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:text="⤢  Fit"
-            android:textColor="#ffffff"
-            android:textSize="15sp"
-            android:paddingHorizontal="14dp"
-            android:paddingVertical="8dp"
-            android:focusable="true"
-            android:clickable="true"
-            android:background="@drawable/item_bg" />
-
-        <TextView
-            android:id="@+id/volBtn"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:text="🔊"
-            android:textColor="#ffffff"
-            android:textSize="18sp"
-            android:paddingHorizontal="14dp"
-            android:paddingVertical="8dp"
-            android:focusable="true"
-            android:clickable="true"
-            android:background="@drawable/item_bg" />
-
-        <TextView
-            android:id="@+id/brightBtn"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="☀"
-            android:textColor="#ffffff"
-            android:textSize="18sp"
-            android:paddingHorizontal="14dp"
-            android:paddingVertical="8dp"
-            android:focusable="true"
-            android:clickable="true"
-            android:background="@drawable/item_bg" />
-    </LinearLayout>
-
     <!-- Volume panel (toggled by 🔊). -->
     <LinearLayout
         android:id="@+id/volumePanel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_marginTop="118dp"
-        android:layout_marginStart="14dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="58dp"
+        android:layout_marginEnd="14dp"
         android:orientation="vertical"
         android:background="#CC000000"
         android:padding="14dp"
@@ -327,9 +344,9 @@
         android:id="@+id/brightnessPanel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_marginTop="118dp"
-        android:layout_marginStart="14dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="58dp"
+        android:layout_marginEnd="14dp"
         android:orientation="vertical"
         android:background="#CC000000"
         android:padding="14dp"
