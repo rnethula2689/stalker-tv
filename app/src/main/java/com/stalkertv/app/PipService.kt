@@ -93,6 +93,22 @@ class PipService : Service() {
         return START_NOT_STICKY
     }
 
+    /** On rotation the screen dimensions swap, so the saved x/y can fall off-screen (the pop-up
+     *  "disappears"). Recompute the size for the new orientation and clamp it back on-screen. */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val binding = b ?: return
+        val wmgr = wm ?: return
+        val dm = android.util.DisplayMetrics()
+        @Suppress("DEPRECATION") wmgr.defaultDisplay.getRealMetrics(dm)
+        val sw = dm.widthPixels; val sh = dm.heightPixels
+        val w = (sw * 0.39f).toInt().coerceAtLeast(280); val h = w * 9 / 16
+        lp.width = w; lp.height = h
+        lp.x = lp.x.coerceIn(0, (sw - w).coerceAtLeast(0))
+        lp.y = lp.y.coerceIn(0, (sh - h).coerceAtLeast(0))
+        try { wmgr.updateViewLayout(binding.root, lp) } catch (_: Exception) {}
+    }
+
     private fun startForegroundCompat() {
         if (Build.VERSION.SDK_INT >= 26) {
             val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
