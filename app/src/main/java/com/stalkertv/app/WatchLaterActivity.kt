@@ -63,7 +63,7 @@ class WatchLaterActivity : AppCompatActivity() {
         for (m in all.filter { it.kind == "movie" })
             rows.add(WlRow(m.id, "🎬  ${m.title}", m.poster.ifBlank { null }, true) { play(m) })
         val eps = all.filter { it.kind == "episode" }
-        for (seriesName in eps.map { parts(it.title).getOrElse(0) { it.title } }.distinct())
+        for (seriesName in eps.map { e -> parts(e.title).getOrElse(0) { e.title } }.distinct())
             rows.add(WlRow(null, "📁  $seriesName", null, false) { go { buildSeries(seriesName) } })
         render(rows, all.isEmpty())
     }
