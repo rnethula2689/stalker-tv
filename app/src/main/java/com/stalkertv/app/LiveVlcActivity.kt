@@ -181,15 +181,25 @@ class LiveVlcActivity : AppCompatActivity() {
      *  minutes and makes scrubbing land far off the requested spot. */
     private fun scaleMs(): Long = if (knownDurationMs > 0) knownDurationMs else durationMs
 
-    /** Seek to [target] ms and hold the UI there until VLC reports it has arrived. */
+    /** Touch slider drop: seek to [target] ms now and hold the UI there until VLC reports it arrived. */
     private fun seekTo(p: MediaPlayer, target: Long) {
+        ui.removeCallbacks(applySeek)   // a touch drop overrides any in-flight D-pad scrub
         val t = target.coerceAtLeast(0)
         p.time = t
         b.posText.text = fmt(t)
         val sc = scaleMs()
         if (sc > 0) b.seek.progress = ((t * 1000) / sc).toInt().coerceIn(0, 1000)
         seekTarget = t
-        seekDeadline = android.os.SystemClock.uptimeMillis() + 1500
+        seekDeadline = android.os.SystemClock.uptimeMillis() + 2500
+    }
+
+    /** Apply the accumulated D-pad scrub target once the user stops pressing. */
+    private val applySeek = Runnable {
+        val p = mp
+        if (p != null && seekTarget >= 0) {
+            p.time = seekTarget
+            seekDeadline = android.os.SystemClock.uptimeMillis() + 2500
+        }
     }
 
     private fun currentArchiveSec(): Long = (channels.getOrNull(chIndex)?.archiveDays ?: 0).toLong() * 3600
@@ -244,6 +254,7 @@ class LiveVlcActivity : AppCompatActivity() {
         seeking = false
         knownDurationMs = 0
         seekTarget = -1L
+        ui.removeCallbacks(applySeek)
         b.controlBar.visibility = View.GONE
         b.liveBtn.visibility = View.GONE
         if (currentArchiveSec() > 0) b.tsBtn.visibility = View.VISIBLE
@@ -265,13 +276,26 @@ class LiveVlcActivity : AppCompatActivity() {
         if (p.isPlaying) { p.pause(); b.playBtn.text = "▶" } else { p.play(); b.playBtn.text = "⏸" }
     }
 
+    /**
+     * D-pad scrubbing (TV remote). VLC's seek is async, so p.time still reports the *old* position on
+     * the next keypress — reading it as the base makes rapid presses measure from the same stale spot
+     * and land short. Instead accumulate from the pending target, show it immediately, and apply once
+     * the user stops pressing (debounced), so the jumps add up and it lands where intended.
+     */
     private fun seekBy(deltaMs: Long) {
         val p = mp ?: return
         val cap = if (scaleMs() > 0) scaleMs() else p.length
-        var t = p.time + deltaMs
+        val base = if (seekTarget >= 0) seekTarget else p.time
+        var t = base + deltaMs
         if (t < 0) t = 0
         if (cap > 0 && t > cap - 1000) t = cap - 1000
-        seekTo(p, t)
+        seekTarget = t
+        seekDeadline = android.os.SystemClock.uptimeMillis() + 3000
+        b.posText.text = fmt(t)
+        val sc = scaleMs()
+        if (sc > 0) b.seek.progress = ((t * 1000) / sc).toInt().coerceIn(0, 1000)
+        ui.removeCallbacks(applySeek)
+        ui.postDelayed(applySeek, 280)   // wait for the burst of presses to settle, then seek once
     }
 
     private fun fmt(ms: Long): String {
@@ -400,6 +424,7 @@ class LiveVlcActivity : AppCompatActivity() {
         super.onDestroy()
         hideBarRunnable?.let { ui.removeCallbacks(it) }
         ui.removeCallbacks(poller)
+        ui.removeCallbacks(applySeek)
         mp?.let { it.stop(); it.detachViews(); it.release() }
         mp = null
         libVlc?.release()
