@@ -22,6 +22,39 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- Mini controls: play/pause + mute, available while minimized. -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="4dp"
+        android:orientation="horizontal"
+        android:background="#99000000"
+        android:padding="2dp">
+
+        <TextView
+            android:id="@+id/pipPlay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⏸"
+            android:textColor="#ffffff"
+            android:textSize="18sp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp"
+            android:clickable="true" />
+
+        <TextView
+            android:id="@+id/pipMute"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔊"
+            android:textColor="#ffffff"
+            android:textSize="18sp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp"
+            android:clickable="true" />
+    </LinearLayout>
+
     <TextView
         android:id="@+id/pipClose"
         android:layout_width="wrap_content"
@@ -33,5 +66,6 @@
         android:textStyle="bold"
         android:background="#99000000"
         android:paddingHorizontal="8dp"
-        android:paddingVertical="2dp" />
+        android:paddingVertical="2dp"
+        android:clickable="true" />
 </FrameLayout>

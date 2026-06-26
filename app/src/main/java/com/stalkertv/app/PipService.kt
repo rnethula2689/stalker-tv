@@ -120,7 +120,7 @@ class PipService : Service() {
         val binding = PipOverlayBinding.inflate(LayoutInflater.from(this))
         b = binding
         val dm = resources.displayMetrics
-        val w = (dm.widthPixels * 0.45f).toInt().coerceAtLeast(280)
+        val w = (dm.widthPixels * 0.33f).toInt().coerceAtLeast(240)
         val h = w * 9 / 16
         val type = if (Build.VERSION.SDK_INT >= 26)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -136,6 +136,14 @@ class PipService : Service() {
         wmgr.addView(binding.root, lp)
 
         binding.pipClose.setOnClickListener { closeAndSave() }
+        binding.pipPlay.setOnClickListener {
+            val p = player ?: return@setOnClickListener
+            if (p.isPlaying) { p.pause(); binding.pipPlay.text = "▶" } else { p.play(); binding.pipPlay.text = "⏸" }
+        }
+        binding.pipMute.setOnClickListener {
+            val p = player ?: return@setOnClickListener
+            if (p.volume > 0f) { p.volume = 0f; binding.pipMute.text = "🔇" } else { p.volume = 1f; binding.pipMute.text = "🔊" }
+        }
         wireDrag(binding, wmgr, dm)
     }
 
@@ -185,6 +193,9 @@ class PipService : Service() {
         p.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
                 if (!forceSoftware) { forceSoftware = true; rebuildSoftware() }
+            }
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                b?.pipPlay?.text = if (isPlaying) "⏸" else "▶"
             }
         })
         return p
