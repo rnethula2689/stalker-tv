@@ -44,6 +44,7 @@ class LiveVlcActivity : AppCompatActivity() {
     private var timeshifting = false // live rewind (DVR) mode
     private var tsWindowSec = 0L     // scrubbable timeshift buffer length
     private var startSeekTo = 0L     // pending seek (ms) to apply once the stream length is known
+    private var liveUrl = ""         // current live stream URL — its token is reused for timeshift
 
     private val poller = object : Runnable {
         override fun run() {
@@ -135,6 +136,7 @@ class LiveVlcActivity : AppCompatActivity() {
                 b.tsBtn.setOnClickListener { enterTimeshift() }
             }
         }
+        if (!isArchive) liveUrl = url
         play(url)
         showBar()
     }
@@ -169,34 +171,29 @@ class LiveVlcActivity : AppCompatActivity() {
         return len > 0 && p.time >= len - 15_000
     }
 
-    /** Enter live timeshift: play the recent archive buffer as a seekable VOD, starting ~30s back. */
+    /**
+     * Enter live timeshift: play the recent archive buffer as a seekable VOD, starting ~30s back.
+     * Builds the archive URL from the LIVE stream's own token — no new create_link, so it's instant
+     * and isn't blocked by the portal's concurrent-stream limit.
+     */
     private fun enterTimeshift() {
         if (timeshifting || isArchive) return
-        val ch = channels.getOrNull(chIndex) ?: return
-        val archiveSec = ch.archiveDays.toLong() * 3600
-        if (archiveSec <= 0) return
-        timeshifting = true
+        val archiveSec = currentArchiveSec()
+        if (archiveSec <= 0 || liveUrl.isEmpty()) return
         tsWindowSec = minOf(archiveSec, 10_800L)   // up to 3h scrubbable buffer
+        val now = System.currentTimeMillis() / 1000
+        val u = buildArchiveUrl(liveUrl, now - tsWindowSec, tsWindowSec) ?: return
+        timeshifting = true
         b.tsBtn.visibility = View.GONE
         b.controlBar.visibility = View.VISIBLE
         b.liveBtn.visibility = View.VISIBLE
         b.hint.visibility = View.GONE
         b.playBtn.text = "⏸"
-        b.status.visibility = View.VISIBLE
-        b.status.text = "Rewinding live…"
         startSeekTo = (tsWindowSec - 30) * 1000     // start ~30s behind the live edge
-        val now = System.currentTimeMillis() / 1000
-        io.execute {
-            val u = Portal.archiveLink(ch.cmd, now - tsWindowSec, tsWindowSec)
-            runOnUiThread {
-                if (isFinishing || !timeshifting) return@runOnUiThread
-                if (u.isNullOrEmpty()) { b.status.text = "Timeshift unavailable"; returnToLive(); return@runOnUiThread }
-                play(u)
-            }
-        }
+        play(u)
     }
 
-    /** Leave timeshift and resume the live stream. */
+    /** Leave timeshift and resume the live stream (reusing the same live URL/token). */
     private fun returnToLive() {
         if (!timeshifting) return
         timeshifting = false
@@ -205,16 +202,17 @@ class LiveVlcActivity : AppCompatActivity() {
         b.controlBar.visibility = View.GONE
         b.liveBtn.visibility = View.GONE
         if (currentArchiveSec() > 0) b.tsBtn.visibility = View.VISIBLE
-        b.status.visibility = View.VISIBLE
-        b.status.text = "▶  LIVE…"
-        val ch = channels.getOrNull(chIndex) ?: run { finish(); return }
-        io.execute {
-            val u = Portal.createLink(ch.cmd)
-            runOnUiThread {
-                if (isFinishing) return@runOnUiThread
-                if (!u.isNullOrEmpty()) play(u) else b.status.text = "Couldn't return to live"
-            }
-        }
+        if (liveUrl.isNotEmpty()) play(liveUrl) else finish()
+    }
+
+    /** Build a Flussonic archive window URL from a live HLS URL, reusing its query/token. */
+    private fun buildArchiveUrl(live: String, startTs: Long, durationSec: Long): String? {
+        val path = live.substringBefore("?")
+        val query = if (live.contains("?")) live.substringAfter("?") else ""
+        val slash = path.lastIndexOf('/')
+        if (slash < 0) return null
+        val archive = path.substring(0, slash + 1) + "archive-$startTs-$durationSec.m3u8"
+        return if (query.isNotEmpty()) "$archive?$query" else archive
     }
 
     private fun togglePlay() {
@@ -282,6 +280,7 @@ class LiveVlcActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 if (u.isNullOrEmpty()) { b.status.text = "No stream for ${ch.name}"; return@runOnUiThread }
+                liveUrl = u
                 play(u)
             }
         }
