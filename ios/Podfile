@@ -1,0 +1,16 @@
+# CocoaPods alternative for pulling in MobileVLCKit, if you'd rather not use SPM.
+#
+# Usage:
+#   cd ios && xcodegen generate      # creates StalkerTV.xcodeproj
+#   pod install                      # creates StalkerTV.xcworkspace
+#   open StalkerTV.xcworkspace
+#
+# If you go this route, remove the `packages:` / `dependencies:` MobileVLCKit
+# entries from project.yml first so the dependency isn't declared twice.
+
+platform :ios, '15.0'
+use_frameworks!
+
+target 'StalkerTV' do
+  pod 'MobileVLCKit', '~> 3.6.0'
+end

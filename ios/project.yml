@@ -1,0 +1,57 @@
+# XcodeGen spec. Generate the Xcode project with:
+#   brew install xcodegen
+#   cd ios && xcodegen generate
+#   open StalkerTV.xcodeproj
+#
+# MobileVLCKit is pulled in via Swift Package Manager (the vlckit-spm distribution).
+# If SPM resolution gives you trouble, see the CocoaPods alternative in README.md.
+
+name: StalkerTV
+options:
+  bundleIdPrefix: com.stalkertv
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+
+packages:
+  MobileVLCKit:
+    url: https://github.com/tylerjonesio/vlckit-spm
+    from: "3.6.0"
+
+targets:
+  StalkerTV:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: StalkerTV
+    info:
+      path: StalkerTV/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: StalkerTV
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Stalker portals are typically plain HTTP, so allow cleartext loads.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        UIBackgroundModes:
+          - audio
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.stalkertv.app
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"   # iPhone + iPad
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      - package: MobileVLCKit
+        product: MobileVLCKit
