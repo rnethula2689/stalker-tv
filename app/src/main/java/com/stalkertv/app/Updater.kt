@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 /** Checks the published version file so sideloaded users get notified of new builds. */
 object Updater {
     private const val URL =
-        "https://raw.githubusercontent.com/rnethula2689/stalker-tv/main/latest_version.json"
+        "https://github.com/rnethula2689/stalker-tv/releases/download/apk-latest/latest_version.json"
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)

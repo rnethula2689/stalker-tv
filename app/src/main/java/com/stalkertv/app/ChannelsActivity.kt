@@ -1087,7 +1087,7 @@ class ChannelsActivity : AppCompatActivity() {
         }
         val rows = eps.map { e ->
             val epName = favParts(e.title).getOrElse(2) { e.title }
-            val fav = FavInfo({ Favorites.isFav(this, "episode", e.id) }, { Favorites.toggle(this, e) })
+            val fav = vodFav("episode", e)
             Row("🎬  $epName", e.poster.ifBlank { null }, sortKey = epName, fav = fav) {
                 mediaActions(e.title, e.poster, "ep_${e.id}", e.source)
             }
