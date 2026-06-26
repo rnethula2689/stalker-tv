@@ -173,27 +173,40 @@ class LiveVlcActivity : AppCompatActivity() {
 
     /**
      * Enter live timeshift: play the recent archive buffer as a seekable VOD, starting ~30s back.
-     * Builds the archive URL from the LIVE stream's own token — no new create_link, so it's instant
-     * and isn't blocked by the portal's concurrent-stream limit.
+     * The portal's stream token is session-bound (reusing the live one returns 403), so we stop the
+     * live stream first to free the slot, then resolve a fresh archive link via create_link.
      */
     private fun enterTimeshift() {
         if (timeshifting || isArchive) return
-        val archiveSec = currentArchiveSec()
-        if (archiveSec <= 0 || liveUrl.isEmpty()) return
-        tsWindowSec = minOf(archiveSec, 10_800L)   // up to 3h scrubbable buffer
-        val now = System.currentTimeMillis() / 1000
-        val u = buildArchiveUrl(liveUrl, now - tsWindowSec, tsWindowSec) ?: return
+        val ch = channels.getOrNull(chIndex) ?: return
+        val archiveSec = ch.archiveDays.toLong() * 3600
+        if (archiveSec <= 0) return
         timeshifting = true
+        tsWindowSec = minOf(archiveSec, 7_200L)     // up to 2h scrubbable buffer
         b.tsBtn.visibility = View.GONE
         b.controlBar.visibility = View.VISIBLE
         b.liveBtn.visibility = View.VISIBLE
         b.hint.visibility = View.GONE
         b.playBtn.text = "⏸"
-        startSeekTo = (tsWindowSec - 30) * 1000     // start ~30s behind the live edge
-        play(u)
+        b.status.visibility = View.VISIBLE
+        b.status.text = "Rewinding live…"
+        mp?.stop()                                   // free the live stream so the new link isn't blocked
+        startSeekTo = (tsWindowSec - 30) * 1000      // start ~30s behind the live edge
+        val now = System.currentTimeMillis() / 1000
+        io.execute {
+            val u = Portal.archiveLink(ch.cmd, now - tsWindowSec, tsWindowSec)
+            runOnUiThread {
+                if (isFinishing || !timeshifting) return@runOnUiThread
+                if (u.isNullOrEmpty()) {
+                    android.widget.Toast.makeText(this, "Timeshift unavailable right now", android.widget.Toast.LENGTH_SHORT).show()
+                    returnToLive(); return@runOnUiThread
+                }
+                play(u)
+            }
+        }
     }
 
-    /** Leave timeshift and resume the live stream (reusing the same live URL/token). */
+    /** Leave timeshift and resume the live stream (fresh link, since timeshift freed the live one). */
     private fun returnToLive() {
         if (!timeshifting) return
         timeshifting = false
@@ -202,17 +215,17 @@ class LiveVlcActivity : AppCompatActivity() {
         b.controlBar.visibility = View.GONE
         b.liveBtn.visibility = View.GONE
         if (currentArchiveSec() > 0) b.tsBtn.visibility = View.VISIBLE
-        if (liveUrl.isNotEmpty()) play(liveUrl) else finish()
-    }
-
-    /** Build a Flussonic archive window URL from a live HLS URL, reusing its query/token. */
-    private fun buildArchiveUrl(live: String, startTs: Long, durationSec: Long): String? {
-        val path = live.substringBefore("?")
-        val query = if (live.contains("?")) live.substringAfter("?") else ""
-        val slash = path.lastIndexOf('/')
-        if (slash < 0) return null
-        val archive = path.substring(0, slash + 1) + "archive-$startTs-$durationSec.m3u8"
-        return if (query.isNotEmpty()) "$archive?$query" else archive
+        b.status.visibility = View.VISIBLE
+        b.status.text = "▶  LIVE…"
+        mp?.stop()
+        val ch = channels.getOrNull(chIndex) ?: run { finish(); return }
+        io.execute {
+            val u = Portal.createLink(ch.cmd)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (!u.isNullOrEmpty()) { liveUrl = u; play(u) } else b.status.text = "Couldn't return to live"
+            }
+        }
     }
 
     private fun togglePlay() {
