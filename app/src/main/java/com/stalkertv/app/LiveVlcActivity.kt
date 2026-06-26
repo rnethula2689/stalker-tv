@@ -1,6 +1,7 @@
 package com.stalkertv.app
 
 import android.content.Intent
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -49,6 +50,12 @@ class LiveVlcActivity : AppCompatActivity() {
     private var startSeekTo = 0L     // pending seek (ms) to apply once the stream length is known
     private var liveUrl = ""         // current live stream URL — its token is reused for timeshift
 
+    private lateinit var am: AudioManager
+    private var preMuteVol = -1
+    private val aspectModes = listOf("Fit", "16:9", "4:3", "Stretch")
+    private var aspectIdx = 0
+    private var nightOn = false
+
     private val poller = object : Runnable {
         override fun run() {
             val p = mp
@@ -80,7 +87,7 @@ class LiveVlcActivity : AppCompatActivity() {
     private val gestureDetector by lazy {
         android.view.GestureDetector(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: android.view.MotionEvent): Boolean = true
-            override fun onSingleTapUp(e: android.view.MotionEvent): Boolean { showBar(); return true }
+            override fun onSingleTapUp(e: android.view.MotionEvent): Boolean { toggleBar(); return true }
             override fun onFling(e1: android.view.MotionEvent?, e2: android.view.MotionEvent, vx: Float, vy: Float): Boolean {
                 if (e1 == null || isArchive || timeshifting) return false
                 val dx = e2.x - e1.x
@@ -123,7 +130,7 @@ class LiveVlcActivity : AppCompatActivity() {
         player.attachViews(b.vlc, null, false, false)
         player.setEventListener { ev ->
             when (ev.type) {
-                MediaPlayer.Event.Playing -> { b.status.visibility = View.GONE; if (isArchive || timeshifting) b.playBtn.text = "⏸" }
+                MediaPlayer.Event.Playing -> { b.status.visibility = View.GONE; applyAspect(); if (isArchive || timeshifting) b.playBtn.text = "⏸" }
                 MediaPlayer.Event.Paused -> { if (isArchive || timeshifting) b.playBtn.text = "▶" }
                 MediaPlayer.Event.EndReached -> { if (isArchive) b.playBtn.text = "▶" else if (timeshifting) ui.post { returnToLive() } }
                 MediaPlayer.Event.EncounteredError ->
@@ -134,6 +141,7 @@ class LiveVlcActivity : AppCompatActivity() {
 
         b.menuBtn.setOnClickListener { showMenu() }
         b.root.setOnTouchListener { _, ev -> gestureDetector.onTouchEvent(ev) }
+        wireQuickControls()
 
         if (isArchive) {
             knownDurationMs = intent.getLongExtra("durationSec", 0) * 1000 // program length → stable scrub timeline
@@ -355,11 +363,117 @@ class LiveVlcActivity : AppCompatActivity() {
 
     private fun showBar() {
         b.topBar.visibility = View.VISIBLE
+        b.leftControls.visibility = View.VISIBLE
         if (!isArchive && !timeshifting) b.hint.visibility = View.VISIBLE
+        scheduleHide()
+    }
+
+    private fun scheduleHide() {
         hideBarRunnable?.let { ui.removeCallbacks(it) }
-        val r = Runnable { b.topBar.visibility = View.GONE; b.hint.visibility = View.GONE }
+        val r = Runnable { hideBars() }
         hideBarRunnable = r
         ui.postDelayed(r, 4000)
+    }
+
+    private fun hideBars() {
+        hideBarRunnable?.let { ui.removeCallbacks(it) }
+        b.topBar.visibility = View.GONE
+        b.hint.visibility = View.GONE
+        b.leftControls.visibility = View.GONE
+        b.volumePanel.visibility = View.GONE
+        b.brightnessPanel.visibility = View.GONE
+    }
+
+    /** Tap toggles the whole control layer (top bar + left quick controls + any open panel). */
+    private fun toggleBar() {
+        if (b.topBar.visibility == View.VISIBLE) hideBars() else showBar()
+    }
+
+    /** Wire the top-left quick controls: aspect ratio, volume (+ mute), brightness (+ night mode). */
+    private fun wireQuickControls() {
+        am = ScreenControls.audio(this)
+        b.aspectBtn.text = "⤢  ${aspectModes[aspectIdx]}"
+        b.aspectBtn.setOnClickListener { cycleAspect(); scheduleHide() }
+
+        b.volSeek.max = ScreenControls.maxVolume(am)
+        refreshVol()
+        b.volSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser) { ScreenControls.setVolume(am, progress); updateMuteLabel() }
+            }
+            override fun onStartTrackingTouch(sb: SeekBar) {}
+            override fun onStopTrackingTouch(sb: SeekBar) {}
+        })
+        b.volBtn.setOnClickListener { refreshVol(); openPanel(b.volumePanel) }
+        b.muteBtn.setOnClickListener { toggleMute() }
+
+        b.brightSeek.max = 100
+        b.brightSeek.progress = (ScreenControls.brightness(window) * 100).toInt()
+        b.brightSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser) ScreenControls.setBrightness(window, progress / 100f)
+            }
+            override fun onStartTrackingTouch(sb: SeekBar) {}
+            override fun onStopTrackingTouch(sb: SeekBar) {}
+        })
+        b.brightBtn.setOnClickListener {
+            b.brightSeek.progress = (ScreenControls.brightness(window) * 100).toInt()
+            openPanel(b.brightnessPanel)
+        }
+        b.nightBtn.setOnClickListener { toggleNight() }
+    }
+
+    /** Open one panel (and close the other). While a panel is open the auto-hide timer is paused. */
+    private fun openPanel(panel: View) {
+        val show = panel.visibility != View.VISIBLE
+        b.volumePanel.visibility = View.GONE
+        b.brightnessPanel.visibility = View.GONE
+        panel.visibility = if (show) View.VISIBLE else View.GONE
+        if (show) hideBarRunnable?.let { ui.removeCallbacks(it) } else scheduleHide()
+    }
+
+    private fun cycleAspect() {
+        aspectIdx = (aspectIdx + 1) % aspectModes.size
+        applyAspect()
+        b.aspectBtn.text = "⤢  ${aspectModes[aspectIdx]}"
+    }
+
+    private fun applyAspect() {
+        val p = mp ?: return
+        when (aspectModes[aspectIdx]) {
+            "Fit" -> { p.setAspectRatio(null); p.setScale(0f) }
+            "16:9" -> { p.setAspectRatio("16:9"); p.setScale(0f) }
+            "4:3" -> { p.setAspectRatio("4:3"); p.setScale(0f) }
+            "Stretch" -> {
+                val dm = resources.displayMetrics
+                p.setAspectRatio("${dm.widthPixels}:${dm.heightPixels}"); p.setScale(0f)
+            }
+        }
+    }
+
+    private fun toggleMute() {
+        if (ScreenControls.volume(am) > 0) {
+            preMuteVol = ScreenControls.volume(am)
+            ScreenControls.setVolume(am, 0)
+        } else {
+            ScreenControls.setVolume(am, if (preMuteVol > 0) preMuteVol else ScreenControls.maxVolume(am) / 2)
+        }
+        refreshVol()
+    }
+
+    private fun refreshVol() {
+        b.volSeek.progress = ScreenControls.volume(am)
+        updateMuteLabel()
+    }
+
+    private fun updateMuteLabel() {
+        b.muteBtn.text = if (ScreenControls.volume(am) == 0) "🔈  Unmute" else "🔇  Mute"
+    }
+
+    private fun toggleNight() {
+        nightOn = !nightOn
+        b.nightOverlay.visibility = if (nightOn) View.VISIBLE else View.GONE
+        b.nightBtn.text = if (nightOn) "🌙  Night mode: ON" else "🌙  Night mode"
     }
 
     private var menuDialog: AlertDialog? = null

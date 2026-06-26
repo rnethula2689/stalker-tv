@@ -1,7 +1,10 @@
 package com.stalkertv.app
 
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
+import android.view.View
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AlertDialog
@@ -15,6 +18,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.stalkertv.app.databinding.ActivityPlayerBinding
 import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
@@ -42,6 +46,12 @@ class PlayerActivity : AppCompatActivity() {
     // forcing FFmpeg software decoders for both audio and video.
     private var forceSoftware = false
 
+    private lateinit var am: AudioManager
+    private var preMuteVol = -1
+    private val aspectModes = listOf("Fit", "Zoom", "Stretch")
+    private var aspectIdx = 0
+    private var nightOn = false
+
     companion object {
         var liveChannels: List<Portal.Channel> = emptyList()
     }
@@ -59,10 +69,18 @@ class PlayerActivity : AppCompatActivity() {
         // Top bar (title + Subtitles) shows/hides with the playback controls.
         b.title.text = titleText
         b.playerView.setControllerVisibilityListener(
-            PlayerView.ControllerVisibilityListener { visibility -> b.topBar.visibility = visibility }
+            PlayerView.ControllerVisibilityListener { visibility ->
+                b.topBar.visibility = visibility
+                b.leftControls.visibility = visibility
+                if (visibility != View.VISIBLE) {
+                    b.volumePanel.visibility = View.GONE
+                    b.brightnessPanel.visibility = View.GONE
+                }
+            }
         )
         b.subBtn.setOnClickListener { searchSubtitles() }
         b.menuBtn.setOnClickListener { showMenu() }
+        wireQuickControls()
 
         isLive = intent.getBooleanExtra("live", false)
         chIndex = intent.getIntExtra("chIndex", -1)
@@ -286,6 +304,85 @@ class PlayerActivity : AppCompatActivity() {
                 Toast.makeText(this, "Subtitle applied ✓", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    /** Wire the top-left quick controls: aspect ratio, volume (+ mute), brightness (+ night mode). */
+    private fun wireQuickControls() {
+        am = ScreenControls.audio(this)
+        b.aspectBtn.text = "⤢  ${aspectModes[aspectIdx]}"
+        b.aspectBtn.setOnClickListener { cycleAspect() }
+
+        b.volSeek.max = ScreenControls.maxVolume(am)
+        refreshVol()
+        b.volSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser) { ScreenControls.setVolume(am, progress); updateMuteLabel() }
+            }
+            override fun onStartTrackingTouch(sb: SeekBar) {}
+            override fun onStopTrackingTouch(sb: SeekBar) {}
+        })
+        b.volBtn.setOnClickListener { refreshVol(); openPanel(b.volumePanel) }
+        b.muteBtn.setOnClickListener { toggleMute() }
+
+        b.brightSeek.max = 100
+        b.brightSeek.progress = (ScreenControls.brightness(window) * 100).toInt()
+        b.brightSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser) ScreenControls.setBrightness(window, progress / 100f)
+            }
+            override fun onStartTrackingTouch(sb: SeekBar) {}
+            override fun onStopTrackingTouch(sb: SeekBar) {}
+        })
+        b.brightBtn.setOnClickListener {
+            b.brightSeek.progress = (ScreenControls.brightness(window) * 100).toInt()
+            openPanel(b.brightnessPanel)
+        }
+        b.nightBtn.setOnClickListener { toggleNight() }
+    }
+
+    /** Open one panel (and close the other). While a panel is open, keep the controller up. */
+    private fun openPanel(panel: View) {
+        val show = panel.visibility != View.VISIBLE
+        b.volumePanel.visibility = View.GONE
+        b.brightnessPanel.visibility = View.GONE
+        panel.visibility = if (show) View.VISIBLE else View.GONE
+        b.playerView.controllerShowTimeoutMs = if (show) 0 else 6000
+        b.playerView.showController()
+    }
+
+    private fun cycleAspect() {
+        aspectIdx = (aspectIdx + 1) % aspectModes.size
+        b.playerView.resizeMode = when (aspectModes[aspectIdx]) {
+            "Zoom" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            "Stretch" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+        }
+        b.aspectBtn.text = "⤢  ${aspectModes[aspectIdx]}"
+    }
+
+    private fun toggleMute() {
+        if (ScreenControls.volume(am) > 0) {
+            preMuteVol = ScreenControls.volume(am)
+            ScreenControls.setVolume(am, 0)
+        } else {
+            ScreenControls.setVolume(am, if (preMuteVol > 0) preMuteVol else ScreenControls.maxVolume(am) / 2)
+        }
+        refreshVol()
+    }
+
+    private fun refreshVol() {
+        b.volSeek.progress = ScreenControls.volume(am)
+        updateMuteLabel()
+    }
+
+    private fun updateMuteLabel() {
+        b.muteBtn.text = if (ScreenControls.volume(am) == 0) "🔈  Unmute" else "🔇  Mute"
+    }
+
+    private fun toggleNight() {
+        nightOn = !nightOn
+        b.nightOverlay.visibility = if (nightOn) View.VISIBLE else View.GONE
+        b.nightBtn.text = if (nightOn) "🌙  Night mode: ON" else "🌙  Night mode"
     }
 
     private fun saveResume() {
