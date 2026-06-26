@@ -141,6 +141,14 @@ class LiveGridActivity : AppCompatActivity() {
         player.media = media
         media.release()
         player.play()
+        applyPreviewMute()
+    }
+
+    /** Only one audio source: while the pop-up (PiP) is running AND playing, mute this preview.
+     *  When the pop-up is paused/closed, the preview's audio comes back. */
+    private fun applyPreviewMute() {
+        val muted = PipService.running && PipService.playing
+        try { mp?.setVolume(if (muted) 0 else 100) } catch (_: Exception) {}
     }
 
     /** Transient one-line message in the EPG panel (loading / opening / no channels). */
@@ -460,11 +468,14 @@ class LiveGridActivity : AppCompatActivity() {
         // (Re)attach the VLC surface and (re)start the preview. Without re-attaching, the
         // preview shows a blank surface after returning from the fullscreen player.
         if (!attached) { mp?.attachViews(b.preview, null, false, false); attached = true }
+        // React to pop-up play/pause so we mute/unmute this preview accordingly (single audio source).
+        PipService.onStateChanged = { runOnUiThread { applyPreviewMute() } }
         current?.let { loadPreview(it) }
     }
 
     override fun onStop() {
         super.onStop()
+        PipService.onStateChanged = null
         mp?.stop() // free the stream while in fullscreen / background
         if (attached) { mp?.detachViews(); attached = false }
     }

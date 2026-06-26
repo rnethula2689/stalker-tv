@@ -45,6 +45,8 @@ class PipService : Service() {
 
     companion object {
         var running = false
+        var playing = false                       // true while the pop-up is actively playing
+        var onStateChanged: (() -> Unit)? = null  // notifies e.g. the live grid to mute/unmute its preview
         private const val CH = "pip"
         private const val NOTIF = 42
         private const val E_URL = "url"; private const val E_TITLE = "title"
@@ -156,7 +158,12 @@ class PipService : Service() {
         binding.pipClose.setOnClickListener { closeAndSave() }
         binding.pipPlay.setOnClickListener {
             val p = player ?: return@setOnClickListener
-            if (p.isPlaying) { p.pause(); binding.pipPlay.text = "▶" } else { p.play(); binding.pipPlay.text = "⏸" }
+            if (p.isPlaying) {
+                p.pause(); binding.pipPlay.text = "▶"
+            } else {
+                if (isLive) p.seekToDefaultPosition() // catch up to the live edge on resume
+                p.play(); binding.pipPlay.text = "⏸"
+            }
         }
         binding.pipMute.setOnClickListener {
             val p = player ?: return@setOnClickListener
@@ -219,6 +226,8 @@ class PipService : Service() {
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 b?.pipPlay?.text = if (isPlaying) "⏸" else "▶"
+                playing = isPlaying
+                onStateChanged?.invoke()
             }
         })
         return p
@@ -268,6 +277,8 @@ class PipService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         running = false
+        playing = false
+        onStateChanged?.invoke() // let the live grid restore its preview audio
         saveResume()
         try { b?.let { wm?.removeView(it.root) } } catch (_: Exception) {}
         b = null
