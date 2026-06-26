@@ -29,6 +29,13 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Stamp unique build number + version file (so About shows the real build & updates work)
+        run: |
+          sed -i "s/versionCode = 99$/versionCode = ${{ github.run_number }}/" app/build.gradle.kts
+          echo "{\"versionCode\": ${{ github.run_number }}, \"versionName\": \"0.99\"}" > latest_version.json
+          grep -E "versionCode|versionName" app/build.gradle.kts
+          cat latest_version.json
+
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon --stacktrace
 
@@ -43,4 +50,6 @@ jobs:
         with:
           tag_name: apk-latest
           name: Latest APK
-          files: app/build/outputs/apk/debug/*.apk
+          files: |
+            app/build/outputs/apk/debug/*.apk
+            latest_version.json
