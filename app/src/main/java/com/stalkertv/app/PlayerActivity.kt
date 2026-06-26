@@ -351,23 +351,29 @@ class PlayerActivity : AppCompatActivity() {
         if (Configs.autoplay(this)) advanceEpisode()
     }
 
-    /** Advance to the next episode in the season (also called by the ⏭ button, ignoring the setting). */
+    /** Advance to the next episode in the season (also called by the ⏭ button, ignoring the setting).
+     *  At the end of a season, roll over to the first episode of the next season if there is one. */
     private fun advanceEpisode() {
         if (isLive || advancing) return
-        if (epList.isEmpty() || epIndex < 0 || epIndex + 1 >= epList.size) return
+        if (epList.isEmpty() || epIndex < 0) return
+        if (epIndex + 1 >= epList.size) { loadNextSeason(); return }
         advancing = true
         saveResume()
-        val next = epList[epIndex + 1]
-        epIndex += 1
-        titleText = next.title
-        b.title.text = next.title
-        resumeId = next.resumeId
-        resumeSource = next.source
-        resumePoster = next.poster
+        playEpisodeItem(epList[epIndex + 1], epIndex + 1)
+    }
+
+    /** Load the current title (resolve URL on IO) into the player and update resume fields. */
+    private fun playEpisodeItem(item: PlaylistItem, newIndex: Int) {
+        epIndex = newIndex
+        titleText = item.title
+        b.title.text = item.title
+        resumeId = item.resumeId
+        resumeSource = item.source
+        resumePoster = item.poster
         forceSoftware = false
-        Toast.makeText(this, "▶  Next: ${next.title}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "▶  Next: ${item.title}", Toast.LENGTH_SHORT).show()
         io.execute {
-            val url = Downloads.resolveSource(next.source)
+            val url = Downloads.resolveSource(item.source)
             runOnUiThread {
                 advancing = false
                 if (isFinishing) return@runOnUiThread
@@ -380,6 +386,41 @@ class PlayerActivity : AppCompatActivity() {
                 p.setMediaItem(MediaItem.fromUri(url))
                 p.prepare()
                 p.playWhenReady = true
+            }
+        }
+    }
+
+    /** End of season → find the next season in this series and start its first episode. Stops if none.
+     *  Series/season context is derived from the current playlist (source = "ep|series|season|ep"). */
+    private fun loadNextSeason() {
+        if (epList.isEmpty() || epIndex < 0) return
+        val cur = epList[epIndex]
+        val parts = cur.source.split("|")            // ep | seriesId | seasonId | episodeId
+        if (parts.size < 4 || parts[0] != "ep") return
+        val seriesId = parts[1]
+        val curSeasonId = parts[2]
+        val seriesName = cur.title.split("/").getOrElse(0) { "" }.trim()
+        val poster = cur.poster
+        advancing = true
+        io.execute {
+            val seasons = Portal.seriesSeasons(seriesId).reversed() // reversed() = ascending (S1, S2…)
+            val curIdx = seasons.indexOfFirst { it.id == curSeasonId }
+            val nextSeason = if (curIdx >= 0) seasons.getOrNull(curIdx + 1) else null
+            if (nextSeason == null) { runOnUiThread { advancing = false }; return@execute }
+            val ordered = Portal.seriesEpisodes(seriesId, nextSeason.id).reversed()
+            if (ordered.isEmpty()) { runOnUiThread { advancing = false }; return@execute }
+            val newList = ordered.map { ep ->
+                PlaylistItem(
+                    "$seriesName  /  ${nextSeason.name}  /  ${ep.name}",
+                    "ep_${seriesId}_${nextSeason.id}_${ep.id}", poster,
+                    "ep|$seriesId|${nextSeason.id}|${ep.id}"
+                )
+            }
+            runOnUiThread {
+                if (isFinishing) { advancing = false; return@runOnUiThread }
+                epList = newList
+                Toast.makeText(this, "▶  Next season: ${nextSeason.name}", Toast.LENGTH_SHORT).show()
+                playEpisodeItem(newList[0], 0)
             }
         }
     }

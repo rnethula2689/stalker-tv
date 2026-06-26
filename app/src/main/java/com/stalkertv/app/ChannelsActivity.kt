@@ -1183,8 +1183,11 @@ class ChannelsActivity : AppCompatActivity() {
                     b.status.text = "No episodes found."
                     return@runOnUiThread
                 }
-                // Playlist in natural episode order (E1, E2…) so autoplay advances forward.
-                val playlist = eps.map { ep ->
+                // The portal returns episodes newest-first; reversed() gives true episode order
+                // (E1, E2, E3…). Use that SAME order for the display rows and the autoplay playlist
+                // so autoplay / Next advance forward and indices line up.
+                val ordered = eps.reversed()
+                val playlist = ordered.map { ep ->
                     PlayerActivity.PlaylistItem(
                         "${series.name}  /  ${season.name}  /  ${ep.name}",
                         "ep_${series.id}_${season.id}_${ep.id}",
@@ -1192,11 +1195,10 @@ class ChannelsActivity : AppCompatActivity() {
                         "ep|${series.id}|${season.id}|${ep.id}"
                     )
                 }
-                push(Page("${series.name} — ${season.name}", eps.reversed().map { e ->
+                push(Page("${series.name} — ${season.name}", ordered.mapIndexed { idx, e ->
                     val title = "${series.name}  /  ${season.name}  /  ${e.name}"
                     val favE = Favorites.Entry("episode", "${series.id}_${season.id}_${e.id}", title, series.posterUrl, "ep|${series.id}|${season.id}|${e.id}")
                     val fav = vodFav("episode", favE)
-                    val idx = eps.indexOfFirst { it.id == e.id }
                     Row(e.name, null, fav = fav) {
                         mediaActions(title, series.posterUrl, "ep_${series.id}_${season.id}_${e.id}", "ep|${series.id}|${season.id}|${e.id}", playlist, idx)
                     }
