@@ -13,7 +13,7 @@ object Favorites {
     data class Entry(val kind: String, val id: String, val title: String, val poster: String, val source: String)
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("cfg", Context.MODE_PRIVATE)
-    private fun key(ctx: Context) = "fav2:" + (Configs.active(ctx)?.sig() ?: "default")
+    private fun key(ctx: Context) = "fav2:" + (Configs.active(ctx)?.sig() ?: "default") + ContentProfiles.scopeSuffix(ctx)
 
     fun all(ctx: Context): MutableList<Entry> {
         val out = ArrayList<Entry>()

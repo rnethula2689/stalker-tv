@@ -16,7 +16,7 @@ object WatchLater {
     )
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("cfg", Context.MODE_PRIVATE)
-    private fun key(ctx: Context) = "watchlater:" + (Configs.active(ctx)?.sig() ?: "default")
+    private fun key(ctx: Context) = "watchlater:" + (Configs.active(ctx)?.sig() ?: "default") + ContentProfiles.scopeSuffix(ctx)
 
     fun all(ctx: Context): MutableList<Entry> {
         val out = ArrayList<Entry>()

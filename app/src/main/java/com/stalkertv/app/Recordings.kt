@@ -14,7 +14,7 @@ object Recordings {
     data class Item(val file: String, val title: String, val channel: String, val added: Long, val size: Long)
 
     fun dir(ctx: Context): File {
-        val d = File(ctx.getExternalFilesDir(null), "recordings")
+        val d = File(ctx.getExternalFilesDir(null), "recordings" + ContentProfiles.scopeDir(ctx))
         if (!d.exists()) d.mkdirs()
         return d
     }

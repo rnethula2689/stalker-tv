@@ -87,7 +87,7 @@ object Configs {
     fun setAutoplay(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("autoplay_next", on).apply() }
 
     // ---- Favourite channels (per active provider) ----
-    private fun favKey(ctx: Context) = "fav:" + (active(ctx)?.sig() ?: "default")
+    private fun favKey(ctx: Context) = "fav:" + (active(ctx)?.sig() ?: "default") + ContentProfiles.scopeSuffix(ctx)
 
     fun favorites(ctx: Context): LinkedHashSet<String> {
         val set = LinkedHashSet<String>()

@@ -71,7 +71,7 @@ object Downloads {
     }
 
     fun dir(ctx: Context): File {
-        val d = File(ctx.getExternalFilesDir(null), "downloads")
+        val d = File(ctx.getExternalFilesDir(null), "downloads" + ContentProfiles.scopeDir(ctx))
         if (!d.exists()) d.mkdirs()
         return d
     }

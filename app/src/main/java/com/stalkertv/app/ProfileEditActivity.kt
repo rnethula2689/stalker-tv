@@ -34,12 +34,20 @@ class ProfileEditActivity : AppCompatActivity() {
         }
 
         buildColorRow()
-        b.liveAllBtn.setOnClickListener { setAll(liveBoxes, !allChecked(liveBoxes)) }
-        b.vodAllBtn.setOnClickListener { setAll(vodBoxes, !allChecked(vodBoxes)) }
+        b.liveAllBtn.setOnClickListener { val v = visible(liveBoxes); setAll(v, !(v.isNotEmpty() && v.all { it.isChecked })); updateAllLabels() }
+        b.vodAllBtn.setOnClickListener { val v = visible(vodBoxes); setAll(v, !(v.isNotEmpty() && v.all { it.isChecked })); updateAllLabels() }
         b.saveBtn.setOnClickListener { save() }
         b.deleteBtn.setOnClickListener { confirmDelete() }
+        b.liveSearch.addTextChangedListener(simpleWatcher { filterList(liveBoxes, it) })
+        b.vodSearch.addTextChangedListener(simpleWatcher { filterList(vodBoxes, it) })
 
         loadCategories()
+    }
+
+    private fun simpleWatcher(onChange: (String) -> Unit) = object : android.text.TextWatcher {
+        override fun afterTextChanged(s: android.text.Editable?) { onChange(s?.toString() ?: "") }
+        override fun beforeTextChanged(s: CharSequence?, a: Int, c: Int, d: Int) {}
+        override fun onTextChanged(s: CharSequence?, a: Int, c: Int, d: Int) {}
     }
 
     private fun buildColorRow() {
@@ -92,6 +100,7 @@ class ProfileEditActivity : AppCompatActivity() {
             val checked = p == null || p.allVod || p.vodCats.contains(c.id)
             vodBoxes.add(addBox(b.vodList, c.title, c.id, checked))
         }
+        updateAllLabels()
     }
 
     private fun addBox(parent: android.widget.LinearLayout, label: String, id: String, checked: Boolean): CheckBox {
@@ -104,12 +113,29 @@ class ProfileEditActivity : AppCompatActivity() {
         cb.isFocusable = true
         val pad = (6 * resources.displayMetrics.density).toInt()
         cb.setPadding(cb.paddingLeft, pad, pad, pad)
+        cb.setOnCheckedChangeListener { _, _ -> updateAllLabels() }
         parent.addView(cb)
         return cb
     }
 
-    private fun allChecked(boxes: List<CheckBox>) = boxes.isNotEmpty() && boxes.all { it.isChecked }
+    private fun visible(boxes: List<CheckBox>) = boxes.filter { it.visibility == View.VISIBLE }
     private fun setAll(boxes: List<CheckBox>, value: Boolean) { for (cb in boxes) cb.isChecked = value }
+
+    /** Filter a list's checkboxes by the search query (visibility only — checked state is preserved). */
+    private fun filterList(boxes: List<CheckBox>, q: String) {
+        val query = q.trim().lowercase()
+        for (cb in boxes) cb.visibility =
+            if (query.isEmpty() || cb.text.toString().lowercase().contains(query)) View.VISIBLE else View.GONE
+        updateAllLabels()
+    }
+
+    /** "Select all" ↔ "Deselect all" depending on whether every *visible* box is already ticked. */
+    private fun updateAllLabels() {
+        val liveV = visible(liveBoxes)
+        val vodV = visible(vodBoxes)
+        b.liveAllBtn.text = if (liveV.isNotEmpty() && liveV.all { it.isChecked }) "Deselect all" else "Select all"
+        b.vodAllBtn.text = if (vodV.isNotEmpty() && vodV.all { it.isChecked }) "Deselect all" else "Select all"
+    }
 
     private fun save() {
         val name = b.profileName.text?.toString()?.trim().orEmpty().ifBlank { "Profile" }

@@ -12,7 +12,7 @@ import org.json.JSONObject
  */
 object FavGroups {
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("cfg", Context.MODE_PRIVATE)
-    private fun key(ctx: Context, scope: String) = "favgroups_$scope:" + (Configs.active(ctx)?.sig() ?: "default")
+    private fun key(ctx: Context, scope: String) = "favgroups_$scope:" + (Configs.active(ctx)?.sig() ?: "default") + ContentProfiles.scopeSuffix(ctx)
 
     private fun read(ctx: Context, scope: String): JSONObject =
         try { JSONObject(prefs(ctx).getString(key(ctx, scope), "{}") ?: "{}") } catch (_: Exception) { JSONObject() }

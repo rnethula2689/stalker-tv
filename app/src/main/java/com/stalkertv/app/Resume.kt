@@ -20,7 +20,7 @@ object Resume {
     )
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("cfg", Context.MODE_PRIVATE)
-    private fun key(ctx: Context) = "resume:" + (Configs.active(ctx)?.sig() ?: "default")
+    private fun key(ctx: Context) = "resume:" + (Configs.active(ctx)?.sig() ?: "default") + ContentProfiles.scopeSuffix(ctx)
 
     fun all(ctx: Context): List<Entry> {
         val out = ArrayList<Entry>()

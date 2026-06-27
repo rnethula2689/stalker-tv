@@ -46,89 +46,134 @@
             android:layout_marginTop="8dp"
             android:orientation="horizontal" />
 
-        <!-- Live TV categories -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="📺  Live TV categories"
-                android:textColor="#e6edf3"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/liveAllBtn"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Select all"
-                android:textColor="#19c37d"
-                android:textSize="13sp"
-                android:padding="10dp"
-                android:focusable="true"
-                android:clickable="true"
-                android:background="@drawable/item_bg" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/liveList"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:orientation="vertical" />
-
-        <!-- Movie categories -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="🎬  Movie categories"
-                android:textColor="#e6edf3"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/vodAllBtn"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Select all"
-                android:textColor="#19c37d"
-                android:textSize="13sp"
-                android:padding="10dp"
-                android:focusable="true"
-                android:clickable="true"
-                android:background="@drawable/item_bg" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/vodList"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:orientation="vertical" />
-
         <TextView
             android:id="@+id/loadingNote"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="14dp"
             android:text="Loading categories…"
             android:textColor="#9fb0c0"
             android:textSize="14sp"
             android:visibility="gone" />
+
+        <!-- Two columns side by side: Live TV (left) and Movies (right). -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:orientation="horizontal"
+            android:baselineAligned="false">
+
+            <!-- Live TV column -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="📺  Live TV"
+                        android:textColor="#e6edf3"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/liveAllBtn"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Select all"
+                        android:textColor="#19c37d"
+                        android:textSize="13sp"
+                        android:padding="8dp"
+                        android:focusable="true"
+                        android:clickable="true"
+                        android:background="@drawable/item_bg" />
+                </LinearLayout>
+
+                <EditText
+                    android:id="@+id/liveSearch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:hint="Search categories…"
+                    android:textColorHint="#5a6675"
+                    android:textColor="#e6edf3"
+                    android:textSize="14sp"
+                    android:singleLine="true" />
+
+                <LinearLayout
+                    android:id="@+id/liveList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="vertical" />
+            </LinearLayout>
+
+            <!-- Movies column -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🎬  Movies"
+                        android:textColor="#e6edf3"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/vodAllBtn"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Select all"
+                        android:textColor="#19c37d"
+                        android:textSize="13sp"
+                        android:padding="8dp"
+                        android:focusable="true"
+                        android:clickable="true"
+                        android:background="@drawable/item_bg" />
+                </LinearLayout>
+
+                <EditText
+                    android:id="@+id/vodSearch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:hint="Search categories…"
+                    android:textColorHint="#5a6675"
+                    android:textColor="#e6edf3"
+                    android:textSize="14sp"
+                    android:singleLine="true" />
+
+                <LinearLayout
+                    android:id="@+id/vodList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="vertical" />
+            </LinearLayout>
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

@@ -97,6 +97,14 @@ object ContentProfiles {
 
     fun newId(): String = "p" + System.currentTimeMillis().toString(36)
 
+    // The active id without parsing the whole list when one is explicitly set (hot path).
+    private fun scopeId(ctx: Context): String? = activeId(ctx) ?: list(ctx).firstOrNull()?.id
+
+    /** Per-profile namespace for prefs keys (empty = no profile → shared/global, backward compatible). */
+    fun scopeSuffix(ctx: Context): String = scopeId(ctx)?.let { "@$it" } ?: ""
+    /** Per-profile sub-folder suffix for file-based stores (downloads / recordings). */
+    fun scopeDir(ctx: Context): String = scopeId(ctx)?.let { "-$it" } ?: ""
+
     val COLORS = intArrayOf(
         0xFF19C37D.toInt(), 0xFF4F8CFF.toInt(), 0xFFFF6B6B.toInt(),
         0xFFFFB020.toInt(), 0xFFB36BFF.toInt(), 0xFF20C9C9.toInt(), 0xFFE05BD6.toInt()
