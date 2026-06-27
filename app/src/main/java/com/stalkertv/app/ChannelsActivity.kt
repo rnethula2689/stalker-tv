@@ -723,14 +723,13 @@ class ChannelsActivity : AppCompatActivity() {
         }
     }
 
-    /** Open a specific YouTube video (works on Fire TV + tablet). */
+    /** Play the trailer IN-APP (embedded) so Back returns straight to the app — no stranding in the
+     *  external YouTube app (a Fire TV pain). Falls back to the YouTube app only if the embed can't start. */
     private fun openYouTubeVideo(videoId: String) {
-        val url = "https://www.youtube.com/watch?v=$videoId"
-        val attempts = listOf(
-            Intent(Intent.ACTION_VIEW, android.net.Uri.parse("vnd.youtube:$videoId")),
-            Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
-        )
-        for (i in attempts) try { startActivity(i); return } catch (_: Exception) {}
+        try { startActivity(Intent(this, TrailerActivity::class.java).putExtra("videoId", videoId)); return }
+        catch (_: Exception) {}
+        try { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/watch?v=$videoId"))); return }
+        catch (_: Exception) {}
         android.widget.Toast.makeText(this, "Couldn't open the trailer.", android.widget.Toast.LENGTH_SHORT).show()
     }
 
