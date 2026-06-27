@@ -57,6 +57,11 @@ class LiveVlcActivity : AppCompatActivity() {
     private var nightOn = false
     private var isRecording = false
     private var recChannel = ""
+    private val OPTION_NAV_KEYS = intArrayOf(
+        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+        KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER
+    )
 
     private val poller = object : Runnable {
         override fun run() {
@@ -617,13 +622,31 @@ class LiveVlcActivity : AppCompatActivity() {
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { togglePlay(); return true }
                 }
             } else {
+                // When the options bar is showing, the D-pad navigates the on-screen buttons (focus);
+                // channel switching only happens when the bar is hidden.
+                val barShown = b.topBar.visibility == View.VISIBLE
+                if (barShown && event.keyCode in OPTION_NAV_KEYS) scheduleHide() // keep bar up while navigating
                 when (event.keyCode) {
                     KeyEvent.KEYCODE_MENU -> { showMenu(); return true }
-                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND ->
-                        if (currentArchiveSec() > 0) { enterTimeshift(); return true }
-                    KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> { switchChannel(-1); return true }
-                    KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> { switchChannel(1); return true }
-                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { showBar(); return true }
+                    KeyEvent.KEYCODE_CHANNEL_UP -> { switchChannel(-1); return true }   // dedicated keys always switch
+                    KeyEvent.KEYCODE_CHANNEL_DOWN -> { switchChannel(1); return true }
+                    KeyEvent.KEYCODE_DPAD_UP -> {
+                        if (!barShown) { switchChannel(-1); return true }
+                        if (b.topBar.findFocus() == null) { b.topBar.requestFocus(); return true } // jump into options
+                        // else let focus move (super)
+                    }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        if (!barShown) { switchChannel(1); return true }
+                        // bar shown: stay on the options row (let super)
+                    }
+                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                        if (!barShown && currentArchiveSec() > 0) { enterTimeshift(); return true }
+                        // bar shown: let super move focus left among the options
+                    }
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                        if (!barShown) { showBar(); b.topBar.requestFocus(); return true } // show + land on options
+                        // bar shown: let super activate the focused option
+                    }
                 }
             }
         }
