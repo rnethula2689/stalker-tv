@@ -7,6 +7,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
 import com.stalkertv.app.databinding.ItemCardBinding
+import com.stalkertv.app.databinding.ItemCatChipBinding
 import com.stalkertv.app.databinding.ItemChannelBinding
 import com.stalkertv.app.databinding.ItemRailBinding
 
@@ -24,19 +25,42 @@ class RowAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     class VH(val b: ItemChannelBinding) : RecyclerView.ViewHolder(b.root)
     class RailVH(val b: ItemRailBinding) : RecyclerView.ViewHolder(b.root)
+    class ChipVH(val b: ItemCatChipBinding) : RecyclerView.ViewHolder(b.root)
 
-    override fun getItemViewType(position: Int) = if (items[position].rail != null) T_RAIL else T_ROW
+    /** For GridLayoutManager span sizing: chips take one cell, everything else spans the full width. */
+    fun isChip(position: Int) = items.getOrNull(position)?.chip == true
+
+    override fun getItemViewType(position: Int) = when {
+        items[position].chip -> T_CHIP
+        items[position].rail != null -> T_RAIL
+        else -> T_ROW
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         val inf = LayoutInflater.from(parent.context)
-        return if (viewType == T_RAIL) RailVH(ItemRailBinding.inflate(inf, parent, false))
-        else VH(ItemChannelBinding.inflate(inf, parent, false))
+        return when (viewType) {
+            T_RAIL -> RailVH(ItemRailBinding.inflate(inf, parent, false))
+            T_CHIP -> ChipVH(ItemCatChipBinding.inflate(inf, parent, false))
+            else -> VH(ItemChannelBinding.inflate(inf, parent, false))
+        }
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val row = items[position]
-        if (holder is RailVH) { bindRail(holder, row); return }
-        bindRow(holder as VH, row)
+        when (holder) {
+            is RailVH -> bindRail(holder, row)
+            is ChipVH -> bindChip(holder, row)
+            else -> bindRow(holder as VH, row)
+        }
+    }
+
+    private fun bindChip(holder: ChipVH, row: ChannelsActivity.Row) {
+        val gold = row.label.contains("Favourites")
+        holder.b.chipRoot.setBackgroundResource(if (gold) R.drawable.chip_bg_gold else R.drawable.chip_bg)
+        holder.b.chipName.text = row.label
+        holder.b.chipName.setTextColor(if (gold) 0xFF1A1A1A.toInt() else 0xFFE6EDF3.toInt())
+        holder.b.chipChevron.setTextColor(if (gold) 0xFF1A1A1A.toInt() else 0xFF7A8A9A.toInt())
+        holder.b.chipRoot.setOnClickListener { row.action() }
     }
 
     private fun bindRail(holder: RailVH, row: ChannelsActivity.Row) {
@@ -130,7 +154,7 @@ class RowAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     override fun getItemCount() = items.size
 
-    companion object { const val T_ROW = 0; const val T_RAIL = 1 }
+    companion object { const val T_ROW = 0; const val T_RAIL = 1; const val T_CHIP = 2 }
 
     /** Horizontal poster cards within a rail. */
     class CardAdapter(private val cards: List<ChannelsActivity.Card>) :

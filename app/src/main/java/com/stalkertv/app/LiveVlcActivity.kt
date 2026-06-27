@@ -190,7 +190,80 @@ class LiveVlcActivity : AppCompatActivity() {
         }
         if (!isArchive) liveUrl = url
         play(url)
+        if (!isArchive) {
+            b.epgRail.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this, androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL, false)
+            b.epgRail.adapter = epgRailAdapter
+            channels.getOrNull(chIndex)?.let { loadEpgRail(it) }
+        }
         showBar()
+    }
+
+    // ---- Live EPG rail (today's programmes for the current channel) ----
+    private val epgRailItems = ArrayList<Portal.EpgItem>()
+    private var epgNowIdx = -1
+    private val epgRailAdapter = EpgRailAdapter()
+
+    private fun loadEpgRail(ch: Portal.Channel) {
+        if (isArchive) return
+        val mine = ch.id
+        io.execute {
+            val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+            val epg = Portal.epgForDate(ch.id, today).ifEmpty { Portal.shortEpg(ch.id) }
+            runOnUiThread {
+                if (isFinishing || channels.getOrNull(chIndex)?.id != mine) return@runOnUiThread
+                epgRailItems.clear(); epgRailItems.addAll(epg)
+                val nowSec = System.currentTimeMillis() / 1000
+                epgNowIdx = epgRailItems.indexOfFirst { it.startTs in 1..nowSec && (it.stopTs == 0L || nowSec < it.stopTs) }
+                if (epgNowIdx < 0) epgNowIdx = epgRailItems.indexOfLast { it.startTs in 1..nowSec }
+                epgRailAdapter.notifyDataSetChanged()
+                updateEpgBar()
+                if (epgNowIdx >= 0) b.epgRail.scrollToPosition(epgNowIdx)
+            }
+        }
+    }
+
+    /** Show the rail only while the controls are up and there's a guide for a live channel. */
+    private fun updateEpgBar() {
+        val show = !isArchive && !timeshifting && b.topBar.visibility == View.VISIBLE && epgRailItems.isNotEmpty()
+        b.epgBar.visibility = if (show) View.VISIBLE else View.GONE
+        b.epgBarTitle.text = (channels.getOrNull(chIndex)?.name ?: "") + " — Today"
+    }
+
+    private fun epgTap(e: Portal.EpgItem) {
+        val ch = channels.getOrNull(chIndex) ?: return
+        val time = if (e.startTs > 0) "${Portal.localTime(e.startTs)} – ${Portal.localTime(e.stopTs)}" else "${e.start} – ${e.end}"
+        val past = e.stopTs in 1..(System.currentTimeMillis() / 1000)
+        val canCatchup = past && ch.archiveDays > 0
+        val b2 = AlertDialog.Builder(this)
+            .setTitle(e.name)
+            .setMessage(if (e.descr.isNotBlank()) "$time\n\n${e.descr}" else time)
+            .setNegativeButton("Close", null)
+        if (canCatchup) b2.setPositiveButton("▶  Watch (catch-up)") { _, _ ->
+            startActivity(Intent(this, CatchupActivity::class.java)
+                .putExtra("chId", ch.id).putExtra("chName", ch.name)
+                .putExtra("chCmd", ch.cmd).putExtra("archiveDays", ch.archiveDays))
+        }
+        b2.show()
+    }
+
+    private inner class EpgRailAdapter : androidx.recyclerview.widget.RecyclerView.Adapter<EpgRailAdapter.VH>() {
+        inner class VH(val v: com.stalkertv.app.databinding.ItemEpgRailBinding) :
+            androidx.recyclerview.widget.RecyclerView.ViewHolder(v.root)
+        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int) =
+            VH(com.stalkertv.app.databinding.ItemEpgRailBinding.inflate(layoutInflater, parent, false))
+        override fun getItemCount() = epgRailItems.size
+        override fun onBindViewHolder(holder: VH, position: Int) {
+            val e = epgRailItems[position]
+            val live = position == epgNowIdx
+            holder.v.epgTime.text = (if (live) "🔴 LIVE  " else "") +
+                (if (e.startTs > 0) Portal.localTime(e.startTs) else e.start)
+            holder.v.epgName.text = e.name
+            holder.v.epgTime.setTextColor(if (live) 0xFF19C37D.toInt() else 0xFF9FB0C0.toInt())
+            holder.v.epgRoot.setBackgroundResource(if (live) R.drawable.chip_bg_gold else R.drawable.chip_bg)
+            holder.v.epgName.setTextColor(if (live) 0xFF1A1A1A.toInt() else 0xFFE6EDF3.toInt())
+            if (live) holder.v.epgTime.setTextColor(0xFF1A1A1A.toInt())
+            holder.v.epgRoot.setOnClickListener { epgTap(e) }
+        }
     }
 
     /** Wire the transport bar (play/skip/seek). Step sizes and live-edge behaviour adapt to mode. */
@@ -391,6 +464,7 @@ class LiveVlcActivity : AppCompatActivity() {
                 if (u.isNullOrEmpty()) { b.status.text = "No stream for ${ch.name}"; return@runOnUiThread }
                 liveUrl = u
                 play(u)
+                loadEpgRail(ch)
             }
         }
     }
@@ -398,6 +472,7 @@ class LiveVlcActivity : AppCompatActivity() {
     private fun showBar() {
         b.topBar.visibility = View.VISIBLE
         if (!isArchive && !timeshifting) b.hint.visibility = View.VISIBLE
+        updateEpgBar()
         scheduleHide()
     }
 
@@ -414,6 +489,7 @@ class LiveVlcActivity : AppCompatActivity() {
         b.hint.visibility = View.GONE
         b.volumePanel.visibility = View.GONE
         b.brightnessPanel.visibility = View.GONE
+        b.epgBar.visibility = View.GONE
     }
 
     /** Tap toggles the whole control layer (top bar + left quick controls + any open panel). */

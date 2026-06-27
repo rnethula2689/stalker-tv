@@ -19,7 +19,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     /** Optional favourite toggle for a row (channels / movies). Null = not favouritable (e.g. folders). */
     class FavInfo(val isFav: () -> Boolean, val toggle: () -> Boolean, val onAdded: (() -> Unit)? = null)
-    data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val fav: FavInfo? = null, val isHeader: Boolean = false, val catchup: (() -> Unit)? = null, val rail: List<Card>? = null, val action: () -> Unit)
+    data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val fav: FavInfo? = null, val isHeader: Boolean = false, val catchup: (() -> Unit)? = null, val rail: List<Card>? = null, val chip: Boolean = false, val action: () -> Unit)
     /** A poster/landscape card inside a home rail. */
     data class Card(val title: String, val poster: String?, val progress: Int = -1, val landscape: Boolean = false, val onClick: () -> Unit)
     enum class SearchKind { LOCAL, GLOBAL, CHANNELS, VOD_ALL, VOD_CATEGORY }
@@ -64,7 +64,13 @@ class ChannelsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityChannelsBinding.inflate(layoutInflater)
         setContentView(b.root)
-        b.list.layoutManager = LinearLayoutManager(this)
+        // Grid so movie-category chips tile in columns; everything else (rows/rails) spans full width.
+        val span = (resources.displayMetrics.widthPixels / resources.displayMetrics.density / 200).toInt().coerceIn(2, 4)
+        val glm = androidx.recyclerview.widget.GridLayoutManager(this, span)
+        glm.spanSizeLookup = object : androidx.recyclerview.widget.GridLayoutManager.SpanSizeLookup() {
+            override fun getSpanSize(position: Int) = if (adapter.isChip(position)) 1 else span
+        }
+        b.list.layoutManager = glm
         b.list.adapter = adapter
         b.swipe.setOnRefreshListener {
             val r = backStack.lastOrNull()?.rebuild
@@ -1132,11 +1138,8 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     private fun displayVodCategories() {
-        val rows = ArrayList<Row>()
-        val favCount = Favorites.all(this).size
-        if (favCount > 0)
-            rows.add(Row("⭐  Favourites  ($favCount)", null, sortKey = "Favourites") { showVodFavRoot() })
-        rows.addAll(vodCats.map { c -> Row(c.title, null, sortKey = c.title) { showVodList(c) } })
+        // A grid of category chips (Favourites lives in the bottom tab bar, not here).
+        val rows = vodCats.map { c -> Row(c.title, null, chip = true) { showVodList(c) } }
         push(Page("Movies", rows, kind = SearchKind.VOD_ALL, rebuild = { showVodCategories() }))
     }
 

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A category "chip" in the Movies/VOD grid. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/chipRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:layout_margin="5dp"
+    android:paddingHorizontal="14dp"
+    android:paddingVertical="16dp"
+    android:focusable="true"
+    android:clickable="true"
+    android:background="@drawable/chip_bg">
+
+    <TextView
+        android:id="@+id/chipName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:textColor="#e6edf3"
+        android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/chipChevron"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:text="›"
+        android:textColor="#7a8a9a"
+        android:textSize="18sp" />
+</LinearLayout>
