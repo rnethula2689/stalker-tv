@@ -161,7 +161,7 @@ class ChannelsActivity : AppCompatActivity() {
                     updateChecked = true
                     androidx.appcompat.app.AlertDialog.Builder(this)
                         .setTitle("Update available")
-                        .setMessage("Version ${v.second} is available.\nDownload and install it now?")
+                        .setMessage("A newer build is available: build ${v.first} (you have build ${BuildConfig.VERSION_CODE}).\nDownload and install it now?")
                         .setPositiveButton("Download now") { _, _ -> startUpdate() }
                         .setNegativeButton("Close", null)
                         .show()

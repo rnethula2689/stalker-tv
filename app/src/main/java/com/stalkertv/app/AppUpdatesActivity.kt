@@ -38,7 +38,7 @@ class AppUpdatesActivity : AppCompatActivity() {
                 if (isFinishing || v == null) return@runOnUiThread
                 val status = if (v.first > BuildConfig.VERSION_CODE) "update available" else "up to date"
                 b.verInfo.text =
-                    "Installed:  ${BuildConfig.VERSION_NAME}   •   Latest:  ${v.second}   ($status)"
+                    "Installed:  build ${BuildConfig.VERSION_CODE}   •   Latest:  build ${v.first}   ($status)"
             }
         }.start()
     }
