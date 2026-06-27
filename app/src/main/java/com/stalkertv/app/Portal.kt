@@ -33,7 +33,12 @@ object Portal {
     )
     data class Genre(val id: String, val title: String, val censored: Boolean = false)
     data class VodCat(val id: String, val title: String)
-    data class VodItem(val id: String, val name: String, val cmd: String, val posterUrl: String, val isSeries: Boolean)
+    data class VodItem(
+        val id: String, val name: String, val cmd: String, val posterUrl: String, val isSeries: Boolean,
+        // Extra metadata the portal already returns (used by the movie info sheet); blank when absent.
+        val description: String = "", val year: String = "", val imdb: String = "",
+        val director: String = "", val actors: String = "", val genre: String = ""
+    )
     data class Season(val id: String, val name: String)
     data class Episode(val id: String, val name: String)
     data class EpgItem(
@@ -320,7 +325,16 @@ object Portal {
                 ss.startsWith("/") -> host + ss
                 else -> "$host/$ss"
             }
-            out.add(VodItem(o.optString("id"), o.optString("name"), o.optString("cmd"), poster, o.optString("is_series") == "1"))
+            val genre = o.optString("genres_str").ifBlank { o.optString("genre") }.ifBlank { o.optString("category") }
+            out.add(VodItem(
+                o.optString("id"), o.optString("name"), o.optString("cmd"), poster, o.optString("is_series") == "1",
+                description = o.optString("description").ifBlank { o.optString("descr") }.let { if (it == "null") "" else it },
+                year = o.optString("year").let { if (it == "null") "" else it },
+                imdb = o.optString("rating_imdb").let { if (it == "null") "" else it },
+                director = o.optString("director").let { if (it == "null") "" else it },
+                actors = o.optString("actors").let { if (it == "null") "" else it },
+                genre = genre.let { if (it == "null") "" else it }
+            ))
         }
     }
 

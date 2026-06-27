@@ -566,35 +566,82 @@ class ChannelsActivity : AppCompatActivity() {
             vodFav("movie", Favorites.Entry("movie", v.id, v.name, v.posterUrl, "vod|${v.id}|${v.cmd}"))
         return Row(label, v.posterUrl, sortKey = v.name, fav = fav) {
             if (v.isSeries) showSeasons(v)
-            else mediaActions(v.name, v.posterUrl, "movie_${v.id}", "vod|${v.id}|${v.cmd}")
+            else mediaActions(v.name, v.posterUrl, "movie_${v.id}", "vod|${v.id}|${v.cmd}", info = MovieInfo.from(v))
         }
     }
 
-    /** Movie / episode action sheet: play now, or download for offline. [source] lets a download resume later. */
+    /** Lightweight bundle of the metadata the portal already returns for a movie (for the info sheet). */
+    data class MovieInfo(
+        val description: String, val year: String, val imdb: String,
+        val director: String, val actors: String, val genre: String
+    ) {
+        fun hasAny() = description.isNotBlank() || imdb.isNotBlank() || year.isNotBlank() ||
+            director.isNotBlank() || actors.isNotBlank() || genre.isNotBlank()
+        companion object {
+            fun from(v: Portal.VodItem) =
+                MovieInfo(v.description, v.year, v.imdb, v.director, v.actors, v.genre)
+        }
+    }
+
+    /** Movie / episode action sheet: play, watch trailer, info & ratings, watch later, download.
+     *  [source] lets a download resume later; [info] (movies only) drives the info sheet. */
     private fun mediaActions(
         title: String, poster: String?, id: String, source: String,
-        playlist: List<PlayerActivity.PlaylistItem> = emptyList(), plIndex: Int = -1
+        playlist: List<PlayerActivity.PlaylistItem> = emptyList(), plIndex: Int = -1,
+        info: MovieInfo? = null
     ) {
+        val labels = ArrayList<String>()
+        val acts = ArrayList<() -> Unit>()
+        labels.add("▶  Play"); acts.add { play(title, id, poster, source, playlist, plIndex) }
+        labels.add("🎬  Watch trailer"); acts.add { watchTrailer(title, info?.year ?: "") }
+        if (info != null && info.hasAny()) {
+            labels.add("ℹ  Movie info & rating"); acts.add { showMovieInfo(title, info) }
+        }
+        labels.add("🕒  Watch later"); acts.add {
+            val kind = if (source.startsWith("ep|")) "episode" else "movie"
+            val added = WatchLater.add(applicationContext, kind, id, title, poster ?: "", source)
+            android.widget.Toast.makeText(this, if (added) "Added to Watch Later" else "Already in Watch Later", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        labels.add("⬇  Download for offline"); acts.add {
+            if (Downloads.has(applicationContext, id)) {
+                android.widget.Toast.makeText(this, "Already saved (or downloading). See Downloads.", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                Downloads.enqueue(applicationContext, id, title, poster ?: "", source)
+                android.widget.Toast.makeText(this, "Download started — see ⬇ Downloads.", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(title)
-            .setItems(arrayOf("▶  Play", "🕒  Watch later", "⬇  Download for offline")) { _, w ->
-                when (w) {
-                    0 -> play(title, id, poster, source, playlist, plIndex)
-                    1 -> {
-                        val kind = if (source.startsWith("ep|")) "episode" else "movie"
-                        val added = WatchLater.add(applicationContext, kind, id, title, poster ?: "", source)
-                        android.widget.Toast.makeText(this, if (added) "Added to Watch Later" else "Already in Watch Later", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    2 -> {
-                        if (Downloads.has(applicationContext, id)) {
-                            android.widget.Toast.makeText(this, "Already saved (or downloading). See Downloads.", android.widget.Toast.LENGTH_SHORT).show()
-                        } else {
-                            Downloads.enqueue(applicationContext, id, title, poster ?: "", source)
-                            android.widget.Toast.makeText(this, "Download started — see ⬇ Downloads.", android.widget.Toast.LENGTH_LONG).show()
-                        }
-                    }
-                }
-            }
+            .setItems(labels.toTypedArray()) { _, w -> acts[w]() }
+            .show()
+    }
+
+    /** Open YouTube (app or browser) on a search for the title's trailer — keyless, works on TV + tablet. */
+    private fun watchTrailer(title: String, year: String) {
+        val q = (title.trim() + (if (year.isNotBlank()) " $year" else "") + " trailer").trim()
+        val url = "https://www.youtube.com/results?search_query=" + android.net.Uri.encode(q)
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(this, "No app available to play the trailer.", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Description + IMDb rating + cast etc., all from the portal's own metadata. */
+    private fun showMovieInfo(title: String, info: MovieInfo) {
+        val sb = StringBuilder()
+        if (info.year.isNotBlank())     sb.append("Year:  ${info.year}\n")
+        if (info.genre.isNotBlank())    sb.append("Genre:  ${info.genre}\n")
+        if (info.imdb.isNotBlank())     sb.append("IMDb:  ⭐ ${info.imdb}\n")
+        if (info.director.isNotBlank()) sb.append("Director:  ${info.director}\n")
+        if (info.actors.isNotBlank())   sb.append("Cast:  ${info.actors}\n")
+        if (sb.isNotEmpty()) sb.append("\n")
+        sb.append(if (info.description.isNotBlank()) info.description else "No description available.")
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(sb.toString())
+            .setPositiveButton("Close", null)
+            .setNeutralButton("🎬  Trailer") { _, _ -> watchTrailer(title, info.year) }
             .show()
     }
 
