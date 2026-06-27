@@ -573,13 +573,15 @@ class ChannelsActivity : AppCompatActivity() {
     /** Lightweight bundle of the metadata the portal already returns for a movie (for the info sheet). */
     data class MovieInfo(
         val description: String, val year: String, val imdb: String,
-        val director: String, val actors: String, val genre: String
+        val director: String, val actors: String, val genre: String,
+        val runtimeMin: String, val country: String, val age: String
     ) {
         fun hasAny() = description.isNotBlank() || imdb.isNotBlank() || year.isNotBlank() ||
-            director.isNotBlank() || actors.isNotBlank() || genre.isNotBlank()
+            director.isNotBlank() || actors.isNotBlank() || genre.isNotBlank() ||
+            runtimeMin.isNotBlank() || country.isNotBlank() || age.isNotBlank()
         companion object {
             fun from(v: Portal.VodItem) =
-                MovieInfo(v.description, v.year, v.imdb, v.director, v.actors, v.genre)
+                MovieInfo(v.description, v.year, v.imdb, v.director, v.actors, v.genre, v.runtimeMin, v.country, v.age)
         }
     }
 
@@ -643,22 +645,32 @@ class ChannelsActivity : AppCompatActivity() {
         android.widget.Toast.makeText(this, "No app available to play the trailer.", android.widget.Toast.LENGTH_SHORT).show()
     }
 
-    /** Description + IMDb rating + cast etc., all from the portal's own metadata. */
+    /** Description + cast/runtime/etc., all from the portal's own metadata.
+     *  (Ratings are omitted — this portal returns 0 for IMDb/Kinopoisk on every title.) */
     private fun showMovieInfo(title: String, info: MovieInfo) {
         val sb = StringBuilder()
-        if (info.year.isNotBlank())     sb.append("Year:  ${info.year}\n")
+        val line1 = listOf(info.year, runtimeStr(info.runtimeMin), info.age).filter { it.isNotBlank() }.joinToString("  ·  ")
+        if (line1.isNotBlank())         sb.append("$line1\n")
         if (info.genre.isNotBlank())    sb.append("Genre:  ${info.genre}\n")
+        if (info.country.isNotBlank())  sb.append("Country:  ${info.country}\n")
         if (info.imdb.isNotBlank())     sb.append("IMDb:  ⭐ ${info.imdb}\n")
         if (info.director.isNotBlank()) sb.append("Director:  ${info.director}\n")
         if (info.actors.isNotBlank())   sb.append("Cast:  ${info.actors}\n")
         if (sb.isNotEmpty()) sb.append("\n")
-        sb.append(if (info.description.isNotBlank()) info.description else "No description available.")
+        sb.append(if (info.description.isNotBlank()) info.description else "No description available for this title.")
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(title)
             .setMessage(sb.toString())
             .setPositiveButton("Close", null)
             .setNeutralButton("🎬  Trailer") { _, _ -> watchTrailer(title, info.year) }
             .show()
+    }
+
+    /** "148" minutes → "2h 28m". */
+    private fun runtimeStr(min: String): String {
+        val m = min.toIntOrNull() ?: return ""
+        if (m <= 0) return ""
+        return if (m >= 60) "${m / 60}h ${m % 60}m" else "${m}m"
     }
 
     /** In-memory channel search (Live TV scope). */

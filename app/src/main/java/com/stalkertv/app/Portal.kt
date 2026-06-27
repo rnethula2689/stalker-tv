@@ -37,7 +37,9 @@ object Portal {
         val id: String, val name: String, val cmd: String, val posterUrl: String, val isSeries: Boolean,
         // Extra metadata the portal already returns (used by the movie info sheet); blank when absent.
         val description: String = "", val year: String = "", val imdb: String = "",
-        val director: String = "", val actors: String = "", val genre: String = ""
+        val director: String = "", val actors: String = "", val genre: String = "",
+        val runtimeMin: String = "", val country: String = "", val age: String = "", val origName: String = "",
+        val hd: Boolean = false
     )
     data class Season(val id: String, val name: String)
     data class Episode(val id: String, val name: String)
@@ -178,7 +180,6 @@ object Portal {
         if (arr == null) return
         for (i in 0 until arr.length()) {
             val c = arr.optJSONObject(i) ?: continue
-            if (i == 0) android.util.Log.d("PORTALPROBE", "CH_KEYS=" + c.keys().asSequence().joinToString(",") + " || CH0=" + c.toString())
             val logo = c.optString("logo")
             out.add(
                 Channel(
@@ -317,9 +318,9 @@ object Portal {
 
     private fun parseVodItems(arr: JSONArray?, out: ArrayList<VodItem>) {
         if (arr == null) return
+        fun clean(s: String) = if (s == "null") "" else s
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            if (i == 0) android.util.Log.d("PORTALPROBE", "VOD_KEYS=" + o.keys().asSequence().joinToString(",") + " || VOD0=" + o.toString())
             val ss = o.optString("screenshot_uri")
             val poster = when {
                 ss.isBlank() || ss == "null" -> ""
@@ -327,15 +328,22 @@ object Portal {
                 ss.startsWith("/") -> host + ss
                 else -> "$host/$ss"
             }
-            val genre = o.optString("genres_str").ifBlank { o.optString("genre") }.ifBlank { o.optString("category") }
+            val genre = o.optString("genres_str").ifBlank { o.optString("category_name") }.ifBlank { o.optString("genre") }
+            // The portal returns 0 for ratings even on well-known titles, so treat 0 as "no rating".
+            val imdb = clean(o.optString("rating_imdb")).let { if (it == "0" || it == "0.0") "" else it }
             out.add(VodItem(
                 o.optString("id"), o.optString("name"), o.optString("cmd"), poster, o.optString("is_series") == "1",
-                description = o.optString("description").ifBlank { o.optString("descr") }.let { if (it == "null") "" else it },
-                year = o.optString("year").let { if (it == "null") "" else it },
-                imdb = o.optString("rating_imdb").let { if (it == "null") "" else it },
-                director = o.optString("director").let { if (it == "null") "" else it },
-                actors = o.optString("actors").let { if (it == "null") "" else it },
-                genre = genre.let { if (it == "null") "" else it }
+                description = clean(o.optString("description").ifBlank { o.optString("descr") }),
+                year = clean(o.optString("year")),
+                imdb = imdb,
+                director = clean(o.optString("director")),
+                actors = clean(o.optString("actors")),
+                genre = clean(genre),
+                runtimeMin = clean(o.optString("time")),
+                country = clean(o.optString("country")),
+                age = clean(o.optString("age").ifBlank { o.optString("rating_mpaa") }),
+                origName = clean(o.optString("o_name")),
+                hd = o.optInt("hd", 0) == 1
             ))
         }
     }
@@ -466,9 +474,7 @@ object Portal {
                 val arr = js.optJSONArray("data") ?: break
                 if (arr.length() == 0) break
                 for (i in 0 until arr.length()) {
-                    val o = arr.optJSONObject(i) ?: continue
-                    if (page == 1 && i == 0) android.util.Log.d("PORTALPROBE", "PAGED[" + urlPrefix.substringAfter("?", urlPrefix) + "] KEYS=" + o.keys().asSequence().joinToString(",") + " || OBJ0=" + o.toString())
-                    onItem(o)
+                    arr.optJSONObject(i)?.let(onItem)
                 }
                 val total = js.optInt("total_items", arr.length())
                 val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
