@@ -236,6 +236,7 @@ class LiveVlcActivity : AppCompatActivity() {
         val ch = channels.getOrNull(chIndex) ?: return
         val archiveSec = ch.archiveDays.toLong() * 3600
         if (archiveSec <= 0) return
+        stopRecordingIfActive() // recording is tied to the live media; rewinding changes it
         timeshifting = true
         tsWindowSec = minOf(archiveSec, 7_200L)     // up to 2h scrubbable buffer
         knownDurationMs = tsWindowSec * 1000        // fixed buffer length → stable scrub timeline
@@ -350,6 +351,7 @@ class LiveVlcActivity : AppCompatActivity() {
         if (idx < 0) idx = 0
         if (idx > channels.size - 1) idx = channels.size - 1
         if (idx == chIndex) return
+        stopRecordingIfActive() // switching channel ends the current recording
         chIndex = idx
         val ch = channels[idx]
         titleText = ch.name
@@ -558,10 +560,19 @@ class LiveVlcActivity : AppCompatActivity() {
         }
     }
 
+    /** Stop + save any in-progress recording before the media changes or we leave (PiP, timeshift,
+     *  channel switch, exit). libVLC recording is tied to the current media, so it must end first. */
+    private fun stopRecordingIfActive() {
+        if (!isRecording) return
+        try { mp?.record(null) } catch (_: Exception) {}
+        onRecordingStopped()
+    }
+
     /** Shrink the live stream to the floating pop-up player (plays via ExoPlayer in the overlay). */
     private fun enterPipFlow() {
         if (!PipLauncher.hasPermission(this)) { PipLauncher.requestPermission(this); return }
         if (currentUrl.isEmpty()) return
+        stopRecordingIfActive()
         PipService.start(this, currentUrl, titleText, "", "", "", 0L, true)
         finish()
     }
@@ -621,7 +632,7 @@ class LiveVlcActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (isRecording) { try { mp?.record(null) } catch (_: Exception) {}; onRecordingStopped() }
+        stopRecordingIfActive()
         mp?.stop()
     }
 
