@@ -19,7 +19,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     /** Optional favourite toggle for a row (channels / movies). Null = not favouritable (e.g. folders). */
     class FavInfo(val isFav: () -> Boolean, val toggle: () -> Boolean, val onAdded: (() -> Unit)? = null)
-    data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val fav: FavInfo? = null, val isHeader: Boolean = false, val catchup: (() -> Unit)? = null, val rail: List<Card>? = null, val chip: Boolean = false, val action: () -> Unit)
+    data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val fav: FavInfo? = null, val isHeader: Boolean = false, val catchup: (() -> Unit)? = null, val rail: List<Card>? = null, val chip: Boolean = false, val poster: Boolean = false, val action: () -> Unit)
     /** A poster/landscape card inside a home rail. */
     data class Card(val title: String, val poster: String?, val progress: Int = -1, val landscape: Boolean = false, val onLongClick: (() -> Unit)? = null, val onClick: () -> Unit)
     enum class SearchKind { LOCAL, GLOBAL, CHANNELS, VOD_ALL, VOD_CATEGORY }
@@ -64,11 +64,21 @@ class ChannelsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityChannelsBinding.inflate(layoutInflater)
         setContentView(b.root)
-        // Grid so movie-category chips tile in columns; everything else (rows/rails) spans full width.
-        val span = (resources.displayMetrics.widthPixels / resources.displayMetrics.density / 200).toInt().coerceIn(2, 4)
-        val glm = androidx.recyclerview.widget.GridLayoutManager(this, span)
+        // One grid for everything: category chips and movie posters tile in columns, while normal
+        // rows/rails span the full width. Base 60 is divisible by 2/3/4/5/6 so any column count fits.
+        val wdp = resources.displayMetrics.widthPixels / resources.displayMetrics.density
+        val chipCols = (wdp / 200f).toInt().coerceIn(2, 4)
+        val posterCols = if (wdp >= 900) 6 else if (wdp >= 600) 5 else 3
+        val total = 60
+        val chipSpan = total / chipCols
+        val posterSpan = total / posterCols
+        val glm = androidx.recyclerview.widget.GridLayoutManager(this, total)
         glm.spanSizeLookup = object : androidx.recyclerview.widget.GridLayoutManager.SpanSizeLookup() {
-            override fun getSpanSize(position: Int) = if (adapter.isChip(position)) 1 else span
+            override fun getSpanSize(position: Int) = when {
+                adapter.isChip(position) -> chipSpan
+                adapter.isPoster(position) -> posterSpan
+                else -> total
+            }
         }
         b.list.layoutManager = glm
         b.list.adapter = adapter
@@ -110,6 +120,10 @@ class ChannelsActivity : AppCompatActivity() {
         b.navRec.setOnClickListener { startActivity(Intent(this, RecordingsActivity::class.java)) }
         b.navDl.setOnClickListener { startActivity(Intent(this, DownloadsActivity::class.java)) }
         b.list.clipToPadding = false
+
+        // The self-update APK lives in cache and is only needed until the install finishes; once we're
+        // running again it's stale, so delete it to reclaim the ~60 MB.
+        try { java.io.File(cacheDir, "update.apk").delete() } catch (_: Exception) {}
 
         registerForegroundWatch()
         maybeRequestNotifications()
@@ -523,7 +537,8 @@ class ChannelsActivity : AppCompatActivity() {
         val vodList = page.kind == SearchKind.VOD_CATEGORY
         b.sortBtn.visibility = if (vodList) View.VISIBLE else View.GONE
         b.filterBtn.visibility = if (vodList) View.VISIBLE else View.GONE
-        b.azScroll.visibility = if (vodList) View.VISIBLE else View.GONE // A–Z only inside a movie folder
+        // A–Z bar inside a movie folder (jump titles) AND on the category grid (jump folders).
+        b.azScroll.visibility = if (vodList || page.kind == SearchKind.VOD_ALL) View.VISIBLE else View.GONE
         if (vodList) updateVodButtons()
         if (b.search.text.isNotEmpty()) b.search.setText("")
         b.searchRow.visibility = View.GONE
@@ -645,13 +660,13 @@ class ChannelsActivity : AppCompatActivity() {
         }
     }
 
-    private fun vodItemRow(v: Portal.VodItem): Row {
+    private fun vodItemRow(v: Portal.VodItem, poster: Boolean = false): Row {
         val label = (if (v.isSeries) "📁  " else "🎬  ") + v.name
         val fav = if (v.isSeries)
             vodFav("series", Favorites.Entry("series", v.id, v.name, v.posterUrl, "series|${v.id}"))
         else
             vodFav("movie", Favorites.Entry("movie", v.id, v.name, v.posterUrl, "vod|${v.id}|${v.cmd}"))
-        return Row(label, v.posterUrl, sortKey = v.name, fav = fav) {
+        return Row(label, v.posterUrl, sortKey = v.name, fav = fav, poster = poster) {
             if (v.isSeries) showSeasons(v)
             else mediaActions(v.name, v.posterUrl, "movie_${v.id}", "vod|${v.id}|${v.cmd}", info = MovieInfo.from(v))
         }
@@ -922,6 +937,9 @@ class ChannelsActivity : AppCompatActivity() {
         else play(e.title, e.id, e.poster, e.source)
     }
 
+    private var liveCatRows = listOf<Row>()
+    private var liveAzBuilt = false
+
     /** Strimix-style Live TV entry: a left category panel over a blank dark screen. */
     private fun showLiveCategories() {
         if (allChannels.isEmpty()) { showLiveGenres(); return } // data not ready → old flow
@@ -929,17 +947,43 @@ class ChannelsActivity : AppCompatActivity() {
         val favs = Configs.favorites(this)
         val favChannels = allChannels.filter { favs.contains(it.id) }
         if (favChannels.isNotEmpty())
-            rows.add(Row("⭐  Favourites  (${favChannels.size})", null) { hideLiveCategories(); openLiveGrid(favChannels, "Favourites") })
-        rows.add(Row("All Channels  (${allChannels.size})", null) { hideLiveCategories(); openLiveGrid(allChannels, "All Channels") })
+            rows.add(Row("⭐  Favourites  (${favChannels.size})", null, sortKey = "Favourites") { hideLiveCategories(); openLiveGrid(favChannels, "Favourites") })
+        rows.add(Row("All Channels  (${allChannels.size})", null, sortKey = "All Channels") { hideLiveCategories(); openLiveGrid(allChannels, "All Channels") })
         for (g in genres) {
             val list = byGenre[g.id] ?: emptyList()
             if (list.isEmpty() && !g.censored) continue
             val label = (if (g.censored) "🔒  " else "") + g.title + (if (list.isNotEmpty()) "  (${list.size})" else "")
-            rows.add(Row(label, null) { hideLiveCategories(); openGenre(g) })
+            rows.add(Row(label, null, sortKey = g.title) { hideLiveCategories(); openGenre(g) })
         }
+        liveCatRows = rows
         liveCatAdapter.submit(rows)
+        if (!liveAzBuilt) { buildLiveAzBar(); liveAzBuilt = true }
         b.liveCatOverlay.visibility = View.VISIBLE
         b.liveCatList.post { b.liveCatList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() ?: b.liveCatList.requestFocus() }
+    }
+
+    private fun buildLiveAzBar() {
+        val labels = listOf("ALL") + ('A'..'Z').map { it.toString() } + ('0'..'9').map { it.toString() }
+        for (lbl in labels) {
+            val tv = android.widget.TextView(this)
+            tv.text = lbl
+            tv.setTextColor(0xFFE6EDF3.toInt())
+            tv.textSize = 15f
+            tv.setPadding(20, 12, 20, 12)
+            tv.isFocusable = true
+            tv.isClickable = true
+            tv.setBackgroundResource(R.drawable.item_bg)
+            tv.setOnClickListener { liveAzFilter(if (lbl == "ALL") null else lbl) }
+            b.liveAzBar.addView(tv)
+        }
+    }
+
+    private fun liveAzFilter(letter: String?) {
+        liveCatAdapter.submit(
+            if (letter == null) liveCatRows
+            else liveCatRows.filter { it.sortKey.trimStart().startsWith(letter, ignoreCase = true) }
+        )
+        b.liveCatList.post { b.liveCatList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
     }
 
     private fun hideLiveCategories() { b.liveCatOverlay.visibility = View.GONE }
@@ -1155,7 +1199,8 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun displayVodCategories() {
         // A grid of category chips (Favourites lives in the bottom tab bar, not here).
-        val rows = vodCats.map { c -> Row(c.title, null, chip = true) { showVodList(c) } }
+        // sortKey lets the A–Z bar jump to a category folder by first letter.
+        val rows = vodCats.map { c -> Row(c.title, null, sortKey = c.title, chip = true) { showVodList(c) } }
         push(Page("Movies", rows, kind = SearchKind.VOD_ALL, rebuild = { showVodCategories() }))
     }
 
@@ -1408,7 +1453,7 @@ class ChannelsActivity : AppCompatActivity() {
         val filtered = vodBase.filter { vodMatches(it) }
         val sorted = vodSortApply(filtered)
         val rows = ArrayList<Row>()
-        sorted.forEach { rows.add(vodItemRow(it)) }
+        sorted.forEach { rows.add(vodItemRow(it, poster = true)) }
         adapter.submit(rows)
         val pos = focusPos.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
         b.list.scrollToPosition(pos)

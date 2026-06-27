@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A movie/series poster card in the folder grid, with a favourite star overlay. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/posterRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="4dp"
+    android:focusable="true"
+    android:clickable="true"
+    android:background="@drawable/item_bg">
+
+    <ImageView
+        android:id="@+id/posterImg"
+        android:layout_width="match_parent"
+        android:layout_height="168dp"
+        android:scaleType="centerCrop"
+        android:background="#11FFFFFF" />
+
+    <TextView
+        android:id="@+id/posterStar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="5dp"
+        android:text="☆"
+        android:textSize="18sp"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="2dp"
+        android:background="#66000000"
+        android:textColor="#FFFFFF"
+        android:focusable="true"
+        android:clickable="true" />
+</FrameLayout>

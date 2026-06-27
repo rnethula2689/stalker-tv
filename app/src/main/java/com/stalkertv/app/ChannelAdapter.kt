@@ -10,6 +10,7 @@ import com.stalkertv.app.databinding.ItemCardBinding
 import com.stalkertv.app.databinding.ItemCatChipBinding
 import com.stalkertv.app.databinding.ItemChannelBinding
 import com.stalkertv.app.databinding.ItemRailBinding
+import com.stalkertv.app.databinding.ItemVodPosterBinding
 
 /** Generic list row (optional thumbnail + label), or a horizontal "rail" of poster cards (home). */
 class RowAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
@@ -26,12 +27,15 @@ class RowAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     class VH(val b: ItemChannelBinding) : RecyclerView.ViewHolder(b.root)
     class RailVH(val b: ItemRailBinding) : RecyclerView.ViewHolder(b.root)
     class ChipVH(val b: ItemCatChipBinding) : RecyclerView.ViewHolder(b.root)
+    class PosterVH(val b: ItemVodPosterBinding) : RecyclerView.ViewHolder(b.root)
 
-    /** For GridLayoutManager span sizing: chips take one cell, everything else spans the full width. */
+    /** For GridLayoutManager span sizing. */
     fun isChip(position: Int) = items.getOrNull(position)?.chip == true
+    fun isPoster(position: Int) = items.getOrNull(position)?.poster == true
 
     override fun getItemViewType(position: Int) = when {
         items[position].chip -> T_CHIP
+        items[position].poster -> T_POSTER
         items[position].rail != null -> T_RAIL
         else -> T_ROW
     }
@@ -41,6 +45,7 @@ class RowAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         return when (viewType) {
             T_RAIL -> RailVH(ItemRailBinding.inflate(inf, parent, false))
             T_CHIP -> ChipVH(ItemCatChipBinding.inflate(inf, parent, false))
+            T_POSTER -> PosterVH(ItemVodPosterBinding.inflate(inf, parent, false))
             else -> VH(ItemChannelBinding.inflate(inf, parent, false))
         }
     }
@@ -50,7 +55,40 @@ class RowAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         when (holder) {
             is RailVH -> bindRail(holder, row)
             is ChipVH -> bindChip(holder, row)
+            is PosterVH -> bindPoster(holder, row)
             else -> bindRow(holder as VH, row)
+        }
+    }
+
+    private fun bindPoster(holder: PosterVH, row: ChannelsActivity.Row) {
+        val url = row.iconUrl
+        if (url.isNullOrEmpty()) holder.b.posterImg.setImageResource(R.drawable.thumb_placeholder)
+        else holder.b.posterImg.load(url) {
+            crossfade(true); placeholder(R.drawable.thumb_placeholder); error(R.drawable.thumb_placeholder)
+        }
+        holder.b.posterRoot.setOnClickListener { row.action() }
+        val fav = row.fav
+        if (fav == null) {
+            holder.b.posterStar.visibility = View.GONE
+            holder.b.posterRoot.setOnLongClickListener(null)
+            holder.b.posterRoot.isLongClickable = false
+        } else {
+            holder.b.posterStar.visibility = View.VISIBLE
+            val isF = fav.isFav()
+            holder.b.posterStar.text = if (isF) "★" else "☆"
+            holder.b.posterStar.setTextColor(if (isF) 0xFFFFD54F.toInt() else 0xFFFFFFFF.toInt())
+            val toggle = {
+                val now = fav.toggle()
+                val pos = holder.bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) notifyItemChanged(pos)
+                android.widget.Toast.makeText(holder.b.root.context,
+                    if (now) "★  Added to Favourites" else "Removed from Favourites",
+                    android.widget.Toast.LENGTH_SHORT).show()
+                if (now) fav.onAdded?.invoke()
+                onFavToggled?.invoke()
+            }
+            holder.b.posterStar.setOnClickListener { toggle() }
+            holder.b.posterRoot.setOnLongClickListener { toggle(); true }
         }
     }
 
@@ -154,7 +192,7 @@ class RowAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     override fun getItemCount() = items.size
 
-    companion object { const val T_ROW = 0; const val T_RAIL = 1; const val T_CHIP = 2 }
+    companion object { const val T_ROW = 0; const val T_RAIL = 1; const val T_CHIP = 2; const val T_POSTER = 3 }
 
     /** Horizontal poster cards within a rail. */
     class CardAdapter(private val cards: List<ChannelsActivity.Card>) :

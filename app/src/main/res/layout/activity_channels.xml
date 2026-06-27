@@ -239,28 +239,50 @@
         android:visibility="gone">
 
         <LinearLayout
-            android:layout_width="320dp"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_margin="14dp"
-            android:orientation="vertical"
-            android:background="@drawable/frosted_panel"
-            android:padding="18dp">
+            android:orientation="vertical">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:text="📺  Live TV"
-                android:textColor="#19c37d"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.04" />
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/liveCatList"
+            <!-- A–Z / 0–9 rail above the panel, to jump to a category. -->
+            <HorizontalScrollView
                 android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:paddingHorizontal="14dp"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/liveAzBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
+
+            <LinearLayout
+                android:layout_width="320dp"
                 android:layout_height="0dp"
-                android:layout_weight="1" />
+                android:layout_weight="1"
+                android:layout_margin="14dp"
+                android:orientation="vertical"
+                android:background="@drawable/frosted_panel"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:text="📺  Live TV"
+                    android:textColor="#19c37d"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.04" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/liveCatList"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+            </LinearLayout>
         </LinearLayout>
     </FrameLayout>
 
