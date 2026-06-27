@@ -704,22 +704,18 @@ class ChannelsActivity : AppCompatActivity() {
             .show()
     }
 
-    /** Play the title's trailer. With a TMDb key we resolve the EXACT trailer video and open it
-     *  directly (a watch URL — which the Fire TV YouTube app opens reliably, unlike a search).
-     *  Without a key (or no match) we fall back to a YouTube search. */
+    /** Resolve the trailer's YouTube video id (TMDb first, then a keyless YouTube search) and play it
+     *  IN-APP. Only if BOTH fail do we punt to the external YouTube app. */
     private fun watchTrailer(title: String, year: String) {
         val clean = cleanTitleForSearch(title)
         val key = BuildConfig.TMDB_KEY
-        if (key.isNotBlank()) {
-            android.widget.Toast.makeText(this, "Finding trailer…", android.widget.Toast.LENGTH_SHORT).show()
-            io.execute {
-                val vid = Tmdb.trailerYoutubeId(key, clean, year)
-                runOnUiThread {
-                    if (vid != null) openYouTubeVideo(vid) else openYouTubeSearch(clean, year)
-                }
+        android.widget.Toast.makeText(this, "Finding trailer…", android.widget.Toast.LENGTH_SHORT).show()
+        io.execute {
+            var vid = if (key.isNotBlank()) Tmdb.trailerYoutubeId(key, clean, year) else null
+            if (vid == null) vid = YouTubeSearch.firstVideoId("$clean ${year.trim()} trailer".trim())
+            runOnUiThread {
+                if (vid != null) openYouTubeVideo(vid) else openYouTubeSearch(clean, year)
             }
-        } else {
-            openYouTubeSearch(clean, year)
         }
     }
 
