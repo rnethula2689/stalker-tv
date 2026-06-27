@@ -18,7 +18,9 @@ class ChannelsActivity : AppCompatActivity() {
 
     /** Optional favourite toggle for a row (channels / movies). Null = not favouritable (e.g. folders). */
     class FavInfo(val isFav: () -> Boolean, val toggle: () -> Boolean, val onAdded: (() -> Unit)? = null)
-    data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val fav: FavInfo? = null, val isHeader: Boolean = false, val catchup: (() -> Unit)? = null, val action: () -> Unit)
+    data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val fav: FavInfo? = null, val isHeader: Boolean = false, val catchup: (() -> Unit)? = null, val rail: List<Card>? = null, val action: () -> Unit)
+    /** A poster/landscape card inside a home rail. */
+    data class Card(val title: String, val poster: String?, val progress: Int = -1, val landscape: Boolean = false, val onClick: () -> Unit)
     enum class SearchKind { LOCAL, GLOBAL, CHANNELS, VOD_ALL, VOD_CATEGORY }
     data class Page(
         val title: String,
@@ -844,23 +846,47 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     // ---- screens ----
+    private fun homeGreeting(): String {
+        val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        val g = when { h < 12 -> "Good morning"; h < 17 -> "Good afternoon"; else -> "Good evening" }
+        return "$g — here's what's on tonight"
+    }
+
     private fun showHome() {
         backStack.clear()
         val rows = ArrayList<Row>()
+        rows.add(Row(homeGreeting(), null, isHeader = true) {})
+
+        // Content rails (thumbnails) from local data — no portal calls, so the home is instant.
         val cw = Resume.all(this)
-        if (cw.isNotEmpty())
-            rows.add(Row("▶   Continue Watching  (${cw.size})", null) { showContinueWatching() })
+        if (cw.isNotEmpty()) rows.add(Row("Continue Watching", null, rail = cw.map { e ->
+            val pct = if (e.duration > 0) (e.position * 100 / e.duration).toInt() else -1
+            Card(e.title, e.poster.ifBlank { null }, pct, landscape = true) { continueClick(e) }
+        }) {})
+        val favs = Favorites.all(this)
+        if (favs.isNotEmpty()) rows.add(Row("Favourites", null, rail = favs.map { e ->
+            Card(e.title, e.poster.ifBlank { null }) { openFavEntry(e) }
+        }) {})
         val wl = WatchLater.all(this)
-        if (wl.isNotEmpty())
-            rows.add(Row("🕒   Watch Later  (${wl.size})", null) { startActivity(Intent(this, WatchLaterActivity::class.java)) })
-        val recN = Recordings.list(this).size
-        if (recN > 0)
-            rows.add(Row("⏺   Recordings  ($recN)", null) { startActivity(Intent(this, RecordingsActivity::class.java)) })
-        rows.add(Row("⭐   Favourites", null) { showFavouritesHome() })
+        if (wl.isNotEmpty()) rows.add(Row("Watch Later", null, rail = wl.map { e ->
+            Card(e.title, e.poster.ifBlank { null }) { play(e.title, e.id, e.poster, e.source) }
+        }) {})
+
+        // Destinations (full browse).
         rows.add(Row("📺   Live TV", null) { showLiveGenres() })
         rows.add(Row("🎬   Movies (VOD)", null) { showVodCategories() })
+        rows.add(Row("⭐   Favourites", null) { showFavouritesHome() })
+        val recN = Recordings.list(this).size
+        if (recN > 0) rows.add(Row("⏺   Recordings  ($recN)", null) { startActivity(Intent(this, RecordingsActivity::class.java)) })
+        if (wl.isNotEmpty()) rows.add(Row("🕒   Watch Later  (${wl.size})", null) { startActivity(Intent(this, WatchLaterActivity::class.java)) })
         rows.add(Row("⬇   Downloads", null) { startActivity(Intent(this, DownloadsActivity::class.java)) })
         push(Page("Stalker TV", rows, kind = SearchKind.GLOBAL, rebuild = { showHome() }))
+    }
+
+    /** Open a favourite card from the home rail (movie → play, series → seasons). */
+    private fun openFavEntry(e: Favorites.Entry) {
+        if (e.kind == "series") showSeasons(Portal.VodItem(e.id, e.title, "", e.poster, true))
+        else play(e.title, e.id, e.poster, e.source)
     }
 
     private fun showContinueWatching() {

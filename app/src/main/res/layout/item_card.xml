@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One poster/landscape card inside a home rail. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cardRoot"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_marginEnd="10dp"
+    android:padding="4dp"
+    android:focusable="true"
+    android:clickable="true"
+    android:background="@drawable/item_bg">
+
+    <FrameLayout
+        android:id="@+id/cardArt"
+        android:layout_width="130dp"
+        android:layout_height="185dp">
+
+        <ImageView
+            android:id="@+id/cardPoster"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:background="#11FFFFFF" />
+
+        <ProgressBar
+            android:id="@+id/cardProgress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="5dp"
+            android:layout_gravity="bottom"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/progress_horizontal_green"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/cardTitle"
+        android:layout_width="130dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#e6edf3"
+        android:textSize="12sp" />
+</LinearLayout>

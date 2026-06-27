@@ -3,12 +3,15 @@ package com.stalkertv.app
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
+import com.stalkertv.app.databinding.ItemCardBinding
 import com.stalkertv.app.databinding.ItemChannelBinding
+import com.stalkertv.app.databinding.ItemRailBinding
 
-/** Generic list row (optional thumbnail + label) used for every browse level. */
-class RowAdapter : RecyclerView.Adapter<RowAdapter.VH>() {
+/** Generic list row (optional thumbnail + label), or a horizontal "rail" of poster cards (home). */
+class RowAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private val items = ArrayList<ChannelsActivity.Row>()
     var onFavToggled: (() -> Unit)? = null // lets the screen refresh (e.g. drop a row) after toggling
@@ -20,12 +23,34 @@ class RowAdapter : RecyclerView.Adapter<RowAdapter.VH>() {
     }
 
     class VH(val b: ItemChannelBinding) : RecyclerView.ViewHolder(b.root)
+    class RailVH(val b: ItemRailBinding) : RecyclerView.ViewHolder(b.root)
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
-        VH(ItemChannelBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+    override fun getItemViewType(position: Int) = if (items[position].rail != null) T_RAIL else T_ROW
 
-    override fun onBindViewHolder(holder: VH, position: Int) {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val inf = LayoutInflater.from(parent.context)
+        return if (viewType == T_RAIL) RailVH(ItemRailBinding.inflate(inf, parent, false))
+        else VH(ItemChannelBinding.inflate(inf, parent, false))
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val row = items[position]
+        if (holder is RailVH) { bindRail(holder, row); return }
+        bindRow(holder as VH, row)
+    }
+
+    private fun bindRail(holder: RailVH, row: ChannelsActivity.Row) {
+        holder.b.railTitle.text = row.label
+        holder.b.railTitle.visibility = if (row.label.isBlank()) View.GONE else View.VISIBLE
+        if (holder.b.railList.layoutManager == null) {
+            holder.b.railList.layoutManager =
+                LinearLayoutManager(holder.b.root.context, LinearLayoutManager.HORIZONTAL, false)
+            holder.b.railList.isFocusable = false
+        }
+        holder.b.railList.adapter = CardAdapter(row.rail ?: emptyList())
+    }
+
+    private fun bindRow(holder: VH, row: ChannelsActivity.Row) {
         if (row.isHeader) {
             holder.b.name.text = row.label
             holder.b.name.setTextColor(0xFF19C37D.toInt())
@@ -104,4 +129,34 @@ class RowAdapter : RecyclerView.Adapter<RowAdapter.VH>() {
     }
 
     override fun getItemCount() = items.size
+
+    companion object { const val T_ROW = 0; const val T_RAIL = 1 }
+
+    /** Horizontal poster cards within a rail. */
+    class CardAdapter(private val cards: List<ChannelsActivity.Card>) :
+        RecyclerView.Adapter<CardAdapter.CVH>() {
+        class CVH(val b: ItemCardBinding) : RecyclerView.ViewHolder(b.root)
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
+            CVH(ItemCardBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+        override fun getItemCount() = cards.size
+        override fun onBindViewHolder(holder: CVH, position: Int) {
+            val card = cards[position]
+            val dp = holder.b.root.resources.displayMetrics.density
+            val lp = holder.b.cardArt.layoutParams
+            if (card.landscape) { lp.width = (220 * dp).toInt(); lp.height = (124 * dp).toInt() }
+            else { lp.width = (130 * dp).toInt(); lp.height = (185 * dp).toInt() }
+            holder.b.cardArt.layoutParams = lp
+            holder.b.cardTitle.width = lp.width
+            holder.b.cardTitle.text = card.title
+            if (card.poster.isNullOrBlank()) holder.b.cardPoster.setImageResource(R.drawable.thumb_placeholder)
+            else holder.b.cardPoster.load(card.poster) {
+                crossfade(true); placeholder(R.drawable.thumb_placeholder); error(R.drawable.thumb_placeholder)
+            }
+            if (card.progress in 1..99) {
+                holder.b.cardProgress.visibility = View.VISIBLE
+                holder.b.cardProgress.progress = card.progress
+            } else holder.b.cardProgress.visibility = View.GONE
+            holder.b.cardRoot.setOnClickListener { card.onClick() }
+        }
+    }
 }
