@@ -53,7 +53,7 @@ object Portal {
 
     // Cloudflare / portal cookies captured from responses, resent on every request
     // so the whole session sticks to one backend node across requests.
-    private val extraCookies = LinkedHashMap<String, String>()
+    private val extraCookies = java.util.Collections.synchronizedMap(LinkedHashMap<String, String>())
 
     fun resetSession() {
         extraCookies.clear()
@@ -63,7 +63,7 @@ object Portal {
     private fun cookie(): String {
         val tz = java.util.TimeZone.getDefault().id
         val sb = StringBuilder("mac=$mac; stb_lang=en; timezone=$tz")
-        for ((k, v) in extraCookies) sb.append("; ").append(k).append("=").append(v)
+        synchronized(extraCookies) { for ((k, v) in extraCookies) sb.append("; ").append(k).append("=").append(v) }
         return sb.toString()
     }
 

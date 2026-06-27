@@ -46,7 +46,9 @@ class ChannelsActivity : AppCompatActivity() {
     private var vodTotal = 0
     private var vodFilterAttr: String? = null         // Genre | Year | Decade | Age | Country | HD | Type
     private var vodFilterVal: String? = null
-    private var vodSortKey = "default"                // default | az | za | year_desc | year_asc | run_asc | run_desc
+    private var vodSortKey = "default"                // default | za | az | year_desc | year_asc | run_asc | run_desc
+    private var vodLoadSeq = 0                         // cancels a stale all-pages load when the list changes
+    private val pageIo = Executors.newFixedThreadPool(8) // parallel page fetches (fast "load all")
     private val vodSortLabels = linkedMapOf(
         "default" to "Newest", "az" to "A–Z", "za" to "Z–A",
         "year_desc" to "Year ↓", "year_asc" to "Year ↑", "run_asc" to "Shortest", "run_desc" to "Longest"
@@ -187,12 +189,14 @@ class ChannelsActivity : AppCompatActivity() {
         // Movie folders: ALL reloads the category; a letter fetches every matching title (filter/sort then apply).
         if (page.kind == SearchKind.VOD_CATEGORY && page.scopeId != null) {
             val cat = vodCatRef ?: Portal.VodCat(page.scopeId, page.title)
-            if (letter == null) { loadVodPage1(cat); return }
+            if (letter == null) { loadVodAll(cat); return }
+            val seq = ++vodLoadSeq // cancel any in-flight "load all"
             b.status.visibility = View.VISIBLE
             b.status.text = "Loading “$letter”…"
             io.execute {
                 val items = Portal.vodByLetter(cat.id, letter)
                 runOnUiThread {
+                    if (seq != vodLoadSeq) return@runOnUiThread
                     if (items.isEmpty()) {
                         b.status.visibility = View.VISIBLE
                         b.status.text = "No titles starting with “$letter”."
@@ -775,7 +779,7 @@ class ChannelsActivity : AppCompatActivity() {
         if (query.isEmpty()) {
             b.status.visibility = View.GONE
             // Clearing the search in a category restores its full (filter/sort-aware) list.
-            if (inCategory && vodCatRef != null) loadVodPage1(vodCatRef!!) else adapter.submit(page.rows)
+            if (inCategory && vodCatRef != null) loadVodAll(vodCatRef!!) else adapter.submit(page.rows)
             return
         }
         if (query.length < 2) return
@@ -791,6 +795,7 @@ class ChannelsActivity : AppCompatActivity() {
                     else b.status.visibility = View.GONE
                     if (inCategory) {
                         // Search results become the working set so Filter/Sort apply on top of them.
+                        vodLoadSeq++ // cancel any in-flight "load all" so it can't overwrite results
                         vodBase = vod; vodCat = null; vodLoaded = 0; vodTotal = 0
                         renderVodItems(0)
                     } else {
@@ -1241,61 +1246,54 @@ class ChannelsActivity : AppCompatActivity() {
         )
     }
 
-    /** Enter a movie category: one page on the stack; A–Z / search / filter / sort all swap the
-     *  loaded set in place rather than pushing more pages. Sort/filter are client-side over what's
-     *  loaded — "Load all" pulls every page first for complete results. */
+    /** Enter a movie category: one page on the stack; the whole folder is loaded up front (all pages),
+     *  and A–Z / search / filter / sort swap the working set in place. */
     private fun showVodList(cat: Portal.VodCat) {
         vodCatRef = cat
         vodFilterAttr = null; vodFilterVal = null // a fresh category starts unfiltered (sort persists)
         push(Page(cat.title, emptyList(), kind = SearchKind.VOD_CATEGORY, scopeId = cat.id, rebuild = { showVodList(cat) }))
-        loadVodPage1(cat)
+        loadVodAll(cat)
     }
 
-    private fun loadVodPage1(cat: Portal.VodCat) {
+    /** Load the WHOLE category (every page) — no "Load more". Page 1 shows instantly, then the rest
+     *  are fetched in parallel and merged so filter/sort always see all titles. */
+    private fun loadVodAll(cat: Portal.VodCat) {
+        val seq = ++vodLoadSeq
         b.status.visibility = View.VISIBLE
         b.status.text = "Loading ${cat.title}…"
         io.execute {
-            val (items, pages) = Portal.vodList(cat.id, 1, "added")
+            val (first, pages) = Portal.vodList(cat.id, 1, "added")
             runOnUiThread {
+                if (seq != vodLoadSeq) return@runOnUiThread
+                vodBase = first; vodCat = cat; vodLoaded = 1; vodTotal = pages
+                b.status.visibility = if (pages <= 1) View.GONE else View.VISIBLE
+                if (pages > 1) b.status.text = "Loading all $pages pages…"
+                renderVodItems(0)
+            }
+            if (pages <= 1) return@execute
+            // Fetch pages 2..N concurrently; cap as a runaway guard.
+            val last = pages.coerceAtMost(1000)
+            val futures = (2..last).map { p ->
+                pageIo.submit(java.util.concurrent.Callable { Portal.vodList(cat.id, p, "added").first })
+            }
+            val rest = ArrayList<Portal.VodItem>()
+            for (f in futures) { try { rest.addAll(f.get()) } catch (_: Exception) {} }
+            runOnUiThread {
+                if (seq != vodLoadSeq) return@runOnUiThread
+                vodBase = ArrayList<Portal.VodItem>(first).also { it.addAll(rest) }
+                vodLoaded = pages
                 b.status.visibility = View.GONE
-                vodBase = items; vodCat = cat; vodLoaded = 1; vodTotal = pages
                 renderVodItems(0)
             }
         }
     }
 
-    /** Load the next page (or every remaining page when [all]) and append to the current set. */
-    private fun vodLoadMore(all: Boolean) {
-        val cat = vodCat ?: return
-        val resumeAt = (adapter.itemCount - 1).coerceAtLeast(0)
-        b.status.visibility = View.VISIBLE
-        b.status.text = if (all) "Loading all…" else "Loading…"
-        io.execute {
-            val acc = ArrayList(vodBase)
-            val target = if (all) vodTotal else vodLoaded + 1
-            var loaded = vodLoaded
-            for (p in (vodLoaded + 1)..target) {
-                val (more, _) = Portal.vodList(cat.id, p, "added")
-                acc.addAll(more); loaded = p
-            }
-            runOnUiThread {
-                b.status.visibility = View.GONE
-                vodBase = acc; vodLoaded = loaded
-                renderVodItems(resumeAt)
-            }
-        }
-    }
-
-    /** Apply the active filter + sort to the loaded set and render (rows + Load more / Load all). */
+    /** Apply the active filter + sort to the (fully loaded) set and render. No pagination rows. */
     private fun renderVodItems(focusPos: Int) {
         val filtered = vodBase.filter { vodMatches(it) }
         val sorted = vodSortApply(filtered)
         val rows = ArrayList<Row>()
         sorted.forEach { rows.add(vodItemRow(it)) }
-        if (vodCat != null && vodLoaded < vodTotal) {
-            rows.add(Row("⬇  Load more  ($vodLoaded/$vodTotal pages)", null) { vodLoadMore(false) })
-            rows.add(Row("⬇  Load all  (for complete filter / sort)", null) { vodLoadMore(true) })
-        }
         adapter.submit(rows)
         val pos = focusPos.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
         b.list.scrollToPosition(pos)
@@ -1381,7 +1379,7 @@ class ChannelsActivity : AppCompatActivity() {
             else -> emptyList()
         }
         if (values.isEmpty()) {
-            android.widget.Toast.makeText(this, "No “$attr” data in the loaded titles. Try Load all first.", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(this, "No “$attr” info available for these titles.", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
         val arr = values.toTypedArray()
