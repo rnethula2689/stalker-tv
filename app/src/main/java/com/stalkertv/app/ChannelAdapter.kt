@@ -67,10 +67,21 @@ class RowAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             v.animate().scaleX(s).scaleY(s).setDuration(120).start()
             v.elevation = if (hasFocus) 12f else 0f
         }
+        // Title fallback so a missing/broken poster is still identifiable.
+        holder.b.cardLabel.text = row.label.dropWhile { !it.isLetterOrDigit() }.ifBlank { row.label }
         val url = row.iconUrl
-        if (url.isNullOrEmpty()) holder.b.posterImg.setImageResource(R.drawable.thumb_placeholder)
-        else holder.b.posterImg.load(url) {
-            crossfade(true); placeholder(R.drawable.thumb_placeholder); error(R.drawable.thumb_placeholder)
+        if (url.isNullOrEmpty()) {
+            holder.b.posterImg.setImageDrawable(null)
+            holder.b.cardLabel.visibility = View.VISIBLE
+        } else {
+            holder.b.cardLabel.visibility = View.GONE
+            holder.b.posterImg.load(url) {
+                crossfade(true)
+                listener(
+                    onError = { _, _ -> holder.b.cardLabel.visibility = View.VISIBLE },
+                    onSuccess = { _, _ -> holder.b.cardLabel.visibility = View.GONE }
+                )
+            }
         }
         holder.b.posterRoot.setOnClickListener { row.action() }
         val fav = row.fav
