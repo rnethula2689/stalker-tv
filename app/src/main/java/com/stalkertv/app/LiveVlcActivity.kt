@@ -52,6 +52,23 @@ class LiveVlcActivity : AppCompatActivity() {
 
     private lateinit var am: AudioManager
     private var preMuteVol = -1
+    private val onTv by lazy { Tv.isTv(this) }
+    private var tvDim = 0f          // TV "brightness": software dim-overlay alpha (0 = none)
+
+    // On a TV the device stream volume is often fixed and the panel backlight can't be touched, so
+    // drive libVLC's own volume and a dim overlay instead of the device volume / window brightness.
+    private fun volMax() = if (onTv) 100 else ScreenControls.maxVolume(am)
+    private fun volGet() = if (onTv) (mp?.volume ?: 100) else ScreenControls.volume(am)
+    private fun volSet(v: Int) {
+        val c = v.coerceIn(0, volMax())
+        if (onTv) mp?.volume = c else ScreenControls.setVolume(am, c)
+    }
+    private fun brightGetPct() = if (onTv) ((1f - tvDim) * 100).toInt() else (ScreenControls.brightness(window) * 100).toInt()
+    private fun brightSetPct(pct: Int) {
+        val f = pct.coerceIn(0, 100) / 100f
+        if (onTv) { tvDim = (1f - f).coerceIn(0f, 0.92f); b.dimOverlay.alpha = tvDim }
+        else ScreenControls.setBrightness(window, f)
+    }
     private val aspectModes = listOf("Fit", "16:9", "4:3", "Stretch")
     private var aspectIdx = 0
     private var nightOn = false
@@ -410,11 +427,11 @@ class LiveVlcActivity : AppCompatActivity() {
         b.aspectBtn.text = "⤢  ${aspectModes[aspectIdx]}"
         b.aspectBtn.setOnClickListener { cycleAspect(); scheduleHide() }
 
-        b.volSeek.max = ScreenControls.maxVolume(am)
+        b.volSeek.max = volMax()
         refreshVol()
         b.volSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
-                if (fromUser) { ScreenControls.setVolume(am, progress); updateMuteLabel() }
+                if (fromUser) { volSet(progress); updateMuteLabel() }
             }
             override fun onStartTrackingTouch(sb: SeekBar) {}
             override fun onStopTrackingTouch(sb: SeekBar) {}
@@ -423,16 +440,16 @@ class LiveVlcActivity : AppCompatActivity() {
         b.muteBtn.setOnClickListener { toggleMute() }
 
         b.brightSeek.max = 100
-        b.brightSeek.progress = (ScreenControls.brightness(window) * 100).toInt()
+        b.brightSeek.progress = brightGetPct()
         b.brightSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
-                if (fromUser) ScreenControls.setBrightness(window, progress / 100f)
+                if (fromUser) brightSetPct(progress)
             }
             override fun onStartTrackingTouch(sb: SeekBar) {}
             override fun onStopTrackingTouch(sb: SeekBar) {}
         })
         b.brightBtn.setOnClickListener {
-            b.brightSeek.progress = (ScreenControls.brightness(window) * 100).toInt()
+            b.brightSeek.progress = brightGetPct()
             openPanel(b.brightnessPanel)
         }
         b.nightBtn.setOnClickListener { toggleNight() }
@@ -492,35 +509,27 @@ class LiveVlcActivity : AppCompatActivity() {
     }
 
     private fun toggleMute() {
-        if (ScreenControls.volume(am) > 0) {
-            preMuteVol = ScreenControls.volume(am)
-            ScreenControls.setVolume(am, 0)
-        } else {
-            ScreenControls.setVolume(am, if (preMuteVol > 0) preMuteVol else ScreenControls.maxVolume(am) / 2)
-        }
+        if (volGet() > 0) { preMuteVol = volGet(); volSet(0) }
+        else volSet(if (preMuteVol > 0) preMuteVol else volMax() / 2)
         refreshVol()
     }
 
     private fun refreshVol() {
-        b.volSeek.progress = ScreenControls.volume(am)
+        b.volSeek.progress = volGet()
         updateMuteLabel()
     }
 
     private fun updateMuteLabel() {
-        val muted = ScreenControls.volume(am) == 0
+        val muted = volGet() == 0
         b.muteBtn.text = if (muted) "🔈  Unmute" else "🔇  Mute"
         b.volBtn.text = if (muted) "🔇" else "🔊"
     }
 
     /** D-pad volume/brightness while a panel is open (TV): up/down adjust, 0 volume = muted. */
-    private fun adjustVol(delta: Int) {
-        ScreenControls.setVolume(am, ScreenControls.volume(am) + delta)
-        refreshVol()
-    }
-    private fun adjustBright(delta: Float) {
-        val nb = (ScreenControls.brightness(window) + delta).coerceIn(0.02f, 1f)
-        ScreenControls.setBrightness(window, nb)
-        b.brightSeek.progress = (nb * 100).toInt()
+    private fun adjustVol(delta: Int) { volSet(volGet() + delta); refreshVol() }
+    private fun adjustBright(deltaPct: Int) {
+        brightSetPct(brightGetPct() + deltaPct)
+        b.brightSeek.progress = brightGetPct()
     }
     private fun closePanels() {
         b.volumePanel.visibility = View.GONE
@@ -607,10 +616,13 @@ class LiveVlcActivity : AppCompatActivity() {
         if (event.action == KeyEvent.ACTION_DOWN) {
             // While the volume/brightness panel is open, D-pad up/down adjusts it (volume 0 = mute).
             if (panelOpen()) {
+                val vol = b.volumePanel.visibility == View.VISIBLE
                 when (event.keyCode) {
-                    KeyEvent.KEYCODE_DPAD_UP -> { if (b.volumePanel.visibility == View.VISIBLE) adjustVol(1) else adjustBright(0.07f); return true }
-                    KeyEvent.KEYCODE_DPAD_DOWN -> { if (b.volumePanel.visibility == View.VISIBLE) adjustVol(-1) else adjustBright(-0.07f); return true }
-                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_BACK -> { closePanels(); return true }
+                    KeyEvent.KEYCODE_DPAD_UP -> { if (vol) adjustVol(1) else adjustBright(7); return true }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> { if (vol) adjustVol(-1) else adjustBright(-7); return true }
+                    // Center toggles the panel's button (Mute / Night mode) so it's reachable on TV.
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { if (vol) toggleMute() else toggleNight(); return true }
+                    KeyEvent.KEYCODE_BACK -> { closePanels(); return true }
                 }
             }
             if (isArchive) {

@@ -13,6 +13,14 @@
         android:layout_height="match_parent"
         android:layout_gravity="center" />
 
+    <!-- Software dim (TV brightness can't touch the panel backlight, so we darken the picture). -->
+    <View
+        android:id="@+id/dimOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:alpha="0" />
+
     <!-- Night mode: a warm low-blue tint over the video (controls stay above this, undimmed). -->
     <View
         android:id="@+id/nightOverlay"
