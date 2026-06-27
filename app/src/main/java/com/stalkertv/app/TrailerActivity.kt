@@ -38,13 +38,21 @@ class TrailerActivity : AppCompatActivity() {
             mediaPlaybackRequiresUserGesture = false // allow autoplay
             loadWithOverviewMode = true
             useWideViewPort = true
+            // Default WebView UA contains "wv"; YouTube's player rejects it (config error 153/152).
+            userAgentString = "Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         }
         wv.webChromeClient = WebChromeClient()
         wv.webViewClient = WebViewClient()
 
-        // Load the embed page directly (a real youtube.com origin) — loadDataWithBaseURL/iframe embeds
-        // hit "video unavailable (152)" even for embeddable videos because the origin is synthetic.
-        wv.loadUrl("https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1&fs=1")
+        // iframe embed with youtube.com as the base (real origin + referer) → player accepts it.
+        val html = """
+            <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>html,body{margin:0;height:100%;background:#000;overflow:hidden}
+            iframe{position:fixed;top:0;left:0;width:100%;height:100%;border:0}</style></head>
+            <body><iframe src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&fs=1&modestbranding=1"
+            allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe></body></html>
+        """.trimIndent()
+        wv.loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "utf-8", null)
     }
 
     private fun goImmersive() {
