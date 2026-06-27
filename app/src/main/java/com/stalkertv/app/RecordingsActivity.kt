@@ -28,6 +28,20 @@ class RecordingsActivity : AppCompatActivity() {
     private val stack = ArrayDeque<() -> Unit>()
     private var lastEmpty = false
     private val tv by lazy { Tv.isTv(this) }
+    private var hasCheckable = false
+
+    /** Show "Delete selected" when items are ticked (TV) / whenever the folder has files (tablet). */
+    private fun updateRemoveSelBtn() {
+        b.removeSelBtn.visibility =
+            if (hasCheckable && (!tv || selected.isNotEmpty())) View.VISIBLE else View.GONE
+    }
+
+    /** Toggle an item's selection (TV: long-press / press while selecting; tablet: checkbox). */
+    private fun toggleSel(path: String) {
+        if (selected.contains(path)) selected.remove(path) else selected.add(path)
+        adapter.notifyDataSetChanged()
+        updateRemoveSelBtn()
+    }
 
     data class RecRow(val path: String?, val label: String, val checkable: Boolean, val onClick: () -> Unit)
 
@@ -77,7 +91,8 @@ class RecordingsActivity : AppCompatActivity() {
         lastEmpty = empty
         b.empty.visibility = if (empty) View.VISIBLE else View.GONE
         b.list.visibility = if (empty) View.GONE else View.VISIBLE
-        b.removeSelBtn.visibility = if (!tv && rows.any { it.checkable }) View.VISIBLE else View.GONE
+        hasCheckable = rows.any { it.checkable }
+        updateRemoveSelBtn()
         b.removeAllBtn.visibility = if (Recordings.list(this).isEmpty()) View.GONE else View.VISIBLE
         adapter.submit(rows)
     }
@@ -91,19 +106,6 @@ class RecordingsActivity : AppCompatActivity() {
                 .putExtra("title", item.title)
                 .putExtra("noPlaylist", true)
         )
-    }
-
-    private fun showTvItemMenu(path: String, play: () -> Unit) {
-        AlertDialog.Builder(this)
-            .setItems(arrayOf("▶  Play", "🗑  Delete")) { _, w ->
-                if (w == 0) { play() } else {
-                    Recordings.delete(this, path)
-                    android.widget.Toast.makeText(this, "Recording deleted", android.widget.Toast.LENGTH_SHORT).show()
-                    stack.last().invoke()
-                    while (stack.size > 1 && lastEmpty) { stack.removeLast(); stack.last().invoke() }
-                }
-            }
-            .show()
     }
 
     private fun removeSelected() {
@@ -153,19 +155,27 @@ class RecordingsActivity : AppCompatActivity() {
             holder.v.thumb.setImageResource(R.drawable.thumb_placeholder)
             holder.v.check.setOnCheckedChangeListener(null)
             val path = row.path
-            if (!tv && row.checkable && path != null) {
+            if (row.checkable && path != null) {
                 holder.v.check.visibility = View.VISIBLE
                 holder.v.check.isChecked = selected.contains(path)
-                holder.v.check.setOnCheckedChangeListener { _, isChecked ->
-                    if (isChecked) selected.add(path) else selected.remove(path)
+                if (tv) {
+                    holder.v.check.isClickable = false // not focus-reachable on TV; select via the row
+                } else {
+                    holder.v.check.setOnCheckedChangeListener { _, isChecked ->
+                        if (isChecked) selected.add(path) else selected.remove(path)
+                        updateRemoveSelBtn()
+                    }
                 }
             } else {
                 holder.v.check.visibility = View.GONE
                 holder.v.check.isChecked = false
             }
-            // On TV there's no touch checkbox; the remote's center opens a Play / Delete menu instead.
+            // Center: play (or, on TV once you're selecting, toggle this item). Long-press: select.
             holder.v.root.setOnClickListener {
-                if (tv && row.checkable && path != null) showTvItemMenu(path, row.onClick) else row.onClick()
+                if (row.checkable && path != null && tv && selected.isNotEmpty()) toggleSel(path) else row.onClick()
+            }
+            holder.v.root.setOnLongClickListener {
+                if (row.checkable && path != null) { toggleSel(path); true } else false
             }
         }
     }

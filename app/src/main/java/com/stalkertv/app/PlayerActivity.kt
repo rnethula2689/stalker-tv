@@ -81,8 +81,12 @@ class PlayerActivity : AppCompatActivity() {
         b.playerView.setControllerVisibilityListener(
             PlayerView.ControllerVisibilityListener { visibility ->
                 b.topBar.visibility = visibility
-                if (visibility == View.VISIBLE) hideDefaultGear()
-                else {
+                if (visibility == View.VISIBLE) {
+                    hideDefaultGear()
+                    // Don't let a control pre-highlight on TV; keep focus on the surface until the
+                    // user presses a direction to move into the top bar.
+                    if (Tv.isTv(this)) b.playerView.post { b.playerView.requestFocus() }
+                } else {
                     b.volumePanel.visibility = View.GONE
                     b.brightnessPanel.visibility = View.GONE
                 }
@@ -108,16 +112,14 @@ class PlayerActivity : AppCompatActivity() {
         resumeSource = intent.getStringExtra("resumeSource") ?: ""
         resumePoster = intent.getStringExtra("resumePoster") ?: ""
         val resumeStart = intent.getLongExtra("resumeStart", 0L)
+        // We have our own ⏭ Next in the top bar — never show the default centre prev/next. On TV one of
+        // them otherwise grabs a focus highlight in the middle of the screen the moment controls appear.
+        b.playerView.setShowPreviousButton(false)
+        b.playerView.setShowNextButton(false)
         if (isLive) {
-            // Live TV can't seek back/forward — drop those controls; Up/Down change channels.
-            b.playerView.setShowPreviousButton(false)
-            b.playerView.setShowNextButton(false)
+            // Live TV can't seek back/forward — drop those too; Up/Down change channels.
             b.playerView.setShowFastForwardButton(false)
             b.playerView.setShowRewindButton(false)
-        } else if (intent.getBooleanExtra("noPlaylist", false)) {
-            // Single item (e.g. catch-up archive): keep the seek bar + skip, hide episode prev/next.
-            b.playerView.setShowPreviousButton(false)
-            b.playerView.setShowNextButton(false)
         }
 
         val p = buildPlayer()
@@ -131,6 +133,13 @@ class PlayerActivity : AppCompatActivity() {
         if (resumeId.isNotBlank() && !isLive) resumeHandler.postDelayed(resumeSaver, 10_000)
 
         b.playerView.controllerShowTimeoutMs = 6000
+        if (Tv.isTv(this)) {
+            // FOCUS_BEFORE_DESCENDANTS lets the PlayerView itself hold focus (no highlight) instead of
+            // a child control; D-pad still navigates into the controls on the next key press.
+            b.playerView.descendantFocusability = android.view.ViewGroup.FOCUS_BEFORE_DESCENDANTS
+            b.playerView.isFocusable = true
+            b.playerView.isFocusableInTouchMode = true
+        }
         b.playerView.requestFocus()
         goImmersive()
         b.playerView.post { hideDefaultGear() }
@@ -199,7 +208,9 @@ class PlayerActivity : AppCompatActivity() {
                 else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == androidx.media3.common.Player.STATE_ENDED) maybeAutoplayNext()
+                if (state == androidx.media3.common.Player.STATE_ENDED) {
+                    if (epList.isNotEmpty()) maybeAutoplayNext() else promptRemoveFromContinue()
+                }
             }
         })
         return p
@@ -286,6 +297,17 @@ class PlayerActivity : AppCompatActivity() {
         if (kc == android.view.KeyEvent.KEYCODE_MENU) {
             if (event.action == android.view.KeyEvent.ACTION_UP) showMenu()
             return true
+        }
+        // While the volume/brightness panel is open, D-pad up/down adjusts it (volume 0 = mute).
+        if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+            (b.volumePanel.visibility == View.VISIBLE || b.brightnessPanel.visibility == View.VISIBLE)) {
+            val vol = b.volumePanel.visibility == View.VISIBLE
+            when (kc) {
+                android.view.KeyEvent.KEYCODE_DPAD_UP -> { if (vol) adjustVol(1) else adjustBright(0.07f); return true }
+                android.view.KeyEvent.KEYCODE_DPAD_DOWN -> { if (vol) adjustVol(-1) else adjustBright(-0.07f); return true }
+                android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER,
+                android.view.KeyEvent.KEYCODE_BACK -> { closePanels(); return true }
+            }
         }
         if (isLive && event.action == android.view.KeyEvent.ACTION_DOWN) {
             if (kc == android.view.KeyEvent.KEYCODE_DPAD_UP) { switchChannel(-1); return true }
@@ -483,12 +505,6 @@ class PlayerActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun showAudioDialog() {
-        val p = player ?: return
-        androidx.media3.ui.TrackSelectionDialogBuilder(this, "Audio track", p, androidx.media3.common.C.TRACK_TYPE_AUDIO)
-            .build().show()
-    }
-
     /** Wire the top-left quick controls: aspect ratio, volume (+ mute), brightness (+ night mode). */
     private fun wireQuickControls() {
         am = ScreenControls.audio(this)
@@ -524,10 +540,9 @@ class PlayerActivity : AppCompatActivity() {
 
         updateSpeedBtn()
         b.speedBtn.setOnClickListener { showSpeedDialog() }
-        b.audioBtn.setOnClickListener { showAudioDialog() }
         b.pipBtn.setOnClickListener { enterPipFlow() }
-        // On TV, volume/brightness are the TV's, and overlay PiP isn't supported; hide them.
-        if (Tv.isTv(this)) { b.pipBtn.visibility = View.GONE; b.volBtn.visibility = View.GONE; b.brightBtn.visibility = View.GONE }
+        // Overlay PiP isn't supported on TV; volume/brightness stay (D-pad up/down drives the panel).
+        if (Tv.isTv(this)) b.pipBtn.visibility = View.GONE
     }
 
     /** Shrink to the floating pop-up player (needs the "display over other apps" permission once). */
@@ -593,13 +608,51 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun updateMuteLabel() {
-        b.muteBtn.text = if (ScreenControls.volume(am) == 0) "🔈  Unmute" else "🔇  Mute"
+        val muted = ScreenControls.volume(am) == 0
+        b.muteBtn.text = if (muted) "🔈  Unmute" else "🔇  Mute"
+        b.volBtn.text = if (muted) "🔇" else "🔊"   // the cluster button shows the mute state on TV
+    }
+
+    /** D-pad volume/brightness while a panel is open (TV): up/down adjust, 0 volume = muted. */
+    private fun adjustVol(delta: Int) {
+        ScreenControls.setVolume(am, ScreenControls.volume(am) + delta)
+        refreshVol()
+    }
+    private fun adjustBright(delta: Float) {
+        val nb = (ScreenControls.brightness(window) + delta).coerceIn(0.02f, 1f)
+        ScreenControls.setBrightness(window, nb)
+        b.brightSeek.progress = (nb * 100).toInt()
+    }
+    private fun closePanels() {
+        b.volumePanel.visibility = View.GONE
+        b.brightnessPanel.visibility = View.GONE
+        b.playerView.controllerShowTimeoutMs = 6000
+        b.playerView.showController()
     }
 
     private fun toggleNight() {
         nightOn = !nightOn
         b.nightOverlay.visibility = if (nightOn) View.VISIBLE else View.GONE
         b.nightBtn.text = if (nightOn) "🌙  Night mode: ON" else "🌙  Night mode"
+    }
+
+    /** A finished movie: ask whether to drop it from Continue Watching (TV + tablet). */
+    private fun promptRemoveFromContinue() {
+        if (isLive) return
+        val id = resumeId
+        if (id.isBlank()) { finish(); return }
+        player?.pause()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Finished watching")
+            .setMessage("Remove “$titleText” from Continue Watching?")
+            .setCancelable(false)
+            .setPositiveButton("Yes, remove") { _, _ ->
+                resumeId = "" // stop onStop/saveResume from re-adding it
+                Resume.remove(applicationContext, id)
+                finish()
+            }
+            .setNegativeButton("Keep") { _, _ -> finish() }
+            .show()
     }
 
     private fun saveResume() {

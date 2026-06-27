@@ -156,8 +156,7 @@ class LiveVlcActivity : AppCompatActivity() {
         b.pipBtn.visibility = if (!isArchive && !tv) View.VISIBLE else View.GONE
         b.recBtn.visibility = View.VISIBLE
         b.recBtn.setOnClickListener { toggleRecord() }
-        // On TV, volume is the TV/remote's and there's no app brightness; hide those sliders.
-        if (tv) { b.volBtn.visibility = View.GONE; b.brightBtn.visibility = View.GONE }
+        // Volume/brightness stay on TV — D-pad up/down drives the panel (see dispatchKeyEvent).
 
         if (isArchive) {
             knownDurationMs = intent.getLongExtra("durationSec", 0) * 1000 // program length → stable scrub timeline
@@ -440,7 +439,6 @@ class LiveVlcActivity : AppCompatActivity() {
 
         updateSpeedBtn()
         b.speedBtn.setOnClickListener { showSpeedDialog() }
-        b.audioBtn.setOnClickListener { showAudioDialog() }
     }
 
     private val speeds = floatArrayOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
@@ -459,25 +457,6 @@ class LiveVlcActivity : AppCompatActivity() {
                 speedIdx = w
                 mp?.rate = speeds[w]
                 updateSpeedBtn()
-                d.dismiss()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showAudioDialog() {
-        val p = mp ?: return
-        val tracks = p.audioTracks
-        if (tracks == null || tracks.isEmpty()) {
-            android.widget.Toast.makeText(this, "No alternate audio tracks.", android.widget.Toast.LENGTH_SHORT).show()
-            return
-        }
-        val labels = tracks.map { it.name }.toTypedArray()
-        val checked = tracks.indexOfFirst { it.id == p.audioTrack }
-        AlertDialog.Builder(this)
-            .setTitle("Audio track")
-            .setSingleChoiceItems(labels, checked) { d, w ->
-                p.audioTrack = tracks[w].id
                 d.dismiss()
             }
             .setNegativeButton("Cancel", null)
@@ -528,8 +507,27 @@ class LiveVlcActivity : AppCompatActivity() {
     }
 
     private fun updateMuteLabel() {
-        b.muteBtn.text = if (ScreenControls.volume(am) == 0) "🔈  Unmute" else "🔇  Mute"
+        val muted = ScreenControls.volume(am) == 0
+        b.muteBtn.text = if (muted) "🔈  Unmute" else "🔇  Mute"
+        b.volBtn.text = if (muted) "🔇" else "🔊"
     }
+
+    /** D-pad volume/brightness while a panel is open (TV): up/down adjust, 0 volume = muted. */
+    private fun adjustVol(delta: Int) {
+        ScreenControls.setVolume(am, ScreenControls.volume(am) + delta)
+        refreshVol()
+    }
+    private fun adjustBright(delta: Float) {
+        val nb = (ScreenControls.brightness(window) + delta).coerceIn(0.02f, 1f)
+        ScreenControls.setBrightness(window, nb)
+        b.brightSeek.progress = (nb * 100).toInt()
+    }
+    private fun closePanels() {
+        b.volumePanel.visibility = View.GONE
+        b.brightnessPanel.visibility = View.GONE
+        scheduleHide()
+    }
+    private fun panelOpen() = b.volumePanel.visibility == View.VISIBLE || b.brightnessPanel.visibility == View.VISIBLE
 
     private fun toggleNight() {
         nightOn = !nightOn
@@ -607,6 +605,14 @@ class LiveVlcActivity : AppCompatActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
+            // While the volume/brightness panel is open, D-pad up/down adjusts it (volume 0 = mute).
+            if (panelOpen()) {
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_DPAD_UP -> { if (b.volumePanel.visibility == View.VISIBLE) adjustVol(1) else adjustBright(0.07f); return true }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> { if (b.volumePanel.visibility == View.VISIBLE) adjustVol(-1) else adjustBright(-0.07f); return true }
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_BACK -> { closePanels(); return true }
+                }
+            }
             if (isArchive) {
                 when (event.keyCode) {
                     KeyEvent.KEYCODE_MENU -> { showMenu(); return true }
