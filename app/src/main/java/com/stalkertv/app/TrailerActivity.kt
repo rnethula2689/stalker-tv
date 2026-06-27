@@ -42,15 +42,9 @@ class TrailerActivity : AppCompatActivity() {
         wv.webChromeClient = WebChromeClient()
         wv.webViewClient = WebViewClient()
 
-        // Embed with youtube.com as the base URL (referer) so embedding is allowed; fills the screen.
-        val html = """
-            <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
-            <style>html,body{margin:0;height:100%;background:#000;overflow:hidden}
-            iframe{position:fixed;top:0;left:0;width:100%;height:100%;border:0}</style></head>
-            <body><iframe src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1&fs=1"
-            allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe></body></html>
-        """.trimIndent()
-        wv.loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "utf-8", null)
+        // Load the embed page directly (a real youtube.com origin) — loadDataWithBaseURL/iframe embeds
+        // hit "video unavailable (152)" even for embeddable videos because the origin is synthetic.
+        wv.loadUrl("https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1&fs=1")
     }
 
     private fun goImmersive() {
