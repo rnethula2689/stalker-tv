@@ -426,7 +426,7 @@ class ChannelsActivity : AppCompatActivity() {
         display(page)
     }
 
-    private fun display(page: Page) {
+    private fun display(page: Page, focusPos: Int = 0) {
         b.title.text = page.title
         b.search.hint = when (page.kind) {
             SearchKind.GLOBAL -> "Search channels, movies & shows…"
@@ -441,10 +441,17 @@ class ChannelsActivity : AppCompatActivity() {
         updateSortBtn()
         if (b.search.text.isNotEmpty()) b.search.setText("")
         b.searchRow.visibility = View.GONE
-        b.list.scrollToPosition(0)
+        val pos = focusPos.coerceIn(0, (page.rows.size - 1).coerceAtLeast(0))
+        b.list.scrollToPosition(pos)
         // Defer until the rebuilt rows are laid out; requesting focus on a not-yet-populated
         // list silently fails and focus falls back to the first toolbar icon (the 🔍 button).
-        b.list.post { if (!b.list.hasFocus()) b.list.requestFocus() }
+        // On "Load more" (focusPos>0) land the cursor on the first newly-loaded item rather
+        // than snapping back to the top of the folder.
+        b.list.post {
+            val vh = b.list.findViewHolderForAdapterPosition(pos)
+            if (vh != null) vh.itemView.requestFocus()
+            else if (!b.list.hasFocus()) b.list.requestFocus()
+        }
     }
 
     override fun onBackPressed() {
@@ -1135,6 +1142,9 @@ class ChannelsActivity : AppCompatActivity() {
         orderedVod(acc).forEach { v -> rows.add(vodItemRow(v)) }
         if (loaded < total) {
             rows.add(Row("⬇  Load more  ($loaded/$total)", null) {
+                // Where the "Load more" row currently sits == where the first new item will land,
+                // so we can keep the cursor here instead of snapping back to the first movie.
+                val resumeAt = (backStack.lastOrNull()?.rows?.size ?: 1) - 1
                 b.status.visibility = View.VISIBLE
                 b.status.text = "Loading…"
                 io.execute {
@@ -1145,7 +1155,7 @@ class ChannelsActivity : AppCompatActivity() {
                         val page = Page(cat.title, vodRows(cat, acc, loaded + 1, total), kind = SearchKind.VOD_CATEGORY, scopeId = cat.id)
                         backStack.removeLast()
                         backStack.addLast(page)
-                        display(page)
+                        display(page, resumeAt)
                     }
                 }
             })
