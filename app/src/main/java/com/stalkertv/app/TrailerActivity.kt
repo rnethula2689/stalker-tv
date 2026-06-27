@@ -64,7 +64,7 @@ class TrailerActivity : AppCompatActivity() {
                 playerVars:{autoplay:1, playsinline:1, rel:0, fs:1, controls:1, modestbranding:1, origin:'https://www.youtube.com'},
                 events:{
                   onReady:function(e){ try{ e.target.playVideo(); }catch(x){} },
-                  onError:function(e){ if(window.Android) Android.onError(); }
+                  onError:function(e){ if(window.Android) Android.onError(e.data); }
                 }
               });
             }
@@ -76,7 +76,8 @@ class TrailerActivity : AppCompatActivity() {
     private inner class Bridge {
         // The embed failed (owner disabled embedding etc.) → play in the external YouTube app instead.
         @JavascriptInterface
-        fun onError() {
+        fun onError(code: Int) {
+            android.util.Log.d("TRAILERDBG", "IFrame onError code=$code videoId=$videoId")
             if (fellBack) return
             fellBack = true
             runOnUiThread {
