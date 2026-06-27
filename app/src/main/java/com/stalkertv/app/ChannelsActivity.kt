@@ -15,6 +15,7 @@ class ChannelsActivity : AppCompatActivity() {
     private val playIo = Executors.newSingleThreadExecutor()
     private lateinit var b: ActivityChannelsBinding
     private val adapter = RowAdapter()
+    private val liveCatAdapter = RowAdapter() // Live TV category panel (Strimix-style left list)
 
     /** Optional favourite toggle for a row (channels / movies). Null = not favouritable (e.g. folders). */
     class FavInfo(val isFav: () -> Boolean, val toggle: () -> Boolean, val onAdded: (() -> Unit)? = null)
@@ -92,8 +93,11 @@ class ChannelsActivity : AppCompatActivity() {
         b.filterBtn.setOnClickListener { showFilterDialog() }
         b.menuBtn.setOnClickListener { showMenu() }
 
+        b.liveCatList.layoutManager = LinearLayoutManager(this)
+        b.liveCatList.adapter = liveCatAdapter
+
         // Floating bottom tab bar (home only).
-        b.navLive.setOnClickListener { showLiveGenres() }
+        b.navLive.setOnClickListener { showLiveCategories() }
         b.navMovies.setOnClickListener { showVodCategories() }
         b.navFav.setOnClickListener { showFavouritesHome() }
         b.navWatch.setOnClickListener { startActivity(Intent(this, WatchLaterActivity::class.java)) }
@@ -530,6 +534,7 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
+        if (b.liveCatOverlay.visibility == View.VISIBLE) { hideLiveCategories(); return }
         if (b.searchRow.visibility == View.VISIBLE) {
             b.search.setText("")
             b.searchRow.visibility = View.GONE
@@ -894,6 +899,28 @@ class ChannelsActivity : AppCompatActivity() {
         if (e.kind == "series") showSeasons(Portal.VodItem(e.id, e.title, "", e.poster, true))
         else play(e.title, e.id, e.poster, e.source)
     }
+
+    /** Strimix-style Live TV entry: a left category panel over a blank dark screen. */
+    private fun showLiveCategories() {
+        if (allChannels.isEmpty()) { showLiveGenres(); return } // data not ready → old flow
+        val rows = ArrayList<Row>()
+        val favs = Configs.favorites(this)
+        val favChannels = allChannels.filter { favs.contains(it.id) }
+        if (favChannels.isNotEmpty())
+            rows.add(Row("⭐  Favourites  (${favChannels.size})", null) { hideLiveCategories(); openLiveGrid(favChannels, "Favourites") })
+        rows.add(Row("All Channels  (${allChannels.size})", null) { hideLiveCategories(); openLiveGrid(allChannels, "All Channels") })
+        for (g in genres) {
+            val list = byGenre[g.id] ?: emptyList()
+            if (list.isEmpty() && !g.censored) continue
+            val label = (if (g.censored) "🔒  " else "") + g.title + (if (list.isNotEmpty()) "  (${list.size})" else "")
+            rows.add(Row(label, null) { hideLiveCategories(); openGenre(g) })
+        }
+        liveCatAdapter.submit(rows)
+        b.liveCatOverlay.visibility = View.VISIBLE
+        b.liveCatList.post { b.liveCatList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() ?: b.liveCatList.requestFocus() }
+    }
+
+    private fun hideLiveCategories() { b.liveCatOverlay.visibility = View.GONE }
 
     private fun showContinueWatching() {
         val all = Resume.all(this)
