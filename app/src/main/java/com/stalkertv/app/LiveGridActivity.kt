@@ -40,6 +40,15 @@ class LiveGridActivity : AppCompatActivity() {
     private var seq = 0
     private var attached = false
 
+    // Live filter + sort (client-side over the loaded channel list).
+    private var liveFilter: String? = null   // one of liveFilters, or null
+    private var liveLetter: String? = null   // active A–Z letter, or null
+    private var liveSortKey = "num"
+    private val liveFilters = listOf("Catch-up available", "HD", "Favourites", "Free", "Hide locked")
+    private val liveSortLabels = linkedMapOf(
+        "num" to "Channel number", "az" to "A–Z", "za" to "Z–A", "added" to "Recently added"
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         b = ActivityLivegridBinding.inflate(layoutInflater)
@@ -47,8 +56,8 @@ class LiveGridActivity : AppCompatActivity() {
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) // preview is live video
 
         originalOrder = channels
-        all = sortedChannels()
         b.title.text = gridTitle
+        all = baseChannels()
 
         val vlc = LibVLC(this, arrayListOf("--network-caching=1500", "--http-reconnect", "--no-drop-late-frames", "--no-skip-frames"))
         libVlc = vlc
@@ -68,8 +77,9 @@ class LiveGridActivity : AppCompatActivity() {
         b.previewFrame.setOnClickListener { openFullscreen() }
         b.nowCard.setOnClickListener { nowItem?.let { showEpgDetail(it) } } // NOW programme → full synopsis
         b.searchBtn.setOnClickListener { toggleSearch() }
-        b.sortBtn.setOnClickListener { cycleSort() }
-        updateSortBtn()
+        b.filterBtn.setOnClickListener { showFilterDialog() }
+        b.sortBtn.setOnClickListener { showSortDialog() }
+        updateLiveButtons()
         b.menuBtn.setOnClickListener { showMenu() }
         if (gridTitle == "Favourites") {
             b.clearFavBtn.visibility = View.VISIBLE
@@ -286,34 +296,80 @@ class LiveGridActivity : AppCompatActivity() {
     }
 
     private fun filter(q: String) {
-        val query = q.trim()
-        adapter.submit(if (query.isEmpty()) all else all.filter { it.name.contains(query, ignoreCase = true) })
+        if (q.trim().isNotEmpty()) liveLetter = null // typing a search clears the A–Z letter
+        applyView(resetFocus = false)
     }
 
-    /** Channels in the chosen order: provider order (Default), or by name A–Z / Z–A. */
-    private fun sortedChannels(): List<Portal.Channel> = when (Configs.sortMode(this)) {
-        Configs.SORT_AZ -> originalOrder.sortedBy { it.name.trim().lowercase() }
-        Configs.SORT_ZA -> originalOrder.sortedByDescending { it.name.trim().lowercase() }
-        else -> originalOrder
+    /** The filtered + sorted channel set (before any search / A–Z narrowing). */
+    private fun baseChannels(): List<Portal.Channel> = sortedChannels(originalOrder.filter { liveMatches(it) })
+
+    private fun sortedChannels(list: List<Portal.Channel>): List<Portal.Channel> = when (liveSortKey) {
+        "az" -> list.sortedBy { it.name.trim().lowercase() }
+        "za" -> list.sortedByDescending { it.name.trim().lowercase() }
+        "added" -> list.sortedByDescending { it.added }
+        else -> list.sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE } // "num" = channel number
     }
 
-    /** ⇅ button: cycle Default → A–Z → Z–A, re-sort in place, keep any active filter. */
-    private fun cycleSort() {
-        Configs.cycleSortMode(this)
-        all = sortedChannels()
-        updateSortBtn()
+    private fun liveMatches(ch: Portal.Channel): Boolean = when (liveFilter) {
+        "Catch-up available" -> ch.archiveDays > 0
+        "HD" -> ch.hd
+        "Favourites" -> Configs.isFavorite(this, ch.id)
+        "Free" -> ch.open
+        "Hide locked" -> !ch.locked && !ch.censored
+        else -> true
+    }
+
+    /** Recompute the view: filter → sort → (active search OR A–Z letter), then show it. */
+    private fun applyView(resetFocus: Boolean = true) {
+        all = baseChannels()
         val q = b.search.text?.toString()?.trim().orEmpty()
-        if (q.isNotEmpty()) filter(q) else adapter.submit(all)
-        b.list.scrollToPosition(0)
-        b.list.post { b.list.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
+        val shown = when {
+            q.isNotEmpty() -> all.filter { it.name.contains(q, ignoreCase = true) }
+            liveLetter != null -> all.filter { it.name.trimStart().startsWith(liveLetter!!, ignoreCase = true) }
+            else -> all
+        }
+        adapter.submit(shown)
+        if (resetFocus) {
+            b.list.scrollToPosition(0)
+            b.list.post { b.list.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
+        }
     }
 
-    private fun updateSortBtn() {
-        b.sortBtn.text = when (Configs.sortMode(this)) {
-            Configs.SORT_AZ -> "⇅ A–Z"
-            Configs.SORT_ZA -> "⇅ Z–A"
+    /** Filter: pick ONE attribute (boolean). Works alongside search + A–Z + sort. */
+    private fun showFilterDialog() {
+        val items = (if (liveFilter != null) listOf("✖  Clear filter") else emptyList()) + liveFilters
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Filter channels")
+            .setItems(items.toTypedArray()) { _, w ->
+                val pick = items[w]
+                liveFilter = if (pick.startsWith("✖")) null else pick
+                updateLiveButtons(); applyView()
+            }
+            .show()
+    }
+
+    /** Sort: one dialog with every option. */
+    private fun showSortDialog() {
+        val keys = liveSortLabels.keys.toList()
+        val labels = liveSortLabels.values.toTypedArray()
+        val cur = keys.indexOf(liveSortKey).coerceAtLeast(0)
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Sort channels")
+            .setSingleChoiceItems(labels, cur) { d, w ->
+                liveSortKey = keys[w]; d.dismiss(); updateLiveButtons(); applyView()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun updateLiveButtons() {
+        b.sortBtn.text = when (liveSortKey) {
+            "az" -> "⇅ A–Z"
+            "za" -> "⇅ Z–A"
+            "added" -> "⇅ New"
             else -> "⇅ #"
         }
+        b.filterBtn.text = if (liveFilter != null) "⛃ •" else "⛃"
     }
 
     private fun buildAzBar() {
@@ -333,8 +389,9 @@ class LiveGridActivity : AppCompatActivity() {
     }
 
     private fun azFilter(letter: String?) {
-        if (b.search.text.isNotEmpty()) b.search.setText("")
-        adapter.submit(if (letter == null) all else all.filter { it.name.trimStart().startsWith(letter, ignoreCase = true) })
+        liveLetter = letter
+        if (b.search.text.isNotEmpty()) b.search.setText("") // triggers filter() → applyView()
+        applyView()
     }
 
     private var progressAnim: android.animation.ObjectAnimator? = null

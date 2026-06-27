@@ -29,7 +29,9 @@ object Portal {
     data class Channel(
         val id: String, val name: String, val number: String,
         val cmd: String, val logoUrl: String, val genreId: String, val censored: Boolean = false,
-        val archiveDays: Int = 0
+        val archiveDays: Int = 0,
+        // Extra fields for the Live filter/sort (defaulted so other call sites are unaffected).
+        val hd: Boolean = false, val added: String = "", val locked: Boolean = false, val open: Boolean = true
     )
     data class Genre(val id: String, val title: String, val censored: Boolean = false)
     data class VodCat(val id: String, val title: String)
@@ -195,7 +197,11 @@ object Portal {
                     logoUrl = if (logo.isBlank() || logo == "null") "" else logosBase + logo,
                     genreId = c.optString("tv_genre_id"),
                     censored = c.optInt("censored", 0) == 1,
-                    archiveDays = c.optInt("tv_archive_duration", 0)
+                    archiveDays = c.optInt("tv_archive_duration", 0),
+                    hd = c.optInt("hd", 0) == 1,
+                    added = c.optString("added"),
+                    locked = (c.optInt("locked", 0) == 1 || c.optInt("lock", 0) == 1),
+                    open = c.optInt("open", 1) == 1
                 )
             )
         }
