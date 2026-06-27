@@ -616,15 +616,31 @@ class ChannelsActivity : AppCompatActivity() {
             .show()
     }
 
-    /** Open YouTube (app or browser) on a search for the title's trailer — keyless, works on TV + tablet. */
+    /** Open YouTube on a search for the title's trailer — keyless, works on TV + tablet.
+     *  Phones/tablets/browsers carry the query fine via a results URL, but the Fire TV / Android TV
+     *  YouTube apps ignore that URL's query (open empty), so on TV we fire an in-app SEARCH intent
+     *  with the query as an extra, trying each known YouTube package, before any URL fallback. */
     private fun watchTrailer(title: String, year: String) {
         val q = (title.trim() + (if (year.isNotBlank()) " $year" else "") + " trailer").trim()
-        val url = "https://www.youtube.com/results?search_query=" + android.net.Uri.encode(q)
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-        } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "No app available to play the trailer.", android.widget.Toast.LENGTH_SHORT).show()
+        val enc = android.net.Uri.encode(q)
+        val resultsUrl = "https://www.youtube.com/results?search_query=$enc"
+        val ytPkgs = listOf("com.amazon.firetv.youtube", "com.google.android.youtube.tv", "com.google.android.youtube")
+        val attempts = ArrayList<Intent>()
+        if (Tv.isTv(this)) {
+            // In-app search carrying the query (the reliable path for TV YouTube apps).
+            for (p in ytPkgs) attempts.add(
+                Intent(Intent.ACTION_SEARCH).setPackage(p)
+                    .putExtra(android.app.SearchManager.QUERY, q).putExtra("query", q)
+            )
+            // Some TV builds do honour the results URL when explicitly targeted at their package.
+            for (p in ytPkgs) attempts.add(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(resultsUrl)).setPackage(p))
         }
+        // Universal fallback: tablet YouTube / browser carry the query in the URL fine.
+        attempts.add(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(resultsUrl)))
+        for (i in attempts) {
+            try { startActivity(i); return } catch (_: Exception) { /* try next */ }
+        }
+        android.widget.Toast.makeText(this, "No app available to play the trailer.", android.widget.Toast.LENGTH_SHORT).show()
     }
 
     /** Description + IMDb rating + cast etc., all from the portal's own metadata. */

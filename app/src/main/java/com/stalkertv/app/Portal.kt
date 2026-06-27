@@ -178,6 +178,7 @@ object Portal {
         if (arr == null) return
         for (i in 0 until arr.length()) {
             val c = arr.optJSONObject(i) ?: continue
+            if (i == 0) android.util.Log.d("PORTALPROBE", "CH_KEYS=" + c.keys().asSequence().joinToString(",") + " || CH0=" + c.toString())
             val logo = c.optString("logo")
             out.add(
                 Channel(
@@ -318,6 +319,7 @@ object Portal {
         if (arr == null) return
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
+            if (i == 0) android.util.Log.d("PORTALPROBE", "VOD_KEYS=" + o.keys().asSequence().joinToString(",") + " || VOD0=" + o.toString())
             val ss = o.optString("screenshot_uri")
             val poster = when {
                 ss.isBlank() || ss == "null" -> ""
@@ -464,7 +466,9 @@ object Portal {
                 val arr = js.optJSONArray("data") ?: break
                 if (arr.length() == 0) break
                 for (i in 0 until arr.length()) {
-                    arr.optJSONObject(i)?.let(onItem)
+                    val o = arr.optJSONObject(i) ?: continue
+                    if (page == 1 && i == 0) android.util.Log.d("PORTALPROBE", "PAGED[" + urlPrefix.substringAfter("?", urlPrefix) + "] KEYS=" + o.keys().asSequence().joinToString(",") + " || OBJ0=" + o.toString())
+                    onItem(o)
                 }
                 val total = js.optInt("total_items", arr.length())
                 val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
