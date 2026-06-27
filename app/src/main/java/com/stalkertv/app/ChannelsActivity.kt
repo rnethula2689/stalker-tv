@@ -243,16 +243,17 @@ class ChannelsActivity : AppCompatActivity() {
     private var menuDialog: androidx.appcompat.app.AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("🔄   Refresh portal", "⚙   Settings", "🔒   Parental PIN", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("👤   Switch profile", "🔄   Refresh portal", "⚙   Settings", "🔒   Parental PIN", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> connectAndLoad(true)
-                    1 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    2 -> changePin()
-                    3 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
-                    4 -> About.show(this)
-                    5 -> finishAffinity()
+                    0 -> showProfilePicker()
+                    1 -> connectAndLoad(true)
+                    2 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    3 -> changePin()
+                    4 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
+                    5 -> About.show(this)
+                    6 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }
@@ -316,6 +317,8 @@ class ChannelsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Returning from the profile editor while the picker is open → refresh the tiles.
+        if (b.profileOverlay.visibility == View.VISIBLE) { buildProfileTiles(); return }
         if (Configs.dirty) {
             Configs.dirty = false
             connectAndLoad(true)
@@ -435,6 +438,11 @@ class ChannelsActivity : AppCompatActivity() {
         private var cachedChannels: List<Portal.Channel> = emptyList()
         private var cachedGenres: List<Portal.Genre> = emptyList()
         private var cachedVodCats: List<Portal.VodCat> = emptyList()
+
+        // Catalog access for the profile editor (so it can list categories without a screen of its own).
+        fun catGenres(): List<Portal.Genre> = cachedGenres
+        fun catVodCats(): List<Portal.VodCat> = cachedVodCats
+        fun cacheCatalog(g: List<Portal.Genre>, v: List<Portal.VodCat>) { cachedGenres = g; cachedVodCats = v }
     }
 
     /** Read the active provider, connect in the background, then show the home menu. */
@@ -464,6 +472,7 @@ class ChannelsActivity : AppCompatActivity() {
             vodCats = cachedVodCats
             hideLoading()
             showHome()
+            maybeShowProfilePicker()
             return
         }
         vodCats = emptyList()
@@ -492,7 +501,7 @@ class ChannelsActivity : AppCompatActivity() {
                     b.status.text = "No channels returned. Check the configuration (⚙)."
                 } else {
                     setProgress(100, "Ready", 350)
-                    b.loadingOverlay.postDelayed({ hideLoading(); showHome() }, 450)
+                    b.loadingOverlay.postDelayed({ hideLoading(); showHome(); maybeShowProfilePicker() }, 450)
                 }
             }
         }
@@ -541,6 +550,7 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
+        if (b.profileOverlay.visibility == View.VISIBLE) { hideProfilePicker(); showHome(); return }
         if (b.liveCatOverlay.visibility == View.VISIBLE) { hideLiveCategories(); return }
         if (b.searchRow.visibility == View.VISIBLE) {
             b.search.setText("")
@@ -926,10 +936,13 @@ class ChannelsActivity : AppCompatActivity() {
         val rows = ArrayList<Row>()
         val favs = Configs.favorites(this)
         val favChannels = allChannels.filter { favs.contains(it.id) }
+        // Only the categories/channels this profile is allowed to see.
+        val visChannels = allChannels.filter { ContentProfiles.liveCatVisible(this, it.genreId) }
         if (favChannels.isNotEmpty())
             rows.add(Row("⭐  Favourites  (${favChannels.size})", null, sortKey = "Favourites") { hideLiveCategories(); openLiveGrid(favChannels, "Favourites") })
-        rows.add(Row("All Channels  (${allChannels.size})", null, sortKey = "All Channels") { hideLiveCategories(); openLiveGrid(allChannels, "All Channels") })
+        rows.add(Row("All Channels  (${visChannels.size})", null, sortKey = "All Channels") { hideLiveCategories(); openLiveGrid(visChannels, "All Channels") })
         for (g in genres) {
+            if (!ContentProfiles.liveCatVisible(this, g.id)) continue
             val list = byGenre[g.id] ?: emptyList()
             if (list.isEmpty() && !g.censored) continue
             val label = (if (g.censored) "🔒  " else "") + g.title + (if (list.isNotEmpty()) "  (${list.size})" else "")
@@ -973,6 +986,102 @@ class ChannelsActivity : AppCompatActivity() {
         b.liveCatOverlay.visibility = View.GONE
         b.contentRoot.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
         b.bottomNav.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
+    }
+
+    // ---- Content profiles ("Who's watching?") ----
+
+    /** Show the picker once on first run (no profile yet). Afterwards we auto-enter (remember-last). */
+    private fun maybeShowProfilePicker() {
+        if (!ContentProfiles.setupSeen(this) && ContentProfiles.active(this) == null) {
+            ContentProfiles.setSetupSeen(this)
+            showProfilePicker()
+        }
+    }
+
+    private fun showProfilePicker() {
+        buildProfileTiles()
+        b.profileOverlay.visibility = View.VISIBLE
+        b.contentRoot.descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        b.bottomNav.descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        b.profileRow.post { (b.profileRow.getChildAt(0))?.requestFocus() }
+    }
+
+    private fun hideProfilePicker() {
+        // Don't strand the user with no active profile when ones exist.
+        if (ContentProfiles.activeId(this) == null) ContentProfiles.list(this).firstOrNull()?.let { ContentProfiles.setActive(this, it.id) }
+        b.profileOverlay.visibility = View.GONE
+        b.contentRoot.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
+        b.bottomNav.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
+    }
+
+    private fun buildProfileTiles() {
+        b.profileRow.removeAllViews()
+        val dp = resources.displayMetrics.density
+        val activeId = ContentProfiles.activeId(this)
+        for (p in ContentProfiles.list(this)) {
+            b.profileRow.addView(profileTile(p.name, p.color, p.name.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                p.id == activeId,
+                onClick = { ContentProfiles.setActive(this, p.id); hideProfilePicker(); showHome() },
+                onLong = { editProfileMenu(p) }))
+        }
+        // "＋ Add" tile
+        b.profileRow.addView(profileTile("Add", 0x33FFFFFF, "＋", false,
+            onClick = { startActivity(Intent(this, ProfileEditActivity::class.java)) }, onLong = null))
+        val pad = (8 * dp).toInt()
+        for (i in 0 until b.profileRow.childCount) {
+            (b.profileRow.getChildAt(i).layoutParams as android.widget.LinearLayout.LayoutParams).setMargins(pad, 0, pad, 0)
+        }
+    }
+
+    private fun profileTile(name: String, color: Int, initial: String, active: Boolean,
+                            onClick: () -> Unit, onLong: (() -> Unit)?): View {
+        val dp = resources.displayMetrics.density
+        val col = android.widget.LinearLayout(this)
+        col.orientation = android.widget.LinearLayout.VERTICAL
+        col.gravity = android.view.Gravity.CENTER_HORIZONTAL
+        col.isFocusable = true
+        col.isClickable = true
+        col.setPadding((6 * dp).toInt(), (6 * dp).toInt(), (6 * dp).toInt(), (6 * dp).toInt())
+        val circle = android.widget.TextView(this)
+        val size = (96 * dp).toInt()
+        circle.layoutParams = android.widget.LinearLayout.LayoutParams(size, size)
+        circle.gravity = android.view.Gravity.CENTER
+        circle.text = initial
+        circle.textSize = 34f
+        circle.setTextColor(0xFFFFFFFF.toInt())
+        val d = android.graphics.drawable.GradientDrawable()
+        d.shape = android.graphics.drawable.GradientDrawable.OVAL
+        d.setColor(color)
+        if (active) d.setStroke((3 * dp).toInt(), 0xFF19C37D.toInt())
+        circle.background = d
+        col.addView(circle)
+        val label = android.widget.TextView(this)
+        label.text = name
+        label.setTextColor(0xFFE6EDF3.toInt())
+        label.textSize = 14f
+        label.gravity = android.view.Gravity.CENTER
+        val llp = android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT)
+        llp.topMargin = (8 * dp).toInt()
+        label.layoutParams = llp
+        col.addView(label)
+        col.setOnClickListener { onClick() }
+        if (onLong != null) col.setOnLongClickListener { onLong(); true }
+        col.setOnFocusChangeListener { v, f -> val s = if (f) 1.10f else 1f; v.animate().scaleX(s).scaleY(s).setDuration(120).start() }
+        return col
+    }
+
+    private fun editProfileMenu(p: ContentProfiles.Profile) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(p.name)
+            .setItems(arrayOf("✎  Edit", "🗑  Delete")) { _, w ->
+                when (w) {
+                    0 -> startActivity(Intent(this, ProfileEditActivity::class.java).putExtra("profileId", p.id))
+                    1 -> androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Delete “${p.name}”?")
+                        .setPositiveButton("Delete") { _, _ -> ContentProfiles.delete(this, p.id); buildProfileTiles() }
+                        .setNegativeButton("Cancel", null).show()
+                }
+            }.show()
     }
 
     private fun showContinueWatching() {
@@ -1057,10 +1166,12 @@ class ChannelsActivity : AppCompatActivity() {
         val rows = ArrayList<Row>()
         val favs = Configs.favorites(this)
         val favChannels = allChannels.filter { favs.contains(it.id) }
+        val visChannels = allChannels.filter { ContentProfiles.liveCatVisible(this, it.genreId) }
         if (favChannels.isNotEmpty())
             rows.add(Row("⭐  Favourites  (${favChannels.size})", null, sortKey = "Favourites") { showLiveFavRoot() })
-        rows.add(Row("All Channels  (${allChannels.size})", null, sortKey = "All Channels") { openLiveGrid(allChannels, "All Channels") })
+        rows.add(Row("All Channels  (${visChannels.size})", null, sortKey = "All Channels") { openLiveGrid(visChannels, "All Channels") })
         for (g in genres) {
+            if (!ContentProfiles.liveCatVisible(this, g.id)) continue
             val list = byGenre[g.id] ?: emptyList()
             // Censored (adult/restricted) genres aren't returned by get_all_channels, so they look
             // empty here — show them anyway (locked) and load their channels on demand.
@@ -1068,7 +1179,7 @@ class ChannelsActivity : AppCompatActivity() {
             val label = (if (g.censored) "🔒  " else "") + g.title + (if (list.isNotEmpty()) "  (${list.size})" else "")
             rows.add(Row(label, null, sortKey = g.title) { openGenre(g) })
         }
-        push(Page("Live TV", rows, kind = SearchKind.CHANNELS, scopeChannels = allChannels, rebuild = { showLiveGenres() }))
+        push(Page("Live TV", rows, kind = SearchKind.CHANNELS, scopeChannels = visChannels, rebuild = { showLiveGenres() }))
     }
 
     private var parentalUnlocked = false
@@ -1187,7 +1298,8 @@ class ChannelsActivity : AppCompatActivity() {
     private fun displayVodCategories() {
         // A grid of category chips (Favourites lives in the bottom tab bar, not here).
         // sortKey lets the A–Z bar jump to a category folder by first letter.
-        val rows = vodCats.map { c -> Row(c.title, null, sortKey = c.title, chip = true) { showVodList(c) } }
+        val rows = vodCats.filter { ContentProfiles.vodCatVisible(this, it.id) }
+            .map { c -> Row(c.title, null, sortKey = c.title, chip = true) { showVodList(c) } }
         push(Page("Movies", rows, kind = SearchKind.VOD_ALL, rebuild = { showVodCategories() }))
     }
 

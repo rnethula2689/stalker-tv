@@ -287,6 +287,55 @@
         </LinearLayout>
     </FrameLayout>
 
+    <!-- "Who's watching?" content-profile picker (Prime/YouTube style). -->
+    <FrameLayout
+        android:id="@+id/profileOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#0B0F14"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Who’s watching?"
+                android:textColor="#e6edf3"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.04" />
+
+            <HorizontalScrollView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/profileRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center" />
+            </HorizontalScrollView>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:text="Select a profile  ·  long-press to edit  ·  ＋ to add"
+                android:textColor="#7a8a9a"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </FrameLayout>
+
     <!-- Loading splash: a darkened poster montage behind the logo (Strimix-style). -->
     <FrameLayout
         android:id="@+id/loadingOverlay"
