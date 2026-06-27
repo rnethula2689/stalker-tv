@@ -26,6 +26,7 @@ class WatchLaterActivity : AppCompatActivity() {
     private val selected = HashSet<String>()
     private val stack = ArrayDeque<() -> Unit>() // internal folder navigation
     private var lastEmpty = false
+    private val tv by lazy { Tv.isTv(this) }
 
     data class WlRow(
         val id: String?,        // entry id (checkable leaf) or null for a folder
@@ -95,9 +96,22 @@ class WatchLaterActivity : AppCompatActivity() {
         lastEmpty = empty
         b.empty.visibility = if (empty) View.VISIBLE else View.GONE
         b.list.visibility = if (empty) View.GONE else View.VISIBLE
-        b.removeSelBtn.visibility = if (rows.any { it.checkable }) View.VISIBLE else View.GONE
+        b.removeSelBtn.visibility = if (!tv && rows.any { it.checkable }) View.VISIBLE else View.GONE
         b.removeAllBtn.visibility = if (WatchLater.all(this).isEmpty()) View.GONE else View.VISIBLE
         adapter.submit(rows)
+    }
+
+    private fun showTvItemMenu(id: String, play: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setItems(arrayOf("▶  Play", "🗑  Remove")) { _, w ->
+                if (w == 0) { play() } else {
+                    WatchLater.removeIds(this, hashSetOf(id))
+                    android.widget.Toast.makeText(this, "Removed from Watch Later", android.widget.Toast.LENGTH_SHORT).show()
+                    stack.last().invoke()
+                    while (stack.size > 1 && lastEmpty) { stack.removeLast(); stack.last().invoke() }
+                }
+            }
+            .show()
     }
 
     private fun removeSelected() {
@@ -189,7 +203,10 @@ class WatchLaterActivity : AppCompatActivity() {
                 holder.v.check.visibility = View.GONE
                 holder.v.check.isChecked = false
             }
-            holder.v.root.setOnClickListener { row.onClick() }
+            // On TV there's no touch checkbox; the remote's center opens a Play / Remove menu instead.
+            holder.v.root.setOnClickListener {
+                if (tv && row.checkable && id != null) showTvItemMenu(id, row.onClick) else row.onClick()
+            }
         }
     }
 }

@@ -151,10 +151,13 @@ class LiveVlcActivity : AppCompatActivity() {
         b.menuBtn.setOnClickListener { showMenu() }
         b.root.setOnTouchListener { _, ev -> gestureDetector.onTouchEvent(ev) }
         wireQuickControls()
+        val tv = Tv.isTv(this)
         b.pipBtn.setOnClickListener { enterPipFlow() }
-        b.pipBtn.visibility = if (!isArchive) View.VISIBLE else View.GONE
+        b.pipBtn.visibility = if (!isArchive && !tv) View.VISIBLE else View.GONE
         b.recBtn.visibility = View.VISIBLE
         b.recBtn.setOnClickListener { toggleRecord() }
+        // On TV, volume is the TV/remote's and there's no app brightness; hide those sliders.
+        if (tv) { b.volBtn.visibility = View.GONE; b.brightBtn.visibility = View.GONE }
 
         if (isArchive) {
             knownDurationMs = intent.getLongExtra("durationSec", 0) * 1000 // program length → stable scrub timeline

@@ -27,6 +27,7 @@ class RecordingsActivity : AppCompatActivity() {
     private val selected = HashSet<String>()
     private val stack = ArrayDeque<() -> Unit>()
     private var lastEmpty = false
+    private val tv by lazy { Tv.isTv(this) }
 
     data class RecRow(val path: String?, val label: String, val checkable: Boolean, val onClick: () -> Unit)
 
@@ -76,7 +77,7 @@ class RecordingsActivity : AppCompatActivity() {
         lastEmpty = empty
         b.empty.visibility = if (empty) View.VISIBLE else View.GONE
         b.list.visibility = if (empty) View.GONE else View.VISIBLE
-        b.removeSelBtn.visibility = if (rows.any { it.checkable }) View.VISIBLE else View.GONE
+        b.removeSelBtn.visibility = if (!tv && rows.any { it.checkable }) View.VISIBLE else View.GONE
         b.removeAllBtn.visibility = if (Recordings.list(this).isEmpty()) View.GONE else View.VISIBLE
         adapter.submit(rows)
     }
@@ -90,6 +91,19 @@ class RecordingsActivity : AppCompatActivity() {
                 .putExtra("title", item.title)
                 .putExtra("noPlaylist", true)
         )
+    }
+
+    private fun showTvItemMenu(path: String, play: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setItems(arrayOf("▶  Play", "🗑  Delete")) { _, w ->
+                if (w == 0) { play() } else {
+                    Recordings.delete(this, path)
+                    android.widget.Toast.makeText(this, "Recording deleted", android.widget.Toast.LENGTH_SHORT).show()
+                    stack.last().invoke()
+                    while (stack.size > 1 && lastEmpty) { stack.removeLast(); stack.last().invoke() }
+                }
+            }
+            .show()
     }
 
     private fun removeSelected() {
@@ -139,7 +153,7 @@ class RecordingsActivity : AppCompatActivity() {
             holder.v.thumb.setImageResource(R.drawable.thumb_placeholder)
             holder.v.check.setOnCheckedChangeListener(null)
             val path = row.path
-            if (row.checkable && path != null) {
+            if (!tv && row.checkable && path != null) {
                 holder.v.check.visibility = View.VISIBLE
                 holder.v.check.isChecked = selected.contains(path)
                 holder.v.check.setOnCheckedChangeListener { _, isChecked ->
@@ -149,7 +163,10 @@ class RecordingsActivity : AppCompatActivity() {
                 holder.v.check.visibility = View.GONE
                 holder.v.check.isChecked = false
             }
-            holder.v.root.setOnClickListener { row.onClick() }
+            // On TV there's no touch checkbox; the remote's center opens a Play / Delete menu instead.
+            holder.v.root.setOnClickListener {
+                if (tv && row.checkable && path != null) showTvItemMenu(path, row.onClick) else row.onClick()
+            }
         }
     }
 }

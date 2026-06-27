@@ -526,6 +526,8 @@ class PlayerActivity : AppCompatActivity() {
         b.speedBtn.setOnClickListener { showSpeedDialog() }
         b.audioBtn.setOnClickListener { showAudioDialog() }
         b.pipBtn.setOnClickListener { enterPipFlow() }
+        // On TV, volume/brightness are the TV's, and overlay PiP isn't supported; hide them.
+        if (Tv.isTv(this)) { b.pipBtn.visibility = View.GONE; b.volBtn.visibility = View.GONE; b.brightBtn.visibility = View.GONE }
     }
 
     /** Shrink to the floating pop-up player (needs the "display over other apps" permission once). */
