@@ -3,6 +3,7 @@ package com.stalkertv.app
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import coil.load
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.stalkertv.app.databinding.ActivityChannelsBinding
@@ -313,7 +314,41 @@ class ChannelsActivity : AppCompatActivity() {
         b.loadingBar.progress = 0
         b.loadingPct.text = "0%"
         b.loadingMsg.text = msg
+        buildSplashMontage()
         b.loadingOverlay.visibility = View.VISIBLE
+    }
+
+    private var splashBuilt = false
+    /** Paint the splash backdrop with a grid of recent posters (Strimix-style). Empty on first launch. */
+    private fun buildSplashMontage() {
+        if (splashBuilt) return
+        val posters = Configs.splashPosters(this)
+        if (posters.isEmpty()) return
+        splashBuilt = true
+        val grid = b.splashGrid
+        val dm = resources.displayMetrics
+        val cell = (108 * dm.density).toInt().coerceAtLeast(1)
+        val cols = (dm.widthPixels / cell).coerceIn(3, 8)
+        val rows = (dm.heightPixels / cell + 1).coerceIn(3, 9)
+        val shuffled = posters.shuffled()
+        var idx = 0
+        val mp = android.view.ViewGroup.LayoutParams.MATCH_PARENT
+        for (r in 0 until rows) {
+            val row = android.widget.LinearLayout(this)
+            row.orientation = android.widget.LinearLayout.HORIZONTAL
+            row.layoutParams = android.widget.LinearLayout.LayoutParams(mp, 0, 1f)
+            for (c in 0 until cols) {
+                val iv = android.widget.ImageView(this)
+                iv.layoutParams = android.widget.LinearLayout.LayoutParams(0, mp, 1f)
+                iv.scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                iv.load(shuffled[idx % shuffled.size]) {
+                    placeholder(R.drawable.thumb_placeholder); error(R.drawable.thumb_placeholder)
+                }
+                idx++
+                row.addView(iv)
+            }
+            grid.addView(row)
+        }
     }
 
     /** Animate the bar and the counting % toward [pct] while showing [msg]. */
@@ -1269,6 +1304,8 @@ class ChannelsActivity : AppCompatActivity() {
                 b.status.visibility = if (pages <= 1) View.GONE else View.VISIBLE
                 if (pages > 1) b.status.text = "Loading all $pages pages…"
                 renderVodItems(0)
+                val posters = first.mapNotNull { it.posterUrl.ifBlank { null } }
+                if (posters.size >= 8) Configs.setSplashPosters(applicationContext, posters)
             }
             if (pages <= 1) return@execute
             // Fetch pages 2..N concurrently; cap as a runaway guard.

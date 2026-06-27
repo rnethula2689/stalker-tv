@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Radial vignette: clear in the centre (logo), darker toward the edges for depth. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:type="radial"
+        android:gradientRadius="75%p"
+        android:startColor="#00000000"
+        android:centerColor="#33000000"
+        android:endColor="#B3000000" />
+</shape>

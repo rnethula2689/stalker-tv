@@ -57,6 +57,13 @@ object Configs {
     fun ossKey(ctx: Context): String = prefs(ctx).getString("ossKey", "") ?: ""
     fun setOssKey(ctx: Context, key: String) { prefs(ctx).edit().putString("ossKey", key).apply() }
 
+    /** A handful of recent poster URLs, used to paint the loading splash montage (Strimix-style). */
+    fun splashPosters(ctx: Context): List<String> =
+        (prefs(ctx).getString("splashPosters", "") ?: "").split("\n").filter { it.isNotBlank() }
+    fun setSplashPosters(ctx: Context, urls: List<String>) {
+        prefs(ctx).edit().putString("splashPosters", urls.filter { it.isNotBlank() }.distinct().take(40).joinToString("\n")).apply()
+    }
+
     /** Sort order for folder contents (live channels & movies), shared across all folders.
      *  0 = Default (provider order: channel number / newest movies), 1 = Name A–Z, 2 = Name Z–A. */
     const val SORT_DEFAULT = 0

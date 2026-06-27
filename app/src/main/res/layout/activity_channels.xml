@@ -162,60 +162,86 @@
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
     </LinearLayout>
 
-    <!-- Loading splash: covers the screen while the portal connects / refreshes. -->
-    <LinearLayout
+    <!-- Loading splash: a darkened poster montage behind the logo (Strimix-style). -->
+    <FrameLayout
         android:id="@+id/loadingOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:background="@drawable/window_bg"
+        android:background="#0B0F14"
         android:clickable="true"
         android:focusable="true"
         android:visibility="gone">
 
-        <ImageView
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:src="@drawable/ic_launcher"
-            android:contentDescription="Stalker TV" />
+        <!-- Poster grid, filled in code from cached posters (empty on first ever launch). -->
+        <LinearLayout
+            android:id="@+id/splashGrid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Stalker TV"
-            android:textColor="#19c37d"
-            android:textSize="26sp"
-            android:textStyle="bold" />
+        <!-- Dark scrim so the posters read as a faint backdrop. -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#D9080B10" />
 
-        <ProgressBar
-            android:id="@+id/loadingBar"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="300dp"
-            android:layout_height="14dp"
-            android:layout_marginTop="28dp"
-            android:max="100"
-            android:progress="0"
-            android:progressDrawable="@drawable/progress_horizontal_green" />
+        <!-- Top vignette for depth -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/splash_vignette" />
 
-        <TextView
-            android:id="@+id/loadingPct"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="0%"
-            android:textColor="#19c37d"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center">
 
-        <TextView
-            android:id="@+id/loadingMsg"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Loading…"
-            android:textColor="#9fb0c0"
-            android:textSize="14sp" />
-    </LinearLayout>
+            <ImageView
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:src="@drawable/ic_launcher"
+                android:contentDescription="Stalker TV" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Stalker TV"
+                android:textColor="#19c37d"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08" />
+
+            <ProgressBar
+                android:id="@+id/loadingBar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="300dp"
+                android:layout_height="10dp"
+                android:layout_marginTop="28dp"
+                android:max="100"
+                android:progress="0"
+                android:progressDrawable="@drawable/progress_horizontal_green" />
+
+            <TextView
+                android:id="@+id/loadingPct"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="0%"
+                android:textColor="#19c37d"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/loadingMsg"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Loading…"
+                android:textColor="#9fb0c0"
+                android:textSize="14sp"
+                android:letterSpacing="0.05" />
+        </LinearLayout>
+    </FrameLayout>
 </FrameLayout>
