@@ -21,7 +21,7 @@ class ChannelsActivity : AppCompatActivity() {
     class FavInfo(val isFav: () -> Boolean, val toggle: () -> Boolean, val onAdded: (() -> Unit)? = null)
     data class Row(val label: String, val iconUrl: String?, val sortKey: String = "", val fav: FavInfo? = null, val isHeader: Boolean = false, val catchup: (() -> Unit)? = null, val rail: List<Card>? = null, val chip: Boolean = false, val action: () -> Unit)
     /** A poster/landscape card inside a home rail. */
-    data class Card(val title: String, val poster: String?, val progress: Int = -1, val landscape: Boolean = false, val onClick: () -> Unit)
+    data class Card(val title: String, val poster: String?, val progress: Int = -1, val landscape: Boolean = false, val onLongClick: (() -> Unit)? = null, val onClick: () -> Unit)
     enum class SearchKind { LOCAL, GLOBAL, CHANNELS, VOD_ALL, VOD_CATEGORY }
     data class Page(
         val title: String,
@@ -91,7 +91,6 @@ class ChannelsActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, a: Int, c: Int, d: Int) {}
         })
         b.clearBtn.setOnClickListener { b.search.setText(""); b.search.requestFocus() }
-        buildAzBar()
 
         b.searchBtn.setOnClickListener { toggleSearch() }
         b.reloadBtn.setOnClickListener { connectAndLoad(true) } // true = real portal reconnect, not a cache rebuild
@@ -885,7 +884,7 @@ class ChannelsActivity : AppCompatActivity() {
         val cw = Resume.all(this)
         if (cw.isNotEmpty()) rows.add(Row("Continue Watching", null, rail = cw.map { e ->
             val pct = if (e.duration > 0) (e.position * 100 / e.duration).toInt() else -1
-            Card(e.title, e.poster.ifBlank { null }, pct, landscape = true) { continueClick(e) }
+            Card(e.title, e.poster.ifBlank { null }, pct, landscape = true, onLongClick = { cwCardMenu(e) }) { continueClick(e) }
         }) {})
         val favs = Favorites.all(this)
         if (favs.isNotEmpty()) rows.add(Row("Favourites", null, rail = favs.map { e ->
@@ -898,6 +897,21 @@ class ChannelsActivity : AppCompatActivity() {
 
         // Destinations now live in the floating bottom tab bar (see onCreate / display).
         push(Page("Stalker TV", rows, kind = SearchKind.GLOBAL, rebuild = { showHome() }))
+    }
+
+    /** Long-press a Continue Watching card → remove just it, or clear the whole row. */
+    private fun cwCardMenu(e: Resume.Entry) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(e.title)
+            .setItems(arrayOf("🗑  Remove from Continue Watching", "🧹  Clear all Continue Watching")) { _, w ->
+                when (w) {
+                    0 -> { Resume.remove(this, e.id); showHome() }
+                    1 -> androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Clear all Continue Watching?")
+                        .setPositiveButton("Clear all") { _, _ -> Resume.clearAll(this); showHome() }
+                        .setNegativeButton("Cancel", null).show()
+                }
+            }.show()
     }
 
     /** Open a favourite card from the home rail (movie → play, series → seasons). */

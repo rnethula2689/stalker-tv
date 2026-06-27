@@ -181,6 +181,7 @@ class RowAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 holder.b.cardProgress.progress = card.progress
             } else holder.b.cardProgress.visibility = View.GONE
             holder.b.cardRoot.setOnClickListener { card.onClick() }
+            holder.b.cardRoot.setOnLongClickListener { card.onLongClick?.invoke(); card.onLongClick != null }
         }
     }
 }

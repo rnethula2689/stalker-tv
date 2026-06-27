@@ -126,11 +126,14 @@
                 android:background="@drawable/item_bg" />
         </LinearLayout>
 
+        <!-- A–Z/0–9 bar removed after the home/grid redesign (Sort A–Z + Filter + Search cover it). -->
         <HorizontalScrollView
+            android:id="@+id/azScroll"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:scrollbars="none">
+            android:scrollbars="none"
+            android:visibility="gone">
 
             <LinearLayout
                 android:id="@+id/azBar"
@@ -238,8 +241,9 @@
         <LinearLayout
             android:layout_width="320dp"
             android:layout_height="match_parent"
+            android:layout_margin="14dp"
             android:orientation="vertical"
-            android:background="#D90E141B"
+            android:background="@drawable/frosted_panel"
             android:padding="18dp">
 
             <TextView
