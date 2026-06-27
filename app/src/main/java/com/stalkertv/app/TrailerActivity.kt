@@ -26,6 +26,7 @@ class TrailerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         videoId = intent.getStringExtra("videoId") ?: ""
+        videoId = "aqz-KE-bpKQ" // TEMP DIAGNOSTIC: known-embeddable video to test the player itself
         if (videoId.isBlank()) { finish(); return }
 
         val container = FrameLayout(this).apply { setBackgroundColor(0xFF000000.toInt()) }
