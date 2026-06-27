@@ -466,18 +466,31 @@ class LiveGridActivity : AppCompatActivity() {
         ).show()
     }
 
+    /** Open Multi-view, pre-loading the current channel + the next one for an instant 2-up. */
+    private fun openMultiView() {
+        MultiViewActivity.channels = all
+        val start = ArrayList<Portal.Channel>()
+        current?.let { start.add(it) }
+        val idx = all.indexOfFirst { it.id == current?.id }
+        val next = if (idx in 0 until all.size - 1) all[idx + 1] else all.firstOrNull { it.id != current?.id }
+        if (next != null) start.add(next)
+        MultiViewActivity.startChannels = start
+        startActivity(Intent(this, MultiViewActivity::class.java))
+    }
+
     private var menuDialog: androidx.appcompat.app.AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("🔄   Refresh", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("⊞   Multi-view", "🔄   Refresh", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> refreshGrid()
-                    1 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    2 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
-                    3 -> About.show(this)
-                    4 -> finishAffinity()
+                    0 -> openMultiView()
+                    1 -> refreshGrid()
+                    2 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    3 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
+                    4 -> About.show(this)
+                    5 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }
