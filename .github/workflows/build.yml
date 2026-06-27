@@ -37,7 +37,7 @@ jobs:
           cat latest_version.json
 
       - name: Build debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: gradle assembleDebug -PtmdbKey="${{ secrets.TMDB_KEY }}" --no-daemon --stacktrace
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

@@ -618,31 +618,64 @@ class ChannelsActivity : AppCompatActivity() {
             .show()
     }
 
-    /** Open YouTube on a search for the title's trailer — keyless, works on TV + tablet.
-     *  Phones/tablets/browsers carry the query fine via a results URL, but the Fire TV / Android TV
-     *  YouTube apps ignore that URL's query (open empty), so on TV we fire an in-app SEARCH intent
-     *  with the query as an extra, trying each known YouTube package, before any URL fallback. */
+    /** Play the title's trailer. With a TMDb key we resolve the EXACT trailer video and open it
+     *  directly (a watch URL — which the Fire TV YouTube app opens reliably, unlike a search).
+     *  Without a key (or no match) we fall back to a YouTube search. */
     private fun watchTrailer(title: String, year: String) {
+        val clean = cleanTitleForSearch(title)
+        val key = BuildConfig.TMDB_KEY
+        if (key.isNotBlank()) {
+            android.widget.Toast.makeText(this, "Finding trailer…", android.widget.Toast.LENGTH_SHORT).show()
+            io.execute {
+                val vid = Tmdb.trailerYoutubeId(key, clean, year)
+                runOnUiThread {
+                    if (vid != null) openYouTubeVideo(vid) else openYouTubeSearch(clean, year)
+                }
+            }
+        } else {
+            openYouTubeSearch(clean, year)
+        }
+    }
+
+    /** Open a specific YouTube video (works on Fire TV + tablet). */
+    private fun openYouTubeVideo(videoId: String) {
+        val url = "https://www.youtube.com/watch?v=$videoId"
+        val attempts = listOf(
+            Intent(Intent.ACTION_VIEW, android.net.Uri.parse("vnd.youtube:$videoId")),
+            Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+        )
+        for (i in attempts) try { startActivity(i); return } catch (_: Exception) {}
+        android.widget.Toast.makeText(this, "Couldn't open the trailer.", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    /** Fallback: a YouTube search for the trailer (reliable on tablet/browser; best-effort on TV). */
+    private fun openYouTubeSearch(title: String, year: String) {
         val q = (title.trim() + (if (year.isNotBlank()) " $year" else "") + " trailer").trim()
         val enc = android.net.Uri.encode(q)
         val resultsUrl = "https://www.youtube.com/results?search_query=$enc"
         val ytPkgs = listOf("com.amazon.firetv.youtube", "com.google.android.youtube.tv", "com.google.android.youtube")
         val attempts = ArrayList<Intent>()
         if (Tv.isTv(this)) {
-            // In-app search carrying the query (the reliable path for TV YouTube apps).
             for (p in ytPkgs) attempts.add(
                 Intent(Intent.ACTION_SEARCH).setPackage(p)
                     .putExtra(android.app.SearchManager.QUERY, q).putExtra("query", q)
             )
-            // Some TV builds do honour the results URL when explicitly targeted at their package.
             for (p in ytPkgs) attempts.add(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(resultsUrl)).setPackage(p))
         }
-        // Universal fallback: tablet YouTube / browser carry the query in the URL fine.
         attempts.add(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(resultsUrl)))
-        for (i in attempts) {
-            try { startActivity(i); return } catch (_: Exception) { /* try next */ }
-        }
+        for (i in attempts) try { startActivity(i); return } catch (_: Exception) {}
         android.widget.Toast.makeText(this, "No app available to play the trailer.", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    /** Strip portal cruft ("- TELUGU | DUBB MOVIES", "(English)", "[HD]") to a clean movie title for lookup. */
+    private fun cleanTitleForSearch(raw: String): String {
+        var s = raw
+        val dash = s.indexOf(" - ")
+        if (dash > 0) s = s.substring(0, dash)
+        s = s.replace(Regex("\\([^)]*\\)"), " ").replace(Regex("\\[[^\\]]*\\]"), " ")
+        s = s.substringBefore("|")
+        s = s.replace(Regex("\\s+"), " ").trim()
+        return s.ifBlank { raw.trim() }
     }
 
     /** Description + cast/runtime/etc., all from the portal's own metadata.
