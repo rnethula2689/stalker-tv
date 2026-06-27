@@ -162,6 +162,69 @@
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
     </LinearLayout>
 
+    <!-- Floating bottom tab bar (home only). -->
+    <LinearLayout
+        android:id="@+id/bottomNav"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="16dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/bottom_nav_bg"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="6dp"
+        android:visibility="gone">
+
+        <LinearLayout android:id="@+id/navLive" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="vertical" android:gravity="center" android:layout_marginHorizontal="3dp"
+            android:paddingHorizontal="12dp" android:paddingVertical="8dp" android:focusable="true" android:clickable="true"
+            android:background="@drawable/item_bg">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📺" android:textSize="20sp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Live TV" android:textSize="9sp" android:textColor="#9fb0c0" android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/navMovies" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="vertical" android:gravity="center" android:layout_marginHorizontal="3dp"
+            android:paddingHorizontal="12dp" android:paddingVertical="8dp" android:focusable="true" android:clickable="true"
+            android:background="@drawable/item_bg">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🎬" android:textSize="20sp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Movies" android:textSize="9sp" android:textColor="#9fb0c0" android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/navFav" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="vertical" android:gravity="center" android:layout_marginHorizontal="3dp"
+            android:paddingHorizontal="12dp" android:paddingVertical="8dp" android:focusable="true" android:clickable="true"
+            android:background="@drawable/item_bg">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⭐" android:textSize="20sp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Favourites" android:textSize="9sp" android:textColor="#9fb0c0" android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/navWatch" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="vertical" android:gravity="center" android:layout_marginHorizontal="3dp"
+            android:paddingHorizontal="12dp" android:paddingVertical="8dp" android:focusable="true" android:clickable="true"
+            android:background="@drawable/item_bg">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🕒" android:textSize="20sp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Watch Later" android:textSize="9sp" android:textColor="#9fb0c0" android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/navRec" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="vertical" android:gravity="center" android:layout_marginHorizontal="3dp"
+            android:paddingHorizontal="12dp" android:paddingVertical="8dp" android:focusable="true" android:clickable="true"
+            android:background="@drawable/item_bg">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⏺" android:textSize="20sp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Recordings" android:textSize="9sp" android:textColor="#9fb0c0" android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/navDl" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="vertical" android:gravity="center" android:layout_marginHorizontal="3dp"
+            android:paddingHorizontal="12dp" android:paddingVertical="8dp" android:focusable="true" android:clickable="true"
+            android:background="@drawable/item_bg">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⬇" android:textSize="20sp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Downloads" android:textSize="9sp" android:textColor="#9fb0c0" android:layout_marginTop="2dp" />
+        </LinearLayout>
+    </LinearLayout>
+
     <!-- Loading splash: a darkened poster montage behind the logo (Strimix-style). -->
     <FrameLayout
         android:id="@+id/loadingOverlay"

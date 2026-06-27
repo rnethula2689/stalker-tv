@@ -92,6 +92,15 @@ class ChannelsActivity : AppCompatActivity() {
         b.filterBtn.setOnClickListener { showFilterDialog() }
         b.menuBtn.setOnClickListener { showMenu() }
 
+        // Floating bottom tab bar (home only).
+        b.navLive.setOnClickListener { showLiveGenres() }
+        b.navMovies.setOnClickListener { showVodCategories() }
+        b.navFav.setOnClickListener { showFavouritesHome() }
+        b.navWatch.setOnClickListener { startActivity(Intent(this, WatchLaterActivity::class.java)) }
+        b.navRec.setOnClickListener { startActivity(Intent(this, RecordingsActivity::class.java)) }
+        b.navDl.setOnClickListener { startActivity(Intent(this, DownloadsActivity::class.java)) }
+        b.list.clipToPadding = false
+
         registerForegroundWatch()
         maybeRequestNotifications()
         connectAndLoad()
@@ -496,6 +505,10 @@ class ChannelsActivity : AppCompatActivity() {
             SearchKind.LOCAL -> "Filter…"
         }
         adapter.submit(page.rows)
+        // Floating bottom nav only on the home (top level); pad the list so rails clear the bar.
+        val atHome = backStack.size <= 1
+        b.bottomNav.visibility = if (atHome) View.VISIBLE else View.GONE
+        b.list.setPadding(0, 0, 0, if (atHome) (96 * resources.displayMetrics.density).toInt() else 0)
         // Filter + Sort apply inside a movie category (also covers its A–Z and in-folder search).
         val vodList = page.kind == SearchKind.VOD_CATEGORY
         b.sortBtn.visibility = if (vodList) View.VISIBLE else View.GONE
@@ -872,14 +885,7 @@ class ChannelsActivity : AppCompatActivity() {
             Card(e.title, e.poster.ifBlank { null }) { play(e.title, e.id, e.poster, e.source) }
         }) {})
 
-        // Destinations (full browse).
-        rows.add(Row("📺   Live TV", null) { showLiveGenres() })
-        rows.add(Row("🎬   Movies (VOD)", null) { showVodCategories() })
-        rows.add(Row("⭐   Favourites", null) { showFavouritesHome() })
-        val recN = Recordings.list(this).size
-        if (recN > 0) rows.add(Row("⏺   Recordings  ($recN)", null) { startActivity(Intent(this, RecordingsActivity::class.java)) })
-        if (wl.isNotEmpty()) rows.add(Row("🕒   Watch Later  (${wl.size})", null) { startActivity(Intent(this, WatchLaterActivity::class.java)) })
-        rows.add(Row("⬇   Downloads", null) { startActivity(Intent(this, DownloadsActivity::class.java)) })
+        // Destinations now live in the floating bottom tab bar (see onCreate / display).
         push(Page("Stalker TV", rows, kind = SearchKind.GLOBAL, rebuild = { showHome() }))
     }
 
