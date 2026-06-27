@@ -91,6 +91,7 @@ class ChannelsActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, a: Int, c: Int, d: Int) {}
         })
         b.clearBtn.setOnClickListener { b.search.setText(""); b.search.requestFocus() }
+        buildAzBar() // shown only inside a movie folder (see display())
 
         b.searchBtn.setOnClickListener { toggleSearch() }
         b.reloadBtn.setOnClickListener { connectAndLoad(true) } // true = real portal reconnect, not a cache rebuild
@@ -522,6 +523,7 @@ class ChannelsActivity : AppCompatActivity() {
         val vodList = page.kind == SearchKind.VOD_CATEGORY
         b.sortBtn.visibility = if (vodList) View.VISIBLE else View.GONE
         b.filterBtn.visibility = if (vodList) View.VISIBLE else View.GONE
+        b.azScroll.visibility = if (vodList) View.VISIBLE else View.GONE // A–Z only inside a movie folder
         if (vodList) updateVodButtons()
         if (b.search.text.isNotEmpty()) b.search.setText("")
         b.searchRow.visibility = View.GONE
