@@ -39,7 +39,7 @@ object Portal {
         val description: String = "", val year: String = "", val imdb: String = "",
         val director: String = "", val actors: String = "", val genre: String = "",
         val runtimeMin: String = "", val country: String = "", val age: String = "", val origName: String = "",
-        val hd: Boolean = false
+        val hd: Boolean = false, val added: String = ""
     )
     data class Season(val id: String, val name: String)
     data class Episode(val id: String, val name: String)
@@ -343,7 +343,8 @@ object Portal {
                 country = clean(o.optString("country")),
                 age = clean(o.optString("age").ifBlank { o.optString("rating_mpaa") }),
                 origName = clean(o.optString("o_name")),
-                hd = o.optInt("hd", 0) == 1
+                hd = o.optInt("hd", 0) == 1,
+                added = clean(o.optString("added"))
             ))
         }
     }

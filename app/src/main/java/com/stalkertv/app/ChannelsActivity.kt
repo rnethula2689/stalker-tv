@@ -37,6 +37,20 @@ class ChannelsActivity : AppCompatActivity() {
     private var genres = listOf<Portal.Genre>()
     private var byGenre = mapOf<String, List<Portal.Channel>>()
     private var vodCats = listOf<Portal.VodCat>() // cached so Movies rebuilds in-memory
+
+    // --- Movie list filter/sort state (the current VOD_CATEGORY view) ---
+    private var vodBase = listOf<Portal.VodItem>()   // loaded items backing the current movie list
+    private var vodCat: Portal.VodCat? = null         // set when paginated (null for search / A–Z views)
+    private var vodCatRef: Portal.VodCat? = null      // the category being browsed (for "ALL" / clear search)
+    private var vodLoaded = 0
+    private var vodTotal = 0
+    private var vodFilterAttr: String? = null         // Genre | Year | Decade | Age | Country | HD | Type
+    private var vodFilterVal: String? = null
+    private var vodSortKey = "default"                // default | az | za | year_desc | year_asc | run_asc | run_desc
+    private val vodSortLabels = linkedMapOf(
+        "default" to "Newest", "az" to "A–Z", "za" to "Z–A",
+        "year_desc" to "Year ↓", "year_asc" to "Year ↑", "run_asc" to "Shortest", "run_desc" to "Longest"
+    )
     private var welcomeShown = false
     private var updateChecked = false
 
@@ -69,7 +83,8 @@ class ChannelsActivity : AppCompatActivity() {
 
         b.searchBtn.setOnClickListener { toggleSearch() }
         b.reloadBtn.setOnClickListener { connectAndLoad(true) } // true = real portal reconnect, not a cache rebuild
-        b.sortBtn.setOnClickListener { cycleVodSort() }
+        b.sortBtn.setOnClickListener { showSortDialog() }
+        b.filterBtn.setOnClickListener { showFilterDialog() }
         b.menuBtn.setOnClickListener { showMenu() }
 
         registerForegroundWatch()
@@ -169,17 +184,14 @@ class ChannelsActivity : AppCompatActivity() {
     private fun azFilter(letter: String?) {
         if (b.search.text.isNotEmpty()) b.search.setText("")
         val page = backStack.lastOrNull() ?: return
-        if (letter == null) {
-            adapter.submit(page.rows)
-            return
-        }
-        // Movie folders: ask the portal for every title starting with this letter (complete, not just loaded).
+        // Movie folders: ALL reloads the category; a letter fetches every matching title (filter/sort then apply).
         if (page.kind == SearchKind.VOD_CATEGORY && page.scopeId != null) {
-            val cat = page.scopeId
+            val cat = vodCatRef ?: Portal.VodCat(page.scopeId, page.title)
+            if (letter == null) { loadVodPage1(cat); return }
             b.status.visibility = View.VISIBLE
             b.status.text = "Loading “$letter”…"
             io.execute {
-                val items = Portal.vodByLetter(cat, letter)
+                val items = Portal.vodByLetter(cat.id, letter)
                 runOnUiThread {
                     if (items.isEmpty()) {
                         b.status.visibility = View.VISIBLE
@@ -187,10 +199,17 @@ class ChannelsActivity : AppCompatActivity() {
                     } else {
                         b.status.visibility = View.GONE
                     }
-                    adapter.submit(items.map { vodItemRow(it) })
+                    vodBase = items; vodCat = null; vodLoaded = 0; vodTotal = 0
+                    renderVodItems(0)
                 }
             }
-        } else {
+            return
+        }
+        if (letter == null) {
+            adapter.submit(page.rows)
+            return
+        }
+        run {
             // Channels / genres / categories are all in memory — filter locally.
             adapter.submit(page.rows.filter { it.sortKey.trimStart().startsWith(letter, ignoreCase = true) })
         }
@@ -436,9 +455,11 @@ class ChannelsActivity : AppCompatActivity() {
             SearchKind.LOCAL -> "Filter…"
         }
         adapter.submit(page.rows)
-        // The ⇅ sort button only applies inside a movie category.
-        b.sortBtn.visibility = if (page.kind == SearchKind.VOD_CATEGORY) View.VISIBLE else View.GONE
-        updateSortBtn()
+        // Filter + Sort apply inside a movie category (also covers its A–Z and in-folder search).
+        val vodList = page.kind == SearchKind.VOD_CATEGORY
+        b.sortBtn.visibility = if (vodList) View.VISIBLE else View.GONE
+        b.filterBtn.visibility = if (vodList) View.VISIBLE else View.GONE
+        if (vodList) updateVodButtons()
         if (b.search.text.isNotEmpty()) b.search.setText("")
         b.searchRow.visibility = View.GONE
         val pos = focusPos.coerceIn(0, (page.rows.size - 1).coerceAtLeast(0))
@@ -748,9 +769,15 @@ class ChannelsActivity : AppCompatActivity() {
     /** VOD search — all categories if catId is null, else scoped to that folder. */
     private fun vodSearchUi(q: String, catId: String?, page: Page) {
         val query = q.trim()
+        val inCategory = page.kind == SearchKind.VOD_CATEGORY
         pendingSearch?.let { searchHandler.removeCallbacks(it) }
         searchSeq++
-        if (query.isEmpty()) { b.status.visibility = View.GONE; adapter.submit(page.rows); return }
+        if (query.isEmpty()) {
+            b.status.visibility = View.GONE
+            // Clearing the search in a category restores its full (filter/sort-aware) list.
+            if (inCategory && vodCatRef != null) loadVodPage1(vodCatRef!!) else adapter.submit(page.rows)
+            return
+        }
         if (query.length < 2) return
         b.status.visibility = View.VISIBLE
         b.status.text = "Searching…"
@@ -760,10 +787,15 @@ class ChannelsActivity : AppCompatActivity() {
                 val vod = if (catId == null) Portal.vodSearch(query) else Portal.vodSearchInCategory(catId, query)
                 runOnUiThread {
                     if (seq != searchSeq) return@runOnUiThread
-                    val rows = vod.map { vodItemRow(it) }
-                    b.status.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
-                    if (rows.isEmpty()) b.status.text = "No results for “$query”."
-                    adapter.submit(rows)
+                    if (vod.isEmpty()) { b.status.visibility = View.VISIBLE; b.status.text = "No results for “$query”." }
+                    else b.status.visibility = View.GONE
+                    if (inCategory) {
+                        // Search results become the working set so Filter/Sort apply on top of them.
+                        vodBase = vod; vodCat = null; vodLoaded = 0; vodTotal = 0
+                        renderVodItems(0)
+                    } else {
+                        adapter.submit(vod.map { vodItemRow(it) })
+                    }
                 }
             }
         }
@@ -978,24 +1010,6 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun showChannels(list: List<Portal.Channel>, title: String) {
         push(Page(title, list.map { channelRow(it) }, kind = SearchKind.CHANNELS, scopeChannels = list))
-    }
-
-    /** ⇅ button (movie category): cycle Default → A–Z → Z–A and reload this category from page 1. */
-    private fun cycleVodSort() {
-        val page = backStack.lastOrNull() ?: return
-        if (page.kind != SearchKind.VOD_CATEGORY || page.scopeId == null) return
-        Configs.cycleSortMode(this)
-        updateSortBtn()
-        backStack.removeLast() // replace the current category page with a freshly-sorted one
-        showVodList(Portal.VodCat(page.scopeId!!, page.title))
-    }
-
-    private fun updateSortBtn() {
-        b.sortBtn.text = when (Configs.sortMode(this)) {
-            Configs.SORT_AZ -> "⇅ A–Z"
-            Configs.SORT_ZA -> "⇅ Z–A"
-            else -> "⇅ New"
-        }
     }
 
     private fun showVodCategories() {
@@ -1227,48 +1241,158 @@ class ChannelsActivity : AppCompatActivity() {
         )
     }
 
-    /** Server-side order for the current global sort. Default = newest ("added"); A–Z/Z–A both fetch
-     *  "name" (ascending) and Z–A is reversed client-side (the portal has no descending option). */
-    private fun vodSortby(): String = if (Configs.sortMode(this) == Configs.SORT_DEFAULT) "added" else "name"
-    private fun orderedVod(acc: List<Portal.VodItem>): List<Portal.VodItem> =
-        if (Configs.sortMode(this) == Configs.SORT_ZA) acc.reversed() else acc
-
+    /** Enter a movie category: one page on the stack; A–Z / search / filter / sort all swap the
+     *  loaded set in place rather than pushing more pages. Sort/filter are client-side over what's
+     *  loaded — "Load all" pulls every page first for complete results. */
     private fun showVodList(cat: Portal.VodCat) {
+        vodCatRef = cat
+        vodFilterAttr = null; vodFilterVal = null // a fresh category starts unfiltered (sort persists)
+        push(Page(cat.title, emptyList(), kind = SearchKind.VOD_CATEGORY, scopeId = cat.id, rebuild = { showVodList(cat) }))
+        loadVodPage1(cat)
+    }
+
+    private fun loadVodPage1(cat: Portal.VodCat) {
         b.status.visibility = View.VISIBLE
         b.status.text = "Loading ${cat.title}…"
         io.execute {
-            val (items, pages) = Portal.vodList(cat.id, 1, vodSortby())
+            val (items, pages) = Portal.vodList(cat.id, 1, "added")
             runOnUiThread {
                 b.status.visibility = View.GONE
-                push(Page(cat.title, vodRows(cat, ArrayList(items), 1, pages), kind = SearchKind.VOD_CATEGORY, scopeId = cat.id))
+                vodBase = items; vodCat = cat; vodLoaded = 1; vodTotal = pages
+                renderVodItems(0)
             }
         }
     }
 
-    private fun vodRows(cat: Portal.VodCat, acc: ArrayList<Portal.VodItem>, loaded: Int, total: Int): List<Row> {
-        val rows = ArrayList<Row>()
-        orderedVod(acc).forEach { v -> rows.add(vodItemRow(v)) }
-        if (loaded < total) {
-            rows.add(Row("⬇  Load more  ($loaded/$total)", null) {
-                // Where the "Load more" row currently sits == where the first new item will land,
-                // so we can keep the cursor here instead of snapping back to the first movie.
-                val resumeAt = (backStack.lastOrNull()?.rows?.size ?: 1) - 1
-                b.status.visibility = View.VISIBLE
-                b.status.text = "Loading…"
-                io.execute {
-                    val (more, _) = Portal.vodList(cat.id, loaded + 1, vodSortby())
-                    runOnUiThread {
-                        b.status.visibility = View.GONE
-                        acc.addAll(more)
-                        val page = Page(cat.title, vodRows(cat, acc, loaded + 1, total), kind = SearchKind.VOD_CATEGORY, scopeId = cat.id)
-                        backStack.removeLast()
-                        backStack.addLast(page)
-                        display(page, resumeAt)
-                    }
-                }
-            })
+    /** Load the next page (or every remaining page when [all]) and append to the current set. */
+    private fun vodLoadMore(all: Boolean) {
+        val cat = vodCat ?: return
+        val resumeAt = (adapter.itemCount - 1).coerceAtLeast(0)
+        b.status.visibility = View.VISIBLE
+        b.status.text = if (all) "Loading all…" else "Loading…"
+        io.execute {
+            val acc = ArrayList(vodBase)
+            val target = if (all) vodTotal else vodLoaded + 1
+            var loaded = vodLoaded
+            for (p in (vodLoaded + 1)..target) {
+                val (more, _) = Portal.vodList(cat.id, p, "added")
+                acc.addAll(more); loaded = p
+            }
+            runOnUiThread {
+                b.status.visibility = View.GONE
+                vodBase = acc; vodLoaded = loaded
+                renderVodItems(resumeAt)
+            }
         }
-        return rows
+    }
+
+    /** Apply the active filter + sort to the loaded set and render (rows + Load more / Load all). */
+    private fun renderVodItems(focusPos: Int) {
+        val filtered = vodBase.filter { vodMatches(it) }
+        val sorted = vodSortApply(filtered)
+        val rows = ArrayList<Row>()
+        sorted.forEach { rows.add(vodItemRow(it)) }
+        if (vodCat != null && vodLoaded < vodTotal) {
+            rows.add(Row("⬇  Load more  ($vodLoaded/$vodTotal pages)", null) { vodLoadMore(false) })
+            rows.add(Row("⬇  Load all  (for complete filter / sort)", null) { vodLoadMore(true) })
+        }
+        adapter.submit(rows)
+        val pos = focusPos.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
+        b.list.scrollToPosition(pos)
+        b.list.post {
+            val vh = b.list.findViewHolderForAdapterPosition(pos)
+            if (vh != null) vh.itemView.requestFocus() else if (!b.list.hasFocus()) b.list.requestFocus()
+        }
+        updateVodButtons()
+    }
+
+    private fun vodDecade(year: String): String {
+        val y = year.toIntOrNull() ?: return ""
+        return "${(y / 10) * 10}s"
+    }
+
+    private fun vodMatches(v: Portal.VodItem): Boolean {
+        val attr = vodFilterAttr ?: return true
+        val value = vodFilterVal ?: return true
+        return when (attr) {
+            "Genre" -> v.genre == value
+            "Year" -> v.year == value
+            "Decade" -> vodDecade(v.year) == value
+            "Age" -> v.age == value
+            "Country" -> v.country.split(",").map { it.trim() }.any { it == value }
+            "HD" -> (if (v.hd) "HD" else "SD") == value
+            "Type" -> (if (v.isSeries) "Series" else "Movies") == value
+            else -> true
+        }
+    }
+
+    private fun vodSortApply(list: List<Portal.VodItem>): List<Portal.VodItem> = when (vodSortKey) {
+        "az" -> list.sortedBy { it.name.trim().lowercase() }
+        "za" -> list.sortedByDescending { it.name.trim().lowercase() }
+        "year_desc" -> list.sortedByDescending { it.year.toIntOrNull() ?: 0 }
+        "year_asc" -> list.sortedBy { it.year.toIntOrNull() ?: Int.MAX_VALUE }
+        "run_asc" -> list.sortedBy { it.runtimeMin.toIntOrNull() ?: Int.MAX_VALUE }
+        "run_desc" -> list.sortedByDescending { it.runtimeMin.toIntOrNull() ?: 0 }
+        else -> list // "default" = the portal's newest-first order, as loaded
+    }
+
+    private fun updateVodButtons() {
+        b.sortBtn.text = "⇅ ${vodSortLabels[vodSortKey] ?: "Sort"}"
+        b.filterBtn.text = if (vodFilterAttr != null) "⛃ ${vodFilterVal}" else "⛃ Filter"
+    }
+
+    /** Sort: one dialog with every option (client-side over the loaded set). */
+    private fun showSortDialog() {
+        val keys = vodSortLabels.keys.toList()
+        val labels = vodSortLabels.values.toTypedArray()
+        val cur = keys.indexOf(vodSortKey).coerceAtLeast(0)
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Sort movies")
+            .setSingleChoiceItems(labels, cur) { d, w ->
+                vodSortKey = keys[w]; d.dismiss(); renderVodItems(0)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Filter: pick an attribute, then one of its values present in the loaded set (single-select). */
+    private fun showFilterDialog() {
+        val attrs = listOf("Genre", "Year", "Decade", "Age", "Country", "HD", "Type")
+        val items = (if (vodFilterAttr != null) listOf("✖  Clear filter") else emptyList()) + attrs
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Filter by")
+            .setItems(items.toTypedArray()) { _, w ->
+                val pick = items[w]
+                if (pick.startsWith("✖")) { vodFilterAttr = null; vodFilterVal = null; renderVodItems(0) }
+                else showFilterValues(pick)
+            }
+            .show()
+    }
+
+    private fun showFilterValues(attr: String) {
+        val values: List<String> = when (attr) {
+            "Genre" -> vodBase.map { it.genre }.filter { it.isNotBlank() }.distinct().sorted()
+            "Year" -> vodBase.map { it.year }.filter { it.isNotBlank() }.distinct().sortedByDescending { it.toIntOrNull() ?: 0 }
+            "Decade" -> vodBase.map { vodDecade(it.year) }.filter { it.isNotBlank() }.distinct().sortedDescending()
+            "Age" -> vodBase.map { it.age }.filter { it.isNotBlank() }.distinct().sorted()
+            "Country" -> vodBase.flatMap { it.country.split(",") }.map { it.trim() }.filter { it.isNotBlank() }.distinct().sorted()
+            "HD" -> listOf("HD", "SD")
+            "Type" -> listOf("Movies", "Series")
+            else -> emptyList()
+        }
+        if (values.isEmpty()) {
+            android.widget.Toast.makeText(this, "No “$attr” data in the loaded titles. Try Load all first.", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val arr = values.toTypedArray()
+        val cur = if (vodFilterAttr == attr) values.indexOf(vodFilterVal) else -1
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(attr)
+            .setSingleChoiceItems(arr, cur) { d, w ->
+                vodFilterAttr = attr; vodFilterVal = values[w]; d.dismiss(); renderVodItems(0)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showSeasons(series: Portal.VodItem) {

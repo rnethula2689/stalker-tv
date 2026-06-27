@@ -83,9 +83,9 @@ class PlayerActivity : AppCompatActivity() {
                 b.topBar.visibility = visibility
                 if (visibility == View.VISIBLE) {
                     hideDefaultGear()
-                    // Don't let a control pre-highlight on TV; keep focus on the surface until the
-                    // user presses a direction to move into the top bar.
-                    if (Tv.isTv(this)) b.playerView.post { b.playerView.requestFocus() }
+                    // On TV, focus the top option bar (not the centre transport) so the icons are
+                    // reachable with the remote and nothing in the middle of the screen is highlighted.
+                    if (Tv.isTv(this)) b.topBar.post { b.topBar.requestFocus() }
                 } else {
                     b.volumePanel.visibility = View.GONE
                     b.brightnessPanel.visibility = View.GONE
@@ -133,13 +133,6 @@ class PlayerActivity : AppCompatActivity() {
         if (resumeId.isNotBlank() && !isLive) resumeHandler.postDelayed(resumeSaver, 10_000)
 
         b.playerView.controllerShowTimeoutMs = 6000
-        if (Tv.isTv(this)) {
-            // FOCUS_BEFORE_DESCENDANTS lets the PlayerView itself hold focus (no highlight) instead of
-            // a child control; D-pad still navigates into the controls on the next key press.
-            b.playerView.descendantFocusability = android.view.ViewGroup.FOCUS_BEFORE_DESCENDANTS
-            b.playerView.isFocusable = true
-            b.playerView.isFocusableInTouchMode = true
-        }
         b.playerView.requestFocus()
         goImmersive()
         b.playerView.post { hideDefaultGear() }
@@ -651,7 +644,13 @@ class PlayerActivity : AppCompatActivity() {
                 Resume.remove(applicationContext, id)
                 finish()
             }
-            .setNegativeButton("Keep") { _, _ -> finish() }
+            .setNegativeButton("Keep") { _, _ ->
+                // Keep it in Continue Watching: a finished (~end) position would be auto-dropped, so
+                // re-save it (reset to start = a clean re-watch entry) and stop onStop overwriting it.
+                resumeId = ""
+                Resume.save(applicationContext, id, "vod", titleText, resumePoster, resumeSource, 0L, player?.duration ?: 0L)
+                finish()
+            }
             .show()
     }
 
