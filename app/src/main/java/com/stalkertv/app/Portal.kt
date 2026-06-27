@@ -67,6 +67,11 @@ object Portal {
         return sb.toString()
     }
 
+    /** Portal origin (e.g. http://host:port) so image requests can be matched & authed like Strimix does. */
+    fun imgHost(): String = host
+    /** Session cookie (mac + captured portal cookies) to send when fetching portal poster images. */
+    fun imgCookie(): String = cookie()
+
     private fun get(url: String, auth: Boolean): String {
         val rb = Request.Builder().url(url)
             .header("User-Agent", UA)

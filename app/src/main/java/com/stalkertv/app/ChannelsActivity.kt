@@ -63,6 +63,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        PosterLoader.install(this) // auth poster requests to the portal so thumbnails load reliably
         b = ActivityChannelsBinding.inflate(layoutInflater)
         setContentView(b.root)
         // One grid for everything: category chips and movie posters tile in columns, while normal
