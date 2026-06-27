@@ -5,6 +5,7 @@
     android:background="@drawable/window_bg">
 
     <LinearLayout
+        android:id="@+id/contentRoot"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"

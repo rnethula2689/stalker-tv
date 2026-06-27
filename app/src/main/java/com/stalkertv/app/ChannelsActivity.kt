@@ -50,6 +50,7 @@ class ChannelsActivity : AppCompatActivity() {
     private var vodTotal = 0
     private var vodFilterAttr: String? = null         // Genre | Year | Decade | Age | Country | HD | Type
     private var vodFilterVal: String? = null
+    private var vodLetter: String? = null             // A–Z sub-search applied on top of the filter
     private var vodSortKey = "default"                // default | za | az | year_desc | year_asc | run_asc | run_desc
     private var vodLoadSeq = 0                         // cancels a stale all-pages load when the list changes
     private val pageIo = Executors.newFixedThreadPool(8) // parallel page fetches (fast "load all")
@@ -222,27 +223,10 @@ class ChannelsActivity : AppCompatActivity() {
     private fun azFilter(letter: String?) {
         if (b.search.text.isNotEmpty()) b.search.setText("")
         val page = backStack.lastOrNull() ?: return
-        // Movie folders: ALL reloads the category; a letter fetches every matching title (filter/sort then apply).
-        if (page.kind == SearchKind.VOD_CATEGORY && page.scopeId != null) {
-            val cat = vodCatRef ?: Portal.VodCat(page.scopeId, page.title)
-            if (letter == null) { loadVodAll(cat); return }
-            val seq = ++vodLoadSeq // cancel any in-flight "load all"
-            b.status.visibility = View.VISIBLE
-            b.status.text = "Loading “$letter”…"
-            io.execute {
-                val items = Portal.vodByLetter(cat.id, letter)
-                runOnUiThread {
-                    if (seq != vodLoadSeq) return@runOnUiThread
-                    if (items.isEmpty()) {
-                        b.status.visibility = View.VISIBLE
-                        b.status.text = "No titles starting with “$letter”."
-                    } else {
-                        b.status.visibility = View.GONE
-                    }
-                    vodBase = items; vodCat = null; vodLoaded = 0; vodTotal = 0
-                    renderVodItems(0)
-                }
-            }
+        // Movie folder: A–Z is a client-side sub-search on the already-loaded + filtered set.
+        if (page.kind == SearchKind.VOD_CATEGORY) {
+            vodLetter = letter // null = ALL (no sub-search)
+            renderVodItems(0)
             return
         }
         if (letter == null) {
@@ -959,6 +943,9 @@ class ChannelsActivity : AppCompatActivity() {
         liveCatAdapter.submit(rows)
         if (!liveAzBuilt) { buildLiveAzBar(); liveAzBuilt = true }
         b.liveCatOverlay.visibility = View.VISIBLE
+        // Stop the remote from focusing the home content behind the overlay (keeps A–Z + list reachable).
+        b.contentRoot.descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        b.bottomNav.descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
         b.liveCatList.post { b.liveCatList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() ?: b.liveCatList.requestFocus() }
     }
 
@@ -986,7 +973,11 @@ class ChannelsActivity : AppCompatActivity() {
         b.liveCatList.post { b.liveCatList.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
     }
 
-    private fun hideLiveCategories() { b.liveCatOverlay.visibility = View.GONE }
+    private fun hideLiveCategories() {
+        b.liveCatOverlay.visibility = View.GONE
+        b.contentRoot.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
+        b.bottomNav.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
+    }
 
     private fun showContinueWatching() {
         val all = Resume.all(this)
@@ -1408,7 +1399,7 @@ class ChannelsActivity : AppCompatActivity() {
      *  and A–Z / search / filter / sort swap the working set in place. */
     private fun showVodList(cat: Portal.VodCat) {
         vodCatRef = cat
-        vodFilterAttr = null; vodFilterVal = null // a fresh category starts unfiltered (sort persists)
+        vodFilterAttr = null; vodFilterVal = null; vodLetter = null // fresh category: no filter / sub-search
         push(Page(cat.title, emptyList(), kind = SearchKind.VOD_CATEGORY, scopeId = cat.id, rebuild = { showVodList(cat) }))
         loadVodAll(cat)
     }
@@ -1450,7 +1441,9 @@ class ChannelsActivity : AppCompatActivity() {
 
     /** Apply the active filter + sort to the (fully loaded) set and render. No pagination rows. */
     private fun renderVodItems(focusPos: Int) {
-        val filtered = vodBase.filter { vodMatches(it) }
+        // Pipeline: filter → A–Z sub-search → sort (default sort = newest, i.e. the loaded order).
+        var filtered = vodBase.filter { vodMatches(it) }
+        vodLetter?.let { L -> filtered = filtered.filter { it.name.trimStart().startsWith(L, ignoreCase = true) } }
         val sorted = vodSortApply(filtered)
         val rows = ArrayList<Row>()
         sorted.forEach { rows.add(vodItemRow(it, poster = true)) }

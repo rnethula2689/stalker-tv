@@ -61,6 +61,12 @@ class RowAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     }
 
     private fun bindPoster(holder: PosterVH, row: ChannelsActivity.Row) {
+        // Pop the focused poster so it's obvious which one is selected on TV.
+        holder.b.posterRoot.setOnFocusChangeListener { v, hasFocus ->
+            val s = if (hasFocus) 1.10f else 1f
+            v.animate().scaleX(s).scaleY(s).setDuration(120).start()
+            v.elevation = if (hasFocus) 12f else 0f
+        }
         val url = row.iconUrl
         if (url.isNullOrEmpty()) holder.b.posterImg.setImageResource(R.drawable.thumb_placeholder)
         else holder.b.posterImg.load(url) {
