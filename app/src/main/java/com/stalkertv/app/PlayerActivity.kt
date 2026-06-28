@@ -274,20 +274,21 @@ class PlayerActivity : AppCompatActivity() {
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
         val autoLabel = if (Configs.autoplay(this)) "🔁   Autoplay next: ON" else "🔁   Autoplay next: OFF"
-        val items = arrayOf("📡   Cast to TV", "💬   Subtitles", autoLabel, "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("⏲   Sleep timer", "📡   Cast to TV", "💬   Subtitles", autoLabel, "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> if (videoUrl.isNotEmpty()) CastHelper.show(this, videoUrl, titleText, isLive)
-                    1 -> searchSubtitles()
-                    2 -> {
+                    0 -> SleepTimer.showDialog(this)
+                    1 -> if (videoUrl.isNotEmpty()) CastHelper.show(this, videoUrl, titleText, isLive)
+                    2 -> searchSubtitles()
+                    3 -> {
                         Configs.setAutoplay(this, !Configs.autoplay(this))
                         Toast.makeText(this, if (Configs.autoplay(this)) "Autoplay next: ON" else "Autoplay next: OFF", Toast.LENGTH_SHORT).show()
                     }
-                    3 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
-                    4 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
-                    5 -> About.show(this)
-                    6 -> finishAffinity()
+                    4 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
+                    5 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
+                    6 -> About.show(this)
+                    7 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }

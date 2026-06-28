@@ -738,7 +738,7 @@ class ChannelsActivity : AppCompatActivity() {
         val acts = ArrayList<() -> Unit>()
         labels.add("▶  Play"); acts.add { play(title, id, poster, source, playlist, plIndex) }
         labels.add("🎬  Watch trailer"); acts.add { watchTrailer(title, info?.year ?: "") }
-        if (info != null && info.hasAny()) {
+        if (info != null) { // TMDb can fill rating/overview even when the portal metadata is sparse
             labels.add("ℹ  Movie info & rating"); acts.add { showMovieInfo(title, info) }
         }
         labels.add("🕒  Watch later"); acts.add {
@@ -818,16 +818,37 @@ class ChannelsActivity : AppCompatActivity() {
     /** Description + cast/runtime/etc., all from the portal's own metadata.
      *  (Ratings are omitted — this portal returns 0 for IMDb/Kinopoisk on every title.) */
     private fun showMovieInfo(title: String, info: MovieInfo) {
+        val key = BuildConfig.TMDB_KEY
+        if (key.isBlank()) { showMovieInfoDialog(title, info, null); return }
+        android.widget.Toast.makeText(this, "Loading details…", android.widget.Toast.LENGTH_SHORT).show()
+        io.execute {
+            val meta = Tmdb.movieMeta(key, cleanTitleForSearch(title), info.year)
+            runOnUiThread { showMovieInfoDialog(title, info, meta) }
+        }
+    }
+
+    private fun showMovieInfoDialog(title: String, info: MovieInfo, meta: Tmdb.Meta?) {
         val sb = StringBuilder()
         val line1 = listOf(info.year, runtimeStr(info.runtimeMin), info.age).filter { it.isNotBlank() }.joinToString("  ·  ")
         if (line1.isNotBlank())         sb.append("$line1\n")
+        // Rating: portal IMDb if present, otherwise TMDb (portal usually returns 0).
+        val ratingLine = when {
+            info.imdb.isNotBlank() -> "IMDb:  ⭐ ${info.imdb}"
+            meta != null && meta.rating > 0 -> "Rating:  ⭐ ${String.format("%.1f", meta.rating)}/10  (TMDb)"
+            else -> null
+        }
+        if (ratingLine != null)         sb.append("$ratingLine\n")
         if (info.genre.isNotBlank())    sb.append("Genre:  ${info.genre}\n")
         if (info.country.isNotBlank())  sb.append("Country:  ${info.country}\n")
-        if (info.imdb.isNotBlank())     sb.append("IMDb:  ⭐ ${info.imdb}\n")
         if (info.director.isNotBlank()) sb.append("Director:  ${info.director}\n")
         if (info.actors.isNotBlank())   sb.append("Cast:  ${info.actors}\n")
         if (sb.isNotEmpty()) sb.append("\n")
-        sb.append(if (info.description.isNotBlank()) info.description else "No description available for this title.")
+        val desc = when {
+            info.description.isNotBlank() -> info.description
+            meta?.overview != null -> meta.overview
+            else -> "No description available for this title."
+        }
+        sb.append(desc)
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(title)
             .setMessage(sb.toString())

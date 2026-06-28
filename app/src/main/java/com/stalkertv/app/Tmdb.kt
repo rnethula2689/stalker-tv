@@ -12,6 +12,25 @@ import java.net.URLEncoder
  * (injected from the CI secret); when blank, callers fall back to a YouTube search.
  */
 object Tmdb {
+    data class Meta(val posterUrl: String?, val rating: Double, val voteCount: Int, val overview: String?)
+
+    /** One search call → poster + rating + overview for a movie (portal returns ratings=0/no art). */
+    fun movieMeta(apiKey: String, title: String, year: String): Meta? {
+        if (apiKey.isBlank() || title.isBlank()) return null
+        return try {
+            val q = URLEncoder.encode(title, "UTF-8")
+            fun query(yr: String): JSONObject? {
+                val yp = if (yr.isNotBlank()) "&year=$yr" else ""
+                val js = JSONObject(httpGet("https://api.themoviedb.org/3/search/movie?api_key=$apiKey&query=$q$yp"))
+                return js.optJSONArray("results")?.takeIf { it.length() > 0 }?.optJSONObject(0)
+            }
+            val r = query(year) ?: (if (year.isNotBlank()) query("") else null) ?: return null
+            val poster = r.optString("poster_path").takeIf { it.isNotBlank() && it != "null" }
+                ?.let { "https://image.tmdb.org/t/p/w500$it" }
+            Meta(poster, r.optDouble("vote_average", 0.0), r.optInt("vote_count", 0), r.optString("overview").takeIf { it.isNotBlank() })
+        } catch (_: Exception) { null }
+    }
+
     /** Returns a YouTube video id for the best trailer, or null (no key / no match / network error). */
     fun trailerYoutubeId(apiKey: String, title: String, year: String): String? {
         if (apiKey.isBlank() || title.isBlank()) return null
