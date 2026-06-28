@@ -181,14 +181,18 @@ object Portal {
             .followRedirects(true).followSslRedirects(true).build()
     }
 
-    /** Is a stream URL reachable? Retries once on 429/timeout (shared CDNs rate-limit bulk checks). */
+    /** Does a stream URL actually deliver data? A dead relay channel still returns HTTP 200 but sends
+     *  no bytes (libVLC then "can't open the MRL"), so we require at least one byte. Retries once on 429/timeout. */
     fun streamReachable(cmd: String): Boolean {
         val url = radioLink(cmd) ?: return false
         for (attempt in 0..1) {
             try {
                 streamClient.newCall(Request.Builder().url(url).header("User-Agent", UA).get().build()).execute().use { r ->
-                    if (r.code in 200..399) return true
-                    if (r.code != 429) return false
+                    when {
+                        r.code == 429 -> {} // rate-limited → retry below
+                        r.code !in 200..399 -> return false
+                        else -> return (try { r.body?.byteStream()?.read() ?: -1 } catch (_: Exception) { -1 }) != -1
+                    }
                 }
             } catch (e: Exception) {
                 if (attempt == 1 || e !is java.net.SocketTimeoutException) return false

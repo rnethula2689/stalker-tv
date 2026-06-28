@@ -1364,15 +1364,16 @@ class ChannelsActivity : AppCompatActivity() {
     private fun radioInCat(cat: String): List<Portal.RadioStation> =
         if (cat == "All") radioStations else radioStations.filter { categorizeRadio(it.name) == cat }
 
-    /** Station list for a category. Shows working stations once validated; validates lazily otherwise. */
+    /** Station list for a category. Hides stations already known dead; lazily validates small categories. */
     private fun showRadioStations(cat: String) {
         radioCat = cat
         val stations = radioInCat(cat)
-        val allChecked = stations.all { radioChecked.contains(it.cmd) }
-        val shown = if (allChecked) stations.filter { radioHealth[it.cmd] == true } else stations
+        val shown = stations.filter { radioHealth[it.cmd] != false } // hide only KNOWN-dead
         val rows = shown.map { s -> Row("📻  ${s.name}", null, sortKey = s.name) { playRadio(s) } }
         push(Page("📻 $cat", rows, kind = SearchKind.LOCAL, rebuild = { showRadioStations(cat) }))
-        if (!allChecked) validateRadio(cat, stations)
+        // Pre-validate only smallish categories (big ones would take minutes); the rest validate on play.
+        val unchecked = stations.filter { !radioChecked.contains(it.cmd) }
+        if (unchecked.isNotEmpty() && stations.size <= 80) validateRadio(cat, unchecked)
     }
 
     /** Background-check a category's stations (low concurrency + cache), then re-render hiding dead ones. */
@@ -1405,11 +1406,18 @@ class ChannelsActivity : AppCompatActivity() {
         b.status.visibility = View.VISIBLE
         b.status.text = "Opening ${s.name}…"
         io.execute {
-            val url = Portal.radioLink(s.cmd)
+            // Verify it really streams (cache the result) so dead stations show "unavailable", not a broken player.
+            val cached = synchronized(radioHealth) { if (radioChecked.contains(s.cmd)) radioHealth[s.cmd] else null }
+            val ok = cached ?: Portal.streamReachable(s.cmd).also {
+                synchronized(radioHealth) { radioHealth[s.cmd] = it; radioChecked.add(s.cmd) }
+            }
+            val url = if (ok) Portal.radioLink(s.cmd) else null
             runOnUiThread {
                 b.status.visibility = View.GONE
                 if (url.isNullOrEmpty()) {
                     android.widget.Toast.makeText(this, "“${s.name}” is unavailable.", android.widget.Toast.LENGTH_SHORT).show()
+                    val c = radioCat // drop it from the list we're looking at
+                    if (c != null && backStack.lastOrNull()?.title == "📻 $c") { backStack.removeLast(); showRadioStations(c) }
                     return@runOnUiThread
                 }
                 LiveVlcActivity.liveChannels = emptyList()
