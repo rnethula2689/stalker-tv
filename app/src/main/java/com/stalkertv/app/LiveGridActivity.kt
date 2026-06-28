@@ -466,15 +466,10 @@ class LiveGridActivity : AppCompatActivity() {
         ).show()
     }
 
-    /** Open Multi-view, pre-loading the current channel + the next one for an instant 2-up. */
+    /** Open Multi-view as a blank canvas spanning ALL channels (panes start empty — user picks each). */
     private fun openMultiView() {
-        MultiViewActivity.channels = all
-        val start = ArrayList<Portal.Channel>()
-        current?.let { start.add(it) }
-        val idx = all.indexOfFirst { it.id == current?.id }
-        val next = if (idx in 0 until all.size - 1) all[idx + 1] else all.firstOrNull { it.id != current?.id }
-        if (next != null) start.add(next)
-        MultiViewActivity.startChannels = start
+        MultiViewActivity.channels = ChannelsActivity.allChannelsCatalog().ifEmpty { all }
+        MultiViewActivity.startChannels = emptyList()
         startActivity(Intent(this, MultiViewActivity::class.java))
     }
 

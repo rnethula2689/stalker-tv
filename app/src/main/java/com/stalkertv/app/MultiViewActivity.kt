@@ -43,6 +43,7 @@ class MultiViewActivity : AppCompatActivity() {
         b = ActivityMultiviewBinding.inflate(layoutInflater)
         setContentView(b.root)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        goImmersive()
 
         panes = listOf(b.pane0, b.pane1, b.pane2, b.pane3)
         libVlc = LibVLC(this, arrayListOf("--network-caching=1500", "--http-reconnect", "--no-drop-late-frames", "--no-skip-frames"))
@@ -87,15 +88,19 @@ class MultiViewActivity : AppCompatActivity() {
             ui.post {
                 if (mine != seqs[i] || paneCh[i] !== ch) return@post
                 if (url.isNullOrEmpty()) { panes[i].paneName.text = "${ch.name}  (no stream)"; return@post }
-                val media = Media(vlc, Uri.parse(url))
-                media.setHWDecoderEnabled(true, false)
-                media.addOption(":network-caching=1500")
-                media.addOption(":http-user-agent=" + Portal.UA)
-                media.addOption(":http-reconnect")
-                mp.media = media
-                media.release()
-                mp.play()
-                applyAudio()
+                try {
+                    val media = Media(vlc, Uri.parse(url))
+                    media.setHWDecoderEnabled(true, false)
+                    media.addOption(":network-caching=1500")
+                    media.addOption(":http-user-agent=" + Portal.UA)
+                    media.addOption(":http-reconnect")
+                    mp.media = media
+                    media.release()
+                    mp.play()
+                    applyAudio()
+                } catch (e: Exception) {
+                    panes[i].paneName.text = "${ch.name}  (error)"
+                }
             }
         }
     }
@@ -108,6 +113,7 @@ class MultiViewActivity : AppCompatActivity() {
     private fun loadPane(i: Int, ch: Portal.Channel) {
         paneCh[i] = ch
         markFilled(i, ch.name)
+        if (paneCh.count { it != null } == 1) audioPane = i // first channel added gets the sound
         startPane(i)
     }
 
@@ -179,6 +185,18 @@ class MultiViewActivity : AppCompatActivity() {
     private fun applyMode() {
         b.bottomRow.visibility = if (mode == 4) View.VISIBLE else View.GONE
         b.modeBtn.text = if (mode == 4) "4 panes" else "2 panes"
+    }
+
+    private fun goImmersive() {
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        val c = androidx.core.view.WindowInsetsControllerCompat(window, b.root)
+        c.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) goImmersive()
     }
 
     override fun onStart() {

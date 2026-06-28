@@ -671,21 +671,29 @@ class LiveVlcActivity : AppCompatActivity() {
     private var menuDialog: AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("📡   Cast to TV", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("⊞   Multi-view", "📡   Cast to TV", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> if (currentUrl.isNotEmpty()) CastHelper.show(this, currentUrl, titleText, isLive = !isArchive)
-                    1 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    2 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
-                    3 -> About.show(this)
-                    4 -> finishAffinity()
+                    0 -> openMultiView()
+                    1 -> if (currentUrl.isNotEmpty()) CastHelper.show(this, currentUrl, titleText, isLive = !isArchive)
+                    2 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    3 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
+                    4 -> About.show(this)
+                    5 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }
             .create()
         menuDialog = dlg
         dlg.show()
+    }
+
+    /** Open Multi-view as a blank canvas spanning ALL channels (no pane is auto-filled). */
+    private fun openMultiView() {
+        MultiViewActivity.channels = ChannelsActivity.allChannelsCatalog().ifEmpty { LiveVlcActivity.liveChannels }
+        MultiViewActivity.startChannels = emptyList()
+        startActivity(Intent(this, MultiViewActivity::class.java))
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
