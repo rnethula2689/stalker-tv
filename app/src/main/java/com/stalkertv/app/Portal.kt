@@ -127,6 +127,7 @@ object Portal {
                     "&hw_version=1.7-BD-00&num_banks=2&image_version=218&hd=1&JsHttpRequest=1-xml",
                 true
             )
+            lastProfile = prof
             if (prof.contains("block_msg") || prof.contains("Serial Number mismatch")) {
                 val msg = Regex("\"msg\"\\s*:\\s*\"([^\"]+)\"").find(prof)?.groupValues?.get(1)
                     ?: "device rejected"
@@ -146,6 +147,27 @@ object Portal {
         } catch (_: Exception) {}
         return out
     }
+
+    /** TEMP probe: which content modules does this portal serve? Logs total_items per candidate type. */
+    fun typesProbe(): List<String> {
+        val out = ArrayList<String>()
+        val types = listOf("itv", "vod", "series", "radio", "karaoke", "vclub", "tv_archive", "movie")
+        for (t in types) {
+            val body = try { get("$base?type=$t&action=get_ordered_list&p=1&JsHttpRequest=1-xml", true) } catch (e: Exception) { "ERR ${e.message}" }
+            val total = Regex("\"total_items\":\"?(\\d+)").find(body)?.groupValues?.get(1) ?: "-"
+            val jsFalse = body.contains("\"js\":false")
+            out.add("TYPE $t -> total=$total jsFalse=$jsFalse :: " + body.replace("\n", " ").take(140))
+        }
+        // get_categories for the catalog types (radio is flat; itv uses genres)
+        for (t in listOf("vod", "series", "karaoke")) {
+            val body = try { get("$base?type=$t&action=get_categories&JsHttpRequest=1-xml", true) } catch (e: Exception) { "ERR ${e.message}" }
+            out.add("CATS $t -> " + body.replace("\n", " ").take(220))
+        }
+        out.add("PROFILE -> " + lastProfile.replace("\n", " ").take(400))
+        return out
+    }
+
+    @Volatile private var lastProfile: String = ""
 
     fun liveGenres(): List<Genre> {
         val out = ArrayList<Genre>()

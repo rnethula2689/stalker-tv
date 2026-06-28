@@ -504,6 +504,7 @@ class ChannelsActivity : AppCompatActivity() {
                 } else {
                     setProgress(100, "Ready", 350)
                     b.loadingOverlay.postDelayed({ hideLoading(); showHome(); maybeShowProfilePicker() }, 450)
+                    Thread { Portal.typesProbe().forEach { android.util.Log.d("TYPESPROBE", it) } }.start()
                 }
             }
         }
