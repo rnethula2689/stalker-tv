@@ -999,6 +999,10 @@ class ChannelsActivity : AppCompatActivity() {
         // Only the categories/channels this profile is allowed to see.
         val visChannels = allChannels.filter { ContentProfiles.liveCatVisible(this, it.genreId) }
         // Keep the overlay up while the player launches (hidden in onStop) so home doesn't flash through.
+        rows.add(Row("📺  TV Guide — what's on now", null, sortKey = "TV Guide") {
+            EpgGuideActivity.channels = visChannels
+            startActivity(Intent(this, EpgGuideActivity::class.java))
+        })
         if (favChannels.isNotEmpty())
             rows.add(Row("⭐  Favourites  (${favChannels.size})", null, sortKey = "Favourites") { openLiveGrid(favChannels, "Favourites") })
         rows.add(Row("All Channels  (${visChannels.size})", null, sortKey = "All Channels") { openLiveGrid(visChannels, "All Channels") })
