@@ -18,7 +18,7 @@ object Updater {
     /** @return Pair(versionCode, versionName) of the latest release, or null on failure. */
     fun latest(): Pair<Int, String>? {
         return try {
-            val req = Request.Builder().url(URL).header("User-Agent", "StalkerTV").build()
+            val req = Request.Builder().url(URL).header("User-Agent", "VibeTV").build()
             client.newCall(req).execute().use { r ->
                 val o = JSONObject(r.body?.string() ?: return null)
                 Pair(o.optInt("versionCode", 0), o.optString("versionName"))
@@ -34,7 +34,7 @@ object Updater {
     /** Downloads the latest APK to [dest]. @return true on success. */
     fun downloadApk(dest: File): Boolean {
         return try {
-            val req = Request.Builder().url(APK_URL).header("User-Agent", "StalkerTV").build()
+            val req = Request.Builder().url(APK_URL).header("User-Agent", "VibeTV").build()
             client.newCall(req).execute().use { r ->
                 if (!r.isSuccessful) return false
                 val body = r.body ?: return false

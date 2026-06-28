@@ -13,7 +13,7 @@ import java.util.zip.GZIPInputStream
 
 /** English subtitle search/download. Uses the official OpenSubtitles API when an API key is set. */
 object Subtitles {
-    private const val APP_UA = "StalkerTV v1.0"
+    private const val APP_UA = "VibeTV v1.0"
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)

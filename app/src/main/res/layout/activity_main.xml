@@ -10,7 +10,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Stalker TV"
+        android:text="Vibe TV"
         android:textColor="#19c37d"
         android:textSize="30sp"
         android:textStyle="bold"

@@ -192,7 +192,7 @@ class ChannelsActivity : AppCompatActivity() {
         if (welcomeShown) return
         welcomeShown = true
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Welcome to Stalker TV")
+            .setTitle("Welcome to Vibe TV")
             .setMessage(
                 "To start watching, add your IPTV provider:\n\n" +
                     "1. Open Settings (⚙ top-right, or ⋮ menu → Settings).\n" +
@@ -270,7 +270,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun confirmExit() {
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Exit Stalker TV?")
+            .setTitle("Exit Vibe TV?")
             .setPositiveButton("Yes") { _, _ -> finishAffinity() }
             .setNegativeButton("No", null)
             .show()
@@ -416,12 +416,12 @@ class ChannelsActivity : AppCompatActivity() {
     private fun showOfflineHome() {
         hideLoading()
         backStack.clear()
-        b.title.text = "Stalker TV"
+        b.title.text = "Vibe TV"
         b.status.visibility = View.VISIBLE
         b.status.text = "📡  $netMsg"
         push(
             Page(
-                "Stalker TV",
+                "Vibe TV",
                 listOf(
                     Row("⬇   Downloads (offline)", null) { startActivity(Intent(this, DownloadsActivity::class.java)) },
                     Row("🔄   Retry connection", null) { connectAndLoad(true) }
@@ -451,7 +451,7 @@ class ChannelsActivity : AppCompatActivity() {
     private fun connectAndLoad(force: Boolean = false) {
         parentalUnlocked = false // a fresh portal load re-locks restricted folders
         val acct = Configs.active(this)
-        b.title.text = "Stalker TV"
+        b.title.text = "Vibe TV"
         b.search.setText("")
         backStack.clear()
         adapter.submit(emptyList())
@@ -905,7 +905,7 @@ class ChannelsActivity : AppCompatActivity() {
         }) {})
 
         // Destinations now live in the floating bottom tab bar (see onCreate / display).
-        push(Page("Stalker TV", rows, kind = SearchKind.GLOBAL, rebuild = { showHome() }))
+        push(Page("Vibe TV", rows, kind = SearchKind.GLOBAL, rebuild = { showHome() }))
     }
 
     /** Long-press a Continue Watching card → remove just it, or clear the whole row. */

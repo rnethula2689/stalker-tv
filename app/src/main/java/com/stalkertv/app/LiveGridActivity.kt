@@ -503,7 +503,7 @@ class LiveGridActivity : AppCompatActivity() {
 
     private fun confirmExit() {
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Exit Stalker TV?")
+            .setTitle("Exit Vibe TV?")
             .setPositiveButton("Yes") { _, _ -> finishAffinity() }
             .setNegativeButton("No", null)
             .show()

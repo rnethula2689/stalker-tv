@@ -5,7 +5,7 @@ import androidx.appcompat.app.AlertDialog
 
 object About {
     fun show(ctx: Context) {
-        val msg = "Stalker TV\n\n" +
+        val msg = "Vibe TV\n\n" +
             "Version:   ${BuildConfig.VERSION_NAME}  (build ${BuildConfig.VERSION_CODE})\n" +
             "Built:   ${BuildConfig.BUILD_TIME}\n\n" +
             "Developer:   RN\n" +

@@ -25,7 +25,7 @@
                 android:textColor="#19c37d"
                 android:textSize="22sp"
                 android:textStyle="bold"
-                android:text="Stalker TV" />
+                android:text="Vibe TV" />
 
             <TextView
                 android:id="@+id/searchBtn"
@@ -375,13 +375,13 @@
                 android:layout_width="120dp"
                 android:layout_height="120dp"
                 android:src="@drawable/ic_launcher"
-                android:contentDescription="Stalker TV" />
+                android:contentDescription="Vibe TV" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:text="Stalker TV"
+                android:text="Vibe TV"
                 android:textColor="#19c37d"
                 android:textSize="26sp"
                 android:textStyle="bold"

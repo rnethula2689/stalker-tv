@@ -3,13 +3,12 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Dark background -->
     <path android:fillColor="#0b0f14" android:pathData="M0,0h108v108h-108z" />
-    <!-- TV screen -->
-    <path android:strokeColor="#19c37d" android:strokeWidth="5" android:fillColor="#11161d"
-        android:pathData="M20,30 H88 V76 H20 Z" />
-    <!-- play triangle -->
-    <path android:fillColor="#19c37d" android:pathData="M48,42 L48,64 L70,53 Z" />
-    <!-- stand legs -->
-    <path android:strokeColor="#19c37d" android:strokeWidth="4"
-        android:pathData="M40,76 L33,87 M68,76 L75,87" />
+    <!-- Bold "V" wordmark -->
+    <path android:strokeColor="#19c37d" android:strokeWidth="14"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M30,32 L54,78 L78,32" />
+    <!-- accent dot -->
+    <path android:fillColor="#4f8cff" android:pathData="M54,90 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
 </vector>

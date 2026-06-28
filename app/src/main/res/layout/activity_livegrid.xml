@@ -313,13 +313,13 @@
             android:layout_width="110dp"
             android:layout_height="110dp"
             android:src="@drawable/ic_launcher"
-            android:contentDescription="Stalker TV" />
+            android:contentDescription="Vibe TV" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="Stalker TV"
+            android:text="Vibe TV"
             android:textColor="#19c37d"
             android:textSize="24sp"
             android:textStyle="bold" />
