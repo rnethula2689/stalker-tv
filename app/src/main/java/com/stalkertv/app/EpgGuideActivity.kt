@@ -34,11 +34,28 @@ class EpgGuideActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityEpgGuideBinding.inflate(layoutInflater)
         setContentView(b.root)
+        // Reminders post notifications — on API 33+ that needs a runtime grant (no-op on older Fire OS).
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            try { requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1001) } catch (_: Exception) {}
+        }
         list = channels
         b.title.text = "📺  TV Guide  (${list.size})"
         b.guideList.layoutManager = LinearLayoutManager(this)
         b.guideList.adapter = GuideAdapter()
         b.empty.visibility = if (list.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+        // If an external XMLTV guide is configured, load it in the background then rebind rows to use it.
+        if (XmltvEpg.isActive(this)) {
+            b.subtitle.text = "Loading external EPG…"
+            pool.execute {
+                XmltvEpg.ensureLoaded(this)
+                ui.post {
+                    if (isFinishing) return@post
+                    b.subtitle.text = "Tap to watch  ·  📅 for full schedule & reminders"
+                    b.guideList.adapter?.notifyDataSetChanged()
+                }
+            }
+        }
     }
 
     private fun timeRange(e: Portal.EpgItem): String {
@@ -75,6 +92,65 @@ class EpgGuideActivity : AppCompatActivity() {
         }
     }
 
+    /** Load and show the full day's schedule for a channel, with catch-up (past) and reminders (future). */
+    private fun openSchedule(ch: Portal.Channel) {
+        val xm = if (XmltvEpg.isActive(this)) XmltvEpg.forChannel(ch.name) else emptyList()
+        if (xm.isNotEmpty()) { showScheduleDialog(ch, xm); return }
+        android.widget.Toast.makeText(this, "Loading ${ch.name} schedule…", android.widget.Toast.LENGTH_SHORT).show()
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        pool.execute {
+            val epg = try {
+                Portal.epgForDate(ch.id, today).ifEmpty { Portal.shortEpg(ch.id) }
+            } catch (_: Exception) { emptyList() }
+            ui.post { if (!isFinishing) showScheduleDialog(ch, epg) }
+        }
+    }
+
+    private fun showScheduleDialog(ch: Portal.Channel, epg: List<Portal.EpgItem>) {
+        if (epg.isEmpty()) {
+            android.widget.Toast.makeText(this, "No schedule for ${ch.name}", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val now = System.currentTimeMillis() / 1000
+        fun state(e: Portal.EpgItem): Int = when {
+            e.startTs in 1..now && (e.stopTs == 0L || now < e.stopTs) -> 0 // live now
+            e.stopTs in 1..now -> 1                                        // past
+            e.startTs > now -> 2                                           // future
+            else -> 3
+        }
+        val labels = epg.map { e ->
+            val t = if (e.startTs > 0) Portal.localTime(e.startTs) else e.start
+            val mark = when (state(e)) {
+                0 -> "🔴"
+                1 -> if (ch.archiveDays > 0) "▶" else "  "
+                2 -> if (Reminders.isSet(this, ch.id, e.startTs)) "⏰" else "＋"
+                else -> "  "
+            }
+            "$mark   $t   ${e.name}"
+        }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("${ch.name} — Today")
+            .setItems(labels) { _, w ->
+                val e = epg[w]
+                when (state(e)) {
+                    0 -> play(ch)
+                    1 -> if (ch.archiveDays > 0) startActivity(Intent(this, CatchupActivity::class.java)
+                        .putExtra("chId", ch.id).putExtra("chName", ch.name)
+                        .putExtra("chCmd", ch.cmd).putExtra("archiveDays", ch.archiveDays))
+                    else android.widget.Toast.makeText(this, "No catch-up for this channel", android.widget.Toast.LENGTH_SHORT).show()
+                    2 -> {
+                        val added = Reminders.toggle(this, Reminders.R(ch.id, ch.name, ch.cmd, e.name, e.startTs))
+                        android.widget.Toast.makeText(this,
+                            if (added) "Reminder set ⏰  ${e.name}" else "Reminder removed",
+                            android.widget.Toast.LENGTH_SHORT).show()
+                        showScheduleDialog(ch, epg) // refresh marks
+                    }
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
     inner class VH(val v: ItemEpgGuideBinding) : RecyclerView.ViewHolder(v.root)
 
     inner class GuideAdapter : RecyclerView.Adapter<VH>() {
@@ -85,7 +161,11 @@ class EpgGuideActivity : AppCompatActivity() {
             val ch = list[position]
             holder.v.chName.text = (if (ch.number.isNotBlank()) "${ch.number}.  " else "") + ch.name
             holder.v.nextLine.text = ""
-            holder.v.root.setOnClickListener { play(ch) }
+            holder.v.infoBlock.setOnClickListener { play(ch) }
+            holder.v.scheduleBtn.setOnClickListener { openSchedule(ch) }
+            // External XMLTV (if configured + matched by name) takes precedence — instant, in-memory.
+            val xm = if (XmltvEpg.isActive(this@EpgGuideActivity)) XmltvEpg.forChannel(ch.name) else emptyList()
+            if (xm.isNotEmpty()) { bindEpg(holder, xm); return }
             val cached = cache[ch.id]
             if (cached != null) { bindEpg(holder, cached); return }
             holder.v.nowLine.text = "Loading…"

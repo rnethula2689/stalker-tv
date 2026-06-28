@@ -57,6 +57,11 @@ object Configs {
     fun ossKey(ctx: Context): String = prefs(ctx).getString("ossKey", "") ?: ""
     fun setOssKey(ctx: Context, key: String) { prefs(ctx).edit().putString("ossKey", key).apply() }
 
+    /** Optional external XMLTV EPG URL. When set, the TV Guide prefers it (matched by channel name)
+     *  and falls back to the portal's own EPG. Blank = portal EPG only. */
+    fun epgXmltvUrl(ctx: Context): String = (prefs(ctx).getString("epgXmltvUrl", "") ?: "").trim()
+    fun setEpgXmltvUrl(ctx: Context, url: String) { prefs(ctx).edit().putString("epgXmltvUrl", url.trim()).apply() }
+
     /** A handful of recent poster URLs, used to paint the loading splash montage (Strimix-style). */
     fun splashPosters(ctx: Context): List<String> =
         (prefs(ctx).getString("splashPosters", "") ?: "").split("\n").filter { it.isNotBlank() }

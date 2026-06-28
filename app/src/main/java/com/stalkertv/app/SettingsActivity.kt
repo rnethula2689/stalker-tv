@@ -31,7 +31,26 @@ class SettingsActivity : AppCompatActivity() {
             Subtitles.apiKey = key
             b.msg.text = if (key.isEmpty()) "Subtitle key cleared." else "Subtitle key saved ✓"
         }
+
+        b.epgUrl.setText(Configs.epgXmltvUrl(this))
+        b.saveEpgBtn.setOnClickListener {
+            val url = b.epgUrl.text.toString().trim()
+            Configs.setEpgXmltvUrl(this, url)
+            if (url.isEmpty()) { b.epgMsg.text = "Cleared — using the portal's own guide."; return@setOnClickListener }
+            b.epgMsg.text = "Downloading & testing…"
+            epgIo.execute {
+                val ok = XmltvEpg.ensureLoaded(this, force = true)
+                runOnUiThread { b.epgMsg.text = XmltvEpg.lastStatus + (if (ok) "" else "\nThe portal guide will be used as a fallback.") }
+            }
+        }
+        b.clearEpgBtn.setOnClickListener {
+            b.epgUrl.setText("")
+            Configs.setEpgXmltvUrl(this, "")
+            b.epgMsg.text = "Cleared — using the portal's own guide."
+        }
     }
+
+    private val epgIo = java.util.concurrent.Executors.newSingleThreadExecutor()
 
     private fun refreshList() {
         b.configList.removeAllViews()

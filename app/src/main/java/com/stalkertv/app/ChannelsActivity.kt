@@ -468,6 +468,7 @@ class ChannelsActivity : AppCompatActivity() {
         private var cachedChannels: List<Portal.Channel> = emptyList()
         private var cachedGenres: List<Portal.Genre> = emptyList()
         private var cachedVodCats: List<Portal.VodCat> = emptyList()
+        private var cachedRecent: List<Portal.VodItem> = emptyList() // newest movies, for the home rail
 
         // Catalog access for the profile editor (so it can list categories without a screen of its own).
         fun catGenres(): List<Portal.Genre> = cachedGenres
@@ -505,10 +506,12 @@ class ChannelsActivity : AppCompatActivity() {
             hideLoading()
             showHome()
             maybeShowProfilePicker()
+            loadRecentlyAdded()
             return
         }
         vodCats = emptyList()
         cachedVodCats = emptyList()
+        cachedRecent = emptyList()
         if (!isOnline()) { goOffline(); return } // no network → straight to offline home
         showLoading("Connecting to portal…")
         setProgress(40, "Connecting to portal…", 2200) // creep up while the handshake runs
@@ -534,7 +537,23 @@ class ChannelsActivity : AppCompatActivity() {
                 } else {
                     setProgress(100, "Ready", 350)
                     b.loadingOverlay.postDelayed({ hideLoading(); showHome(); maybeShowProfilePicker() }, 450)
+                    loadRecentlyAdded()
                 }
+            }
+        }
+    }
+
+    /** Fetch the newest movies (all categories, sorted by date added) in the background and, if the
+     *  user is still on home, refresh it to surface the "Recently Added" rail. Portal-dependent: if
+     *  the all-category query isn't supported it returns nothing and the rail simply stays hidden. */
+    private fun loadRecentlyAdded() {
+        if (cachedRecent.isNotEmpty()) return
+        pageIo.submit {
+            val items = try { Portal.vodList("*", 1, "added").first } catch (_: Exception) { emptyList() }
+            val recent = items.filter { it.posterUrl.isNotBlank() }.take(20)
+            if (recent.isNotEmpty()) runOnUiThread {
+                cachedRecent = recent
+                if (backStack.size <= 1) showHome() // only refresh while at home
             }
         }
     }
@@ -960,6 +979,14 @@ class ChannelsActivity : AppCompatActivity() {
         val wl = WatchLater.all(this)
         if (wl.isNotEmpty()) rows.add(Row("Watch Later", null, rail = wl.map { e ->
             Card(e.title, e.poster.ifBlank { null }) { play(e.title, e.id, e.poster, e.source) }
+        }) {})
+        // Newest movies from the portal (fetched in the background after connect; absent until ready).
+        val recent = cachedRecent
+        if (recent.isNotEmpty()) rows.add(Row("Recently Added", null, rail = recent.map { v ->
+            Card(v.name, v.posterUrl.ifBlank { null }) {
+                if (v.isSeries) showSeasons(v)
+                else mediaActions(v.name, v.posterUrl, "movie_${v.id}", "vod|${v.id}|${v.cmd}", info = MovieInfo.from(v))
+            }
         }) {})
 
         // Destinations now live in the floating bottom tab bar (see onCreate / display).

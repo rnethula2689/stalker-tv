@@ -157,5 +157,67 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:text="Save subtitle key" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1c2530"
+            android:layout_marginVertical="20dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="TV Guide (external XMLTV — optional)"
+            android:textColor="#e6edf3"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Leave blank to use the portal's own guide. If set, the TV Guide prefers this source (matched by channel name). Supports .xml and .xml.gz."
+            android:textColor="#8b97a5"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/epgUrl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="https://example.com/epg.xml(.gz)"
+            android:textColorHint="#5a6675"
+            android:textColor="#e6edf3"
+            android:inputType="textUri"
+            android:singleLine="true" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="10dp">
+
+            <Button
+                android:id="@+id/saveEpgBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Save &amp; test" />
+
+            <Button
+                android:id="@+id/clearEpgBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="Clear" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/epgMsg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textColor="#9fb0c0"
+            android:textSize="14sp"
+            android:text="" />
     </LinearLayout>
 </ScrollView>
