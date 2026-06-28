@@ -466,10 +466,11 @@ class LiveGridActivity : AppCompatActivity() {
         ).show()
     }
 
-    /** Open Multi-view as a blank canvas spanning ALL channels (panes start empty — user picks each). */
+    /** Open Multi-view: pane 1 = the channel being previewed; picker spans all categories. */
     private fun openMultiView() {
         MultiViewActivity.channels = ChannelsActivity.allChannelsCatalog().ifEmpty { all }
-        MultiViewActivity.startChannels = emptyList()
+        MultiViewActivity.genres = ChannelsActivity.catGenres()
+        MultiViewActivity.startChannels = listOfNotNull(current)
         startActivity(Intent(this, MultiViewActivity::class.java))
     }
 

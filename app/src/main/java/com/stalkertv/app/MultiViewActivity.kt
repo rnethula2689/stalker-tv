@@ -21,8 +21,9 @@ import java.util.concurrent.Executors
  */
 class MultiViewActivity : AppCompatActivity() {
     companion object {
-        var channels: List<Portal.Channel> = emptyList()   // pool to pick from
-        var startChannels: List<Portal.Channel> = emptyList() // pre-loaded panes
+        var channels: List<Portal.Channel> = emptyList()      // pool to pick from
+        var genres: List<Portal.Genre> = emptyList()          // live categories for the picker
+        var startChannels: List<Portal.Channel> = emptyList() // pre-loaded panes (pane 0 = current channel)
     }
 
     private lateinit var b: ActivityMultiviewBinding
@@ -51,15 +52,18 @@ class MultiViewActivity : AppCompatActivity() {
         for (i in panes.indices) {
             panes[i].root.setOnClickListener { if (paneCh[i] == null) pickChannel(i) else setAudio(i) }
             panes[i].root.setOnLongClickListener { if (paneCh[i] != null) paneMenu(i); true }
+            panes[i].paneAudio.isClickable = true
+            panes[i].paneAudio.isFocusable = true
+            panes[i].paneAudio.setOnClickListener { if (paneCh[i] != null) toggleAudio(i) }
         }
         b.modeBtn.setOnClickListener { toggleMode() }
 
-        // Pre-load the panes the launcher chose (start in 2-pane mode if ≤2 were given).
+        // Pane 0 = the channel the user was watching; the rest start empty.
         val pre = startChannels.take(4)
         mode = if (pre.size > 2) 4 else 2
         applyMode()
         for (i in pre.indices) { paneCh[i] = pre[i]; markFilled(i, pre[i].name) }
-        audioPane = 0
+        audioPane = if (pre.isNotEmpty()) 0 else -1
         panes[0].root.post { panes[0].root.requestFocus() }
     }
 
@@ -119,7 +123,7 @@ class MultiViewActivity : AppCompatActivity() {
     private fun loadPane(i: Int, ch: Portal.Channel) {
         paneCh[i] = ch
         markFilled(i, ch.name)
-        if (paneCh.count { it != null } == 1) audioPane = i // first channel added gets the sound
+        if (audioPane == -1 && paneCh.count { it != null } == 1) audioPane = i // only the very first gets sound
         startPane(i)
     }
 
@@ -129,28 +133,54 @@ class MultiViewActivity : AppCompatActivity() {
         players[i] = null
         paneCh[i] = null
         markEmpty(i)
-        if (audioPane == i) paneCh.indexOfFirst { it != null }.let { if (it >= 0) setAudio(it) }
-    }
-
-    /** Route audio to one pane; mute the rest (only one sound source at a time). */
-    private fun setAudio(i: Int) {
-        audioPane = i
+        if (audioPane == i) audioPane = -1 // removing the sounding pane → all muted until user picks
         applyAudio()
     }
 
+    /** Route audio to exactly one pane; mute the rest. */
+    private fun setAudio(i: Int) { audioPane = i; applyAudio() }
+
+    /** Mute icon tap: if this pane is the audio source, mute everything; otherwise make it the source. */
+    private fun toggleAudio(i: Int) { audioPane = if (audioPane == i) -1 else i; applyAudio() }
+
     private fun applyAudio() {
         for (j in players.indices) {
-            try { players[j]?.setVolume(if (j == audioPane) 100 else 0) } catch (_: Exception) {}
-            panes[j].paneAudio.text = if (j == audioPane && paneCh[j] != null) "🔊" else "🔇"
+            val on = j == audioPane && paneCh[j] != null
+            val p = players[j]
+            if (p != null) try {
+                if (on) {
+                    // Re-enable the audio track if we'd disabled it, then full volume.
+                    if (p.audioTrack == -1) p.audioTracks?.firstOrNull { it.id >= 0 }?.let { p.setAudioTrack(it.id) }
+                    p.setVolume(100)
+                } else {
+                    // setVolume(0) alone is unreliable on Fire libVLC → also disable the audio track.
+                    p.setVolume(0)
+                    try { p.setAudioTrack(-1) } catch (_: Exception) {}
+                }
+            } catch (_: Exception) {}
+            panes[j].paneAudio.text = if (on) "🔊" else "🔇"
         }
     }
 
+    /** Step 1: pick a Live TV category. Step 2: pick a channel within it. */
     private fun pickChannel(i: Int) {
         if (channels.isEmpty()) return
-        val names = channels.map { it.name }.toTypedArray()
+        val byG = channels.groupBy { it.genreId }
+        val cats = genres.filter { (byG[it.id]?.size ?: 0) > 0 }
+        if (cats.isEmpty()) { pickFromList(i, channels); return } // no genre info → flat list
+        val labels = cats.map { "${it.title}  (${byG[it.id]?.size ?: 0})" }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Choose a category")
+            .setItems(labels) { _, w -> pickFromList(i, byG[cats[w].id] ?: emptyList()) }
+            .show()
+    }
+
+    private fun pickFromList(i: Int, list: List<Portal.Channel>) {
+        if (list.isEmpty()) return
+        val names = list.map { it.name }.toTypedArray()
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Choose a channel")
-            .setItems(names) { _, w -> loadPane(i, channels[w]) }
+            .setItems(names) { _, w -> loadPane(i, list[w]) }
             .show()
     }
 
