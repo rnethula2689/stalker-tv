@@ -50,21 +50,36 @@ class ProfileEditActivity : AppCompatActivity() {
         override fun onTextChanged(s: CharSequence?, a: Int, c: Int, d: Int) {}
     }
 
+    private val colorSwatches = ArrayList<android.widget.TextView>()
+
     private fun buildColorRow() {
         b.colorRow.removeAllViews()
+        colorSwatches.clear()
         val dp = resources.displayMetrics.density
         for (c in ContentProfiles.COLORS) {
             val tv = android.widget.TextView(this)
-            val size = (40 * dp).toInt()
+            val size = (44 * dp).toInt()
             val lp = android.widget.LinearLayout.LayoutParams(size, size)
-            lp.marginEnd = (10 * dp).toInt()
+            lp.marginEnd = (12 * dp).toInt()
             tv.layoutParams = lp
             tv.background = circle(c, c == chosenColor)
             tv.isFocusable = true
             tv.isClickable = true
-            tv.setOnClickListener { chosenColor = c; buildColorRow() }
+            // Scale up on focus so the remote user can clearly see which swatch is selected.
+            tv.setOnFocusChangeListener { v, f ->
+                val s = if (f) 1.3f else 1f
+                v.animate().scaleX(s).scaleY(s).setDuration(120).start()
+            }
+            // Update strokes in place (don't rebuild the row, which would drop focus).
+            tv.setOnClickListener { chosenColor = c; refreshColorStrokes() }
+            colorSwatches.add(tv)
             b.colorRow.addView(tv)
         }
+    }
+
+    private fun refreshColorStrokes() {
+        for ((i, c) in ContentProfiles.COLORS.withIndex())
+            colorSwatches.getOrNull(i)?.background = circle(c, c == chosenColor)
     }
 
     private fun circle(color: Int, selected: Boolean): android.graphics.drawable.GradientDrawable {

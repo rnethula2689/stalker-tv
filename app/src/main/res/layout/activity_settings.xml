@@ -260,6 +260,13 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="10dp"
                 android:text="⬇  Restore" />
+
+            <Button
+                android:id="@+id/deleteBackupBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="🗑  Delete" />
         </LinearLayout>
 
         <TextView

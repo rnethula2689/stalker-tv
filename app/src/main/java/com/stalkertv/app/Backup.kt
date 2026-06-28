@@ -37,13 +37,21 @@ object Backup {
         return o.toString(2)
     }
 
+    fun backupFile(ctx: Context): File =
+        File(File(ctx.getExternalFilesDir(null), "backup"), "$APP_TAG-backup.json")
+
     /** Write the backup to the app's external files dir (shareable via FileProvider). */
     fun writeToFile(ctx: Context): File {
-        val dir = File(ctx.getExternalFilesDir(null), "backup")
-        dir.mkdirs()
-        val f = File(dir, "$APP_TAG-backup.json")
+        val f = backupFile(ctx)
+        f.parentFile?.mkdirs()
         f.writeText(exportJson(ctx))
         return f
+    }
+
+    /** @return true if a backup file existed and was deleted. */
+    fun deleteFile(ctx: Context): Boolean {
+        val f = backupFile(ctx)
+        return f.exists() && f.delete()
     }
 
     /** Merge a backup JSON into the current account/profile. @return counts added. */

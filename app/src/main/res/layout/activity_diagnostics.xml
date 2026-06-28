@@ -28,7 +28,8 @@
             android:textSize="15sp"
             android:fontFamily="monospace"
             android:lineSpacingExtra="4dp"
-            android:textIsSelectable="true" />
+            android:focusable="false"
+            android:textIsSelectable="false" />
 
         <Button
             android:id="@+id/testBtn"

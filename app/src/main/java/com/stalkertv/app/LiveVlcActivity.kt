@@ -160,7 +160,12 @@ class LiveVlcActivity : AppCompatActivity() {
         player.attachViews(b.vlc, null, false, false)
         player.setEventListener { ev ->
             when (ev.type) {
-                MediaPlayer.Event.Playing -> { b.status.visibility = View.GONE; retryCount = 0; playFailed = false; applyAspect(); if (isArchive || timeshifting) b.playBtn.text = "⏸" }
+                MediaPlayer.Event.Playing -> {
+                    b.status.visibility = View.GONE; retryCount = 0; playFailed = false; applyAspect()
+                    if (onTv && (mp?.volume ?: 0) <= 0) mp?.volume = 100 // TV: seed a real volume so the icon isn't stuck on 🔇
+                    refreshVol() // reflect the true volume/mute state now that audio output exists
+                    if (isArchive || timeshifting) b.playBtn.text = "⏸"
+                }
                 MediaPlayer.Event.Paused -> { if (isArchive || timeshifting) b.playBtn.text = "▶" }
                 MediaPlayer.Event.EndReached -> { if (isArchive) b.playBtn.text = "▶" else if (timeshifting) ui.post { returnToLive() } }
                 MediaPlayer.Event.EncounteredError ->
@@ -199,7 +204,7 @@ class LiveVlcActivity : AppCompatActivity() {
         if (!isArchive) liveUrl = url
         play(url)
         if (!isArchive) {
-            b.epgRail.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this, androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL, false)
+            b.epgRail.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this, androidx.recyclerview.widget.LinearLayoutManager.VERTICAL, false)
             b.epgRail.adapter = epgRailAdapter
             channels.getOrNull(chIndex)?.let { loadEpgRail(it) }
         }
@@ -346,6 +351,7 @@ class LiveVlcActivity : AppCompatActivity() {
         tsWindowSec = minOf(archiveSec, 7_200L)     // up to 2h scrubbable buffer
         knownDurationMs = tsWindowSec * 1000        // fixed buffer length → stable scrub timeline
         b.tsBtn.visibility = View.GONE
+        b.epgBar.visibility = View.GONE // the side EPG panel must not overlap the transport bar
         b.controlBar.visibility = View.VISIBLE
         b.liveBtn.visibility = View.VISIBLE
         b.hint.visibility = View.GONE
@@ -743,7 +749,7 @@ class LiveVlcActivity : AppCompatActivity() {
     private var menuDialog: AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("🔄   Retry stream", "⚠   Report not working", "⏲   Sleep timer", "🎚   Playback settings", "📡   Cast to TV", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("🔄   Retry stream", "⚠   Report not working", SleepTimer.menuLabel(), "🎚   Playback settings", "📡   Cast to TV", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
@@ -831,6 +837,15 @@ class LiveVlcActivity : AppCompatActivity() {
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    private var resumedOnce = false
+    override fun onResume() {
+        super.onResume()
+        // onStop() stops playback to free the stream; when we come back (e.g. from Settings/Diagnostics)
+        // re-start the current stream so the player isn't left on a blank screen.
+        if (resumedOnce && !playFailed && currentUrl.isNotEmpty()) play(currentUrl)
+        resumedOnce = true
     }
 
     override fun onStop() {

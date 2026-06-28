@@ -304,7 +304,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
         val autoLabel = if (Configs.autoplay(this)) "🔁   Autoplay next: ON" else "🔁   Autoplay next: OFF"
-        val items = arrayOf("⏲   Sleep timer", "🎚   Playback settings", "⚠   Report not working", "📡   Cast to TV", "💬   Subtitles", autoLabel, "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf(SleepTimer.menuLabel(), "🎚   Playback settings", "⚠   Report not working", "📡   Cast to TV", "💬   Subtitles", autoLabel, "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {

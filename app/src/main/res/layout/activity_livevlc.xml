@@ -29,24 +29,26 @@
         android:background="#40FF7A00"
         android:visibility="gone" />
 
-    <!-- EPG rail: today's programmes for the current channel (shown with the controls). -->
+    <!-- EPG rail: today's programmes for the current channel, as a vertical panel down the right side
+         (kept off the bottom so it never overlaps the transport / timeshift slider). -->
     <LinearLayout
         android:id="@+id/epgBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
+        android:layout_width="300dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:layout_marginTop="62dp"
         android:orientation="vertical"
         android:background="#CC000000"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="8dp"
+        android:paddingHorizontal="14dp"
+        android:paddingTop="10dp"
         android:paddingBottom="12dp"
         android:visibility="gone">
 
         <TextView
             android:id="@+id/epgBarTitle"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="6dp"
+            android:layout_marginBottom="8dp"
             android:text="Today's guide"
             android:textColor="#19c37d"
             android:textSize="13sp"
@@ -55,7 +57,8 @@
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/epgRail"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="0dp"
+            android:layout_weight="1"
             android:clipToPadding="false" />
     </LinearLayout>
 

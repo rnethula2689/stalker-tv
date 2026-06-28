@@ -54,16 +54,22 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         b.backupBtn.setOnClickListener {
+            // Save first; the backup succeeds even if there's no app to share with (e.g. on a TV).
+            val f = try { Backup.writeToFile(this) }
+                catch (e: Exception) { b.backupMsg.text = "Backup failed: ${e.message}"; return@setOnClickListener }
+            b.backupMsg.text = "Saved ✓  ${f.absolutePath}"
             try {
-                val f = Backup.writeToFile(this)
                 val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.fileprovider", f)
                 val send = android.content.Intent(android.content.Intent.ACTION_SEND)
                     .setType("application/json")
                     .putExtra(android.content.Intent.EXTRA_STREAM, uri)
                     .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                startActivity(android.content.Intent.createChooser(send, "Back up data"))
-                b.backupMsg.text = "Saved ✓  ${f.absolutePath}"
-            } catch (e: Exception) { b.backupMsg.text = "Backup failed: ${e.message}" }
+                if (send.resolveActivity(packageManager) != null)
+                    startActivity(android.content.Intent.createChooser(send, "Share backup"))
+            } catch (_: Exception) { /* no share target (TV) — file is already saved, that's fine */ }
+        }
+        b.deleteBackupBtn.setOnClickListener {
+            b.backupMsg.text = if (Backup.deleteFile(this)) "Backup file deleted." else "No backup file to delete."
         }
         b.restoreBtn.setOnClickListener {
             try { openBackup.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) }

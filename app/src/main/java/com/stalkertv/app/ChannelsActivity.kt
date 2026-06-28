@@ -469,6 +469,7 @@ class ChannelsActivity : AppCompatActivity() {
         private var cachedGenres: List<Portal.Genre> = emptyList()
         private var cachedVodCats: List<Portal.VodCat> = emptyList()
         private var cachedRecent: List<Portal.VodItem> = emptyList() // newest movies, for the home rail
+        private var cachedRecentScope: String? = " " // profile id the rail was loaded for (  = never)
 
         // Catalog access for the profile editor (so it can list categories without a screen of its own).
         fun catGenres(): List<Portal.Genre> = cachedGenres
@@ -512,6 +513,7 @@ class ChannelsActivity : AppCompatActivity() {
         vodCats = emptyList()
         cachedVodCats = emptyList()
         cachedRecent = emptyList()
+        cachedRecentScope = " "
         if (!isOnline()) { goOffline(); return } // no network → straight to offline home
         showLoading("Connecting to portal…")
         setProgress(40, "Connecting to portal…", 2200) // creep up while the handshake runs
@@ -547,13 +549,27 @@ class ChannelsActivity : AppCompatActivity() {
      *  user is still on home, refresh it to surface the "Recently Added" rail. Portal-dependent: if
      *  the all-category query isn't supported it returns nothing and the rail simply stays hidden. */
     private fun loadRecentlyAdded() {
-        if (cachedRecent.isNotEmpty()) return
+        val scope = ContentProfiles.activeId(this)
+        if (cachedRecentScope == scope) return // already loaded/attempted for this profile
+        cachedRecentScope = scope
+        cachedRecent = emptyList() // drop the previous profile's items until the new ones arrive
         pageIo.submit {
-            val items = try { Portal.vodList("*", 1, "added").first } catch (_: Exception) { emptyList() }
+            val p = ContentProfiles.active(this)
+            val items: List<Portal.VodItem> = if (p == null || p.allVod) {
+                try { Portal.vodList("*", 1, "added").first } catch (_: Exception) { emptyList() }
+            } else {
+                // Profile limits the movie categories → pull newest from each allowed category and merge.
+                val merged = ArrayList<Portal.VodItem>()
+                for (catId in p.vodCats) {
+                    try { merged.addAll(Portal.vodList(catId, 1, "added").first) } catch (_: Exception) {}
+                }
+                merged.sortedByDescending { it.added }
+            }
             val recent = items.filter { it.posterUrl.isNotBlank() }.take(20)
-            if (recent.isNotEmpty()) runOnUiThread {
+            runOnUiThread {
+                if (ContentProfiles.activeId(this) != scope) return@runOnUiThread // profile changed mid-load
                 cachedRecent = recent
-                if (backStack.size <= 1) showHome() // only refresh while at home
+                if (backStack.size <= 1) showHome()
             }
         }
     }
@@ -964,6 +980,7 @@ class ChannelsActivity : AppCompatActivity() {
     private fun showHome() {
         backStack.clear()
         updateProfileBadge()
+        loadRecentlyAdded() // refreshes the Recently Added / For You rails for the active profile
         val rows = ArrayList<Row>()
 
         // Content rails (thumbnails) from local data — no portal calls, so the home is instant.
@@ -1672,6 +1689,9 @@ class ChannelsActivity : AppCompatActivity() {
         val pos = focusPos.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
         b.list.scrollToPosition(pos)
         b.list.post {
+            // While the user is typing in the search box, don't yank focus to the list (it collapses
+            // the search field / keyboard mid-search).
+            if (b.searchRow.visibility == View.VISIBLE && b.search.hasFocus()) return@post
             val vh = b.list.findViewHolderForAdapterPosition(pos)
             if (vh != null) vh.itemView.requestFocus() else if (!b.list.hasFocus()) b.list.requestFocus()
         }
