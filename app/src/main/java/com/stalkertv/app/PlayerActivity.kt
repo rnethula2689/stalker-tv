@@ -46,6 +46,7 @@ class PlayerActivity : AppCompatActivity() {
     // We start hardware-first for efficiency, then on a playback error rebuild the player
     // forcing FFmpeg software decoders for both audio and video.
     private var forceSoftware = false
+    private var linkRetried = false // P3.1: re-resolve a fresh link once if software-decode also fails
 
     private lateinit var am: AudioManager
     private var preMuteVol = -1
@@ -212,6 +213,10 @@ class PlayerActivity : AppCompatActivity() {
                 if (!forceSoftware) {
                     forceSoftware = true
                     rebuildSoftware()
+                } else if (!linkRetried && resumeSource.isNotBlank()) {
+                    // Software decode also failed → the stream link may have expired; re-resolve once.
+                    linkRetried = true
+                    reResolveAndReplay()
                 }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -226,6 +231,28 @@ class PlayerActivity : AppCompatActivity() {
             }
         })
         return p
+    }
+
+    /** Re-resolve a fresh stream link (expired token / dead source) and replay from the same spot. */
+    private fun reResolveAndReplay() {
+        val pos = player?.currentPosition ?: 0L
+        Toast.makeText(this, "Reconnecting…", Toast.LENGTH_SHORT).show()
+        io.execute {
+            val u = Downloads.resolveSource(resumeSource)
+            runOnUiThread {
+                if (isFinishing || u.isNullOrEmpty()) return@runOnUiThread
+                videoUrl = u
+                forceSoftware = false // fresh link → give hardware decode another try
+                player?.release()
+                val np = buildPlayer()
+                player = np
+                b.playerView.player = np
+                np.setMediaItem(MediaItem.fromUri(u))
+                np.prepare()
+                if (!isLive && pos > 0) np.seekTo(pos)
+                np.playWhenReady = true
+            }
+        }
     }
 
     /** Rebuild the player (now in software-decode mode) and resume the current stream. */
@@ -255,6 +282,7 @@ class PlayerActivity : AppCompatActivity() {
         titleText = ch.name
         b.title.text = ch.name
         forceSoftware = false // new channel: try hardware first again
+        linkRetried = false
         b.playerView.showController()
         io.execute {
             val u = Portal.createLink(ch.cmd)
@@ -276,22 +304,26 @@ class PlayerActivity : AppCompatActivity() {
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
         val autoLabel = if (Configs.autoplay(this)) "🔁   Autoplay next: ON" else "🔁   Autoplay next: OFF"
-        val items = arrayOf("⏲   Sleep timer", "🎚   Playback settings", "📡   Cast to TV", "💬   Subtitles", autoLabel, "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("⏲   Sleep timer", "🎚   Playback settings", "⚠   Report not working", "📡   Cast to TV", "💬   Subtitles", autoLabel, "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> SleepTimer.showDialog(this)
                     1 -> PlaybackSettings.show(this)
-                    2 -> if (videoUrl.isNotEmpty()) CastHelper.show(this, videoUrl, titleText, isLive)
-                    3 -> searchSubtitles()
-                    4 -> {
+                    2 -> {
+                        Reports.add(this, titleText, resumeSource.ifBlank { "vod" })
+                        Toast.makeText(this, "Reported — logged in Settings ▸ Diagnostics.", Toast.LENGTH_SHORT).show()
+                    }
+                    3 -> if (videoUrl.isNotEmpty()) CastHelper.show(this, videoUrl, titleText, isLive)
+                    4 -> searchSubtitles()
+                    5 -> {
                         Configs.setAutoplay(this, !Configs.autoplay(this))
                         Toast.makeText(this, if (Configs.autoplay(this)) "Autoplay next: ON" else "Autoplay next: OFF", Toast.LENGTH_SHORT).show()
                     }
-                    5 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
-                    6 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
-                    7 -> About.show(this)
-                    8 -> finishAffinity()
+                    6 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
+                    7 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
+                    8 -> About.show(this)
+                    9 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }
@@ -433,6 +465,7 @@ class PlayerActivity : AppCompatActivity() {
         resumeSource = item.source
         resumePoster = item.poster
         forceSoftware = false
+        linkRetried = false
         Toast.makeText(this, "▶  Next: ${item.title}", Toast.LENGTH_SHORT).show()
         io.execute {
             val url = Downloads.resolveSource(item.source)

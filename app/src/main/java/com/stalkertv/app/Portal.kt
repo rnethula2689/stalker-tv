@@ -26,12 +26,19 @@ object Portal {
     private var logosBase: String = ""
     var lastError: String = ""
 
+    /** True once a handshake + profile have succeeded (a session token exists). */
+    fun isConnected(): Boolean = token.isNotEmpty() && base.isNotEmpty()
+    /** The endpoint we handshaked against (for the diagnostics screen); blank until connected. */
+    fun activeBase(): String = base
+
     data class Channel(
         val id: String, val name: String, val number: String,
         val cmd: String, val logoUrl: String, val genreId: String, val censored: Boolean = false,
         val archiveDays: Int = 0,
         // Extra fields for the Live filter/sort (defaulted so other call sites are unaffected).
-        val hd: Boolean = false, val added: String = "", val locked: Boolean = false, val open: Boolean = true
+        val hd: Boolean = false, val added: String = "", val locked: Boolean = false, val open: Boolean = true,
+        // Alternate stream sources, if the portal provides them (for failover). Empty = single source.
+        val cmds: List<String> = emptyList()
     )
     data class Genre(val id: String, val title: String, val censored: Boolean = false)
     data class VodCat(val id: String, val title: String)
@@ -188,6 +195,14 @@ object Portal {
         for (i in 0 until arr.length()) {
             val c = arr.optJSONObject(i) ?: continue
             val logo = c.optString("logo")
+            // Alternate sources (some portals list several per channel) → used for failover.
+            val cmds = ArrayList<String>()
+            c.optJSONArray("cmds")?.let { a ->
+                for (j in 0 until a.length()) {
+                    val cc = a.optJSONObject(j)?.optString("cmd")
+                    if (!cc.isNullOrBlank() && cc != "null") cmds.add(cc)
+                }
+            }
             out.add(
                 Channel(
                     id = c.optString("id"),
@@ -201,7 +216,8 @@ object Portal {
                     hd = c.optInt("hd", 0) == 1,
                     added = c.optString("added"),
                     locked = (c.optInt("locked", 0) == 1 || c.optInt("lock", 0) == 1),
-                    open = c.optInt("open", 1) == 1
+                    open = c.optInt("open", 1) == 1,
+                    cmds = cmds
                 )
             )
         }

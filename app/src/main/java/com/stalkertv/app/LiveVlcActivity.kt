@@ -74,6 +74,11 @@ class LiveVlcActivity : AppCompatActivity() {
     private var nightOn = false
     private var isRecording = false
     private var recChannel = ""
+    // --- P3.1 reliability: auto-retry a failed live stream (fresh link + alternate sources) ---
+    private var retryCount = 0
+    private val maxRetry = 3
+    private var autoRetrying = false
+    private var playFailed = false
     private val OPTION_NAV_KEYS = intArrayOf(
         KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
         KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
@@ -111,7 +116,7 @@ class LiveVlcActivity : AppCompatActivity() {
     private val gestureDetector by lazy {
         android.view.GestureDetector(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: android.view.MotionEvent): Boolean = true
-            override fun onSingleTapUp(e: android.view.MotionEvent): Boolean { toggleBar(); return true }
+            override fun onSingleTapUp(e: android.view.MotionEvent): Boolean { if (playFailed) retryNow() else toggleBar(); return true }
             override fun onFling(e1: android.view.MotionEvent?, e2: android.view.MotionEvent, vx: Float, vy: Float): Boolean {
                 if (e1 == null || isArchive || timeshifting) return false
                 val dx = e2.x - e1.x
@@ -155,11 +160,12 @@ class LiveVlcActivity : AppCompatActivity() {
         player.attachViews(b.vlc, null, false, false)
         player.setEventListener { ev ->
             when (ev.type) {
-                MediaPlayer.Event.Playing -> { b.status.visibility = View.GONE; applyAspect(); if (isArchive || timeshifting) b.playBtn.text = "⏸" }
+                MediaPlayer.Event.Playing -> { b.status.visibility = View.GONE; retryCount = 0; playFailed = false; applyAspect(); if (isArchive || timeshifting) b.playBtn.text = "⏸" }
                 MediaPlayer.Event.Paused -> { if (isArchive || timeshifting) b.playBtn.text = "▶" }
                 MediaPlayer.Event.EndReached -> { if (isArchive) b.playBtn.text = "▶" else if (timeshifting) ui.post { returnToLive() } }
                 MediaPlayer.Event.EncounteredError ->
-                    b.status.apply { visibility = View.VISIBLE; text = "Couldn't play this." }
+                    if (!isArchive && !timeshifting) autoRetry()
+                    else b.status.apply { visibility = View.VISIBLE; text = "Couldn't play this." }
                 MediaPlayer.Event.RecordChanged -> { if (!ev.recording) ui.post { onRecordingStopped() } }
                 else -> {}
             }
@@ -443,6 +449,55 @@ class LiveVlcActivity : AppCompatActivity() {
         player.play()
     }
 
+    /** Candidate stream sources for a channel: primary cmd first, then any alternates (for failover). */
+    private fun candidateCmds(ch: Portal.Channel): List<String> {
+        val all = ArrayList<String>()
+        if (ch.cmd.isNotBlank()) all.add(ch.cmd)
+        for (c in ch.cmds) if (c.isNotBlank() && c !in all) all.add(c)
+        return if (all.isEmpty()) listOf(ch.cmd) else all
+    }
+
+    /** On a live error, re-resolve a fresh link (token expiry is the usual cause), cycling through any
+     *  alternate sources, with backoff — before giving up. */
+    private fun autoRetry() {
+        if (autoRetrying) return
+        val ch = channels.getOrNull(chIndex) ?: run { showPlayFailed(); return }
+        if (retryCount >= maxRetry) { showPlayFailed(); return }
+        autoRetrying = true
+        retryCount++
+        playFailed = false
+        val cmds = candidateCmds(ch)
+        val cmd = cmds[(retryCount - 1) % cmds.size]
+        b.status.visibility = View.VISIBLE
+        b.status.text = "Reconnecting…  ($retryCount/$maxRetry)"
+        ui.postDelayed({
+            if (isFinishing) { autoRetrying = false; return@postDelayed }
+            io.execute {
+                val u = Portal.createLink(cmd)
+                runOnUiThread {
+                    autoRetrying = false
+                    if (isFinishing) return@runOnUiThread
+                    if (!u.isNullOrEmpty()) { liveUrl = u; play(u) }
+                    else if (retryCount < maxRetry) autoRetry()
+                    else showPlayFailed()
+                }
+            }
+        }, 1000L * retryCount)
+    }
+
+    private fun showPlayFailed() {
+        autoRetrying = false
+        playFailed = true
+        b.status.visibility = View.VISIBLE
+        b.status.text = "Couldn't play this channel.\nTap / press OK to retry  ·  Menu ⋮ to report"
+    }
+
+    private fun retryNow() {
+        retryCount = 0
+        playFailed = false
+        autoRetry()
+    }
+
     /** Live only: Up = previous channel, Down = next. */
     private fun switchChannel(delta: Int) {
         if (isArchive || channels.isEmpty() || chIndex < 0) return
@@ -451,6 +506,7 @@ class LiveVlcActivity : AppCompatActivity() {
         if (idx > channels.size - 1) idx = channels.size - 1
         if (idx == chIndex) return
         stopRecordingIfActive() // switching channel ends the current recording
+        retryCount = 0; playFailed = false
         chIndex = idx
         val ch = channels[idx]
         titleText = ch.name
@@ -677,20 +733,29 @@ class LiveVlcActivity : AppCompatActivity() {
         finish()
     }
 
+    private fun reportNotWorking() {
+        val ch = channels.getOrNull(chIndex)
+        val src = if (ch != null) "live|${ch.id}|${ch.cmd}" else "live"
+        Reports.add(this, titleText.ifBlank { ch?.name ?: "Live channel" }, src)
+        android.widget.Toast.makeText(this, "Reported — logged in Settings ▸ Diagnostics.", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
     private var menuDialog: AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("⏲   Sleep timer", "🎚   Playback settings", "📡   Cast to TV", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("🔄   Retry stream", "⚠   Report not working", "⏲   Sleep timer", "🎚   Playback settings", "📡   Cast to TV", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> SleepTimer.showDialog(this)
-                    1 -> PlaybackSettings.show(this)
-                    2 -> if (currentUrl.isNotEmpty()) CastHelper.show(this, currentUrl, titleText, isLive = !isArchive)
-                    3 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    4 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
-                    5 -> About.show(this)
-                    6 -> finishAffinity()
+                    0 -> retryNow()
+                    1 -> reportNotWorking()
+                    2 -> SleepTimer.showDialog(this)
+                    3 -> PlaybackSettings.show(this)
+                    4 -> if (currentUrl.isNotEmpty()) CastHelper.show(this, currentUrl, titleText, isLive = !isArchive)
+                    5 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    6 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
+                    7 -> About.show(this)
+                    8 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }
@@ -758,6 +823,7 @@ class LiveVlcActivity : AppCompatActivity() {
                         // bar shown: let super move focus left among the options
                     }
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                        if (playFailed) { retryNow(); return true }
                         if (!barShown) { showBar(); b.topBar.requestFocus(); return true } // show + land on options
                         // bar shown: let super activate the focused option
                     }
