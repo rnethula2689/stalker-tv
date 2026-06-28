@@ -147,29 +147,6 @@ object Portal {
         return out
     }
 
-    /** TEMP diagnostic: fetch every radio station; returns name+cmd pairs (checked off-device). */
-    fun radioList(): List<Pair<String, String>> {
-        val items = ArrayList<Pair<String, String>>()
-        try {
-            var page = 1
-            var total = Int.MAX_VALUE
-            while ((page - 1) * 14 < total && page <= 60) {
-                val body = get("$base?type=radio&action=get_ordered_list&p=$page&JsHttpRequest=1-xml", true)
-                val js = JSONObject(body).optJSONObject("js") ?: break
-                total = js.optString("total_items").toIntOrNull() ?: 0
-                val data = js.optJSONArray("data") ?: break
-                if (data.length() == 0) break
-                for (i in 0 until data.length()) {
-                    val o = data.optJSONObject(i) ?: continue
-                    val cmd = o.optString("cmd")
-                    if (cmd.isNotBlank()) items.add(o.optString("name") to cmd)
-                }
-                page++
-            }
-        } catch (_: Exception) {}
-        return items
-    }
-
     fun liveGenres(): List<Genre> {
         val out = ArrayList<Genre>()
         val arr = jsArray(get("$base?type=itv&action=get_genres&JsHttpRequest=1-xml", true)) ?: return out

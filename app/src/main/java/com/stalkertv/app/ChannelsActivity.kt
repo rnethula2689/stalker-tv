@@ -504,14 +504,6 @@ class ChannelsActivity : AppCompatActivity() {
                 } else {
                     setProgress(100, "Ready", 350)
                     b.loadingOverlay.postDelayed({ hideLoading(); showHome(); maybeShowProfilePicker() }, 450)
-                    Thread {
-                        try {
-                            val sb = StringBuilder()
-                            for ((n, c) in Portal.radioList()) sb.append(n).append("\t").append(c).append("\n")
-                            java.io.File(filesDir, "radio_dump.txt").writeText(sb.toString())
-                            android.util.Log.d("RADIODUMP", "wrote radio_dump.txt")
-                        } catch (e: Exception) { android.util.Log.d("RADIODUMP", "ERR ${e.message}") }
-                    }.start()
                 }
             }
         }
