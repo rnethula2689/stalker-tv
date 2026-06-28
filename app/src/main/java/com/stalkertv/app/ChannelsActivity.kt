@@ -42,24 +42,6 @@ class ChannelsActivity : AppCompatActivity() {
     private var byGenre = mapOf<String, List<Portal.Channel>>()
     private var vodCats = listOf<Portal.VodCat>() // cached so Movies rebuilds in-memory
 
-    // --- Radio (flat portal list → client-side categories + lazy health check) ---
-    private var radioStations = listOf<Portal.RadioStation>()
-    private val radioHealth = HashMap<String, Boolean>()           // cmd -> reachable
-    private val radioChecked = HashSet<String>()                   // cmd already validated this session
-    private var radioCat: String? = null
-    private var radioValSeq = 0
-    // First keyword found in the (uppercased) station name wins; order = most specific first.
-    private val radioRules = linkedMapOf(
-        "SIRIUS" to "SiriusXM", "MIRCHI" to "Radio Mirchi", "RED FM" to "Red FM",
-        "BOLLYWOOD" to "Bollywood", "PUNJAB" to "Punjabi", "HINDI" to "Hindi",
-        "TAMIL" to "Tamil", "TELUGU" to "Telugu", "MALAYALAM" to "Malayalam",
-        "KANNADA" to "Kannada", "MARATHI" to "Marathi", "GUJARATI" to "Gujarati",
-        "BENGALI" to "Bengali", "URDU" to "Urdu",
-        "GURBANI" to "Devotional", "SAHIB" to "Devotional", "BHAKTI" to "Devotional",
-        "BHAJAN" to "Devotional", "DEVOTIONAL" to "Devotional", "SUKHMANI" to "Devotional", "KIRTAN" to "Devotional",
-        "NEWS" to "News", "SPORT" to "Sports", "ENGLISH" to "English"
-    )
-
     // --- Movie list filter/sort state (the current VOD_CATEGORY view) ---
     private var vodBase = listOf<Portal.VodItem>()   // loaded items backing the current movie list
     private var vodCat: Portal.VodCat? = null         // set when paginated (null for search / A–Z views)
@@ -135,7 +117,6 @@ class ChannelsActivity : AppCompatActivity() {
         // Floating bottom tab bar (home only).
         b.navLive.setOnClickListener { showLiveCategories() }
         b.navMovies.setOnClickListener { showVodCategories() }
-        b.navRadio.setOnClickListener { showRadio() }
         b.navFav.setOnClickListener { showFavouritesHome() }
         b.navWatch.setOnClickListener { startActivity(Intent(this, WatchLaterActivity::class.java)) }
         b.navRec.setOnClickListener { startActivity(Intent(this, RecordingsActivity::class.java)) }
@@ -1322,111 +1303,6 @@ class ChannelsActivity : AppCompatActivity() {
         val rows = vodCats.filter { ContentProfiles.vodCatVisible(this, it.id) }
             .map { c -> Row(c.title, null, sortKey = c.title, chip = true) { showVodList(c) } }
         push(Page("Movies", rows, kind = SearchKind.VOD_ALL, rebuild = { showVodCategories() }))
-    }
-
-    // ---- Radio ----
-
-    private fun showRadio() {
-        if (radioStations.isNotEmpty()) { displayRadioCategories(); return }
-        b.status.visibility = View.VISIBLE
-        b.status.text = "Loading radio…"
-        io.execute {
-            val list = Portal.radioStations()
-            runOnUiThread {
-                b.status.visibility = View.GONE
-                if (list.isEmpty()) {
-                    b.status.visibility = View.VISIBLE
-                    b.status.text = "No radio stations found."
-                    return@runOnUiThread
-                }
-                radioStations = list
-                displayRadioCategories()
-            }
-        }
-    }
-
-    private fun categorizeRadio(name: String): String {
-        val u = name.uppercase()
-        for ((kw, cat) in radioRules) if (u.contains(kw)) return cat
-        return "Other"
-    }
-
-    /** Category chips derived from station names (the portal gives radio no genres). */
-    private fun displayRadioCategories() {
-        val byCat = radioStations.groupBy { categorizeRadio(it.name) }
-        val cats = byCat.keys.sortedWith(compareByDescending<String> { byCat[it]?.size ?: 0 }.thenBy { it })
-        val rows = ArrayList<Row>()
-        rows.add(Row("All  (${radioStations.size})", null, sortKey = "All", chip = true) { showRadioStations("All") })
-        for (c in cats) rows.add(Row("$c  (${byCat[c]?.size ?: 0})", null, sortKey = c, chip = true) { showRadioStations(c) })
-        push(Page("Radio", rows, kind = SearchKind.LOCAL, rebuild = { displayRadioCategories() }))
-    }
-
-    private fun radioInCat(cat: String): List<Portal.RadioStation> =
-        if (cat == "All") radioStations else radioStations.filter { categorizeRadio(it.name) == cat }
-
-    /** Station list for a category. Hides stations already known dead; lazily validates small categories. */
-    private fun showRadioStations(cat: String) {
-        radioCat = cat
-        val stations = radioInCat(cat)
-        val shown = stations.filter { radioHealth[it.cmd] != false } // hide only KNOWN-dead
-        val rows = shown.map { s -> Row("📻  ${s.name}", null, sortKey = s.name) { playRadio(s) } }
-        push(Page("📻 $cat", rows, kind = SearchKind.LOCAL, rebuild = { showRadioStations(cat) }))
-        // Pre-validate only smallish categories (big ones would take minutes); the rest validate on play.
-        val unchecked = stations.filter { !radioChecked.contains(it.cmd) }
-        if (unchecked.isNotEmpty() && stations.size <= 80) validateRadio(cat, unchecked)
-    }
-
-    /** Background-check a category's stations (low concurrency + cache), then re-render hiding dead ones. */
-    private fun validateRadio(cat: String, stations: List<Portal.RadioStation>) {
-        val mine = ++radioValSeq
-        b.status.visibility = View.VISIBLE
-        b.status.text = "Checking availability…"
-        Thread {
-            val pool = Executors.newFixedThreadPool(4)
-            val latch = java.util.concurrent.CountDownLatch(stations.size)
-            for (s in stations) pool.execute {
-                try {
-                    if (!radioChecked.contains(s.cmd)) {
-                        val ok = Portal.streamReachable(s.cmd)
-                        synchronized(radioHealth) { radioHealth[s.cmd] = ok; radioChecked.add(s.cmd) }
-                    }
-                } catch (_: Exception) {} finally { latch.countDown() }
-            }
-            try { latch.await(90, java.util.concurrent.TimeUnit.SECONDS) } catch (_: Exception) {}
-            pool.shutdownNow()
-            runOnUiThread {
-                if (mine != radioValSeq || radioCat != cat) return@runOnUiThread
-                b.status.visibility = View.GONE
-                if (backStack.lastOrNull()?.title == "📻 $cat") { backStack.removeLast(); showRadioStations(cat) }
-            }
-        }.start()
-    }
-
-    private fun playRadio(s: Portal.RadioStation) {
-        b.status.visibility = View.VISIBLE
-        b.status.text = "Opening ${s.name}…"
-        io.execute {
-            // Verify it really streams (cache the result) so dead stations show "unavailable", not a broken player.
-            val cached = synchronized(radioHealth) { if (radioChecked.contains(s.cmd)) radioHealth[s.cmd] else null }
-            val ok = cached ?: Portal.streamReachable(s.cmd).also {
-                synchronized(radioHealth) { radioHealth[s.cmd] = it; radioChecked.add(s.cmd) }
-            }
-            val url = if (ok) Portal.radioLink(s.cmd) else null
-            runOnUiThread {
-                b.status.visibility = View.GONE
-                if (url.isNullOrEmpty()) {
-                    android.widget.Toast.makeText(this, "“${s.name}” is unavailable.", android.widget.Toast.LENGTH_SHORT).show()
-                    val c = radioCat // drop it from the list we're looking at
-                    if (c != null && backStack.lastOrNull()?.title == "📻 $c") { backStack.removeLast(); showRadioStations(c) }
-                    return@runOnUiThread
-                }
-                LiveVlcActivity.liveChannels = emptyList()
-                startActivity(
-                    Intent(this, LiveVlcActivity::class.java)
-                        .putExtra("url", url).putExtra("title", s.name).putExtra("chIndex", -1)
-                )
-            }
-        }
     }
 
     /** Title for episodes/seasons is "Series  /  Season  /  Episode" → split for nesting. */
