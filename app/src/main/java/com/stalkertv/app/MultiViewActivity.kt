@@ -64,6 +64,7 @@ class MultiViewActivity : AppCompatActivity() {
     }
 
     private fun markFilled(i: Int, name: String) {
+        panes[i].video.visibility = View.VISIBLE
         panes[i].paneEmpty.visibility = View.GONE
         panes[i].paneName.text = name
         panes[i].paneName.visibility = View.VISIBLE
@@ -71,6 +72,7 @@ class MultiViewActivity : AppCompatActivity() {
     }
 
     private fun markEmpty(i: Int) {
+        panes[i].video.visibility = View.INVISIBLE // destroy the surface so the last frame doesn't linger
         panes[i].paneEmpty.visibility = View.VISIBLE
         panes[i].paneName.visibility = View.GONE
         panes[i].paneAudio.visibility = View.GONE
@@ -80,7 +82,11 @@ class MultiViewActivity : AppCompatActivity() {
     private fun startPane(i: Int) {
         val ch = paneCh[i] ?: return
         val vlc = libVlc ?: return
-        val mp = players[i] ?: MediaPlayer(vlc).also { players[i] = it }
+        // libVLC ignores setVolume() until the audio output exists, so re-apply mute on Playing.
+        val mp = players[i] ?: MediaPlayer(vlc).also { p ->
+            players[i] = p
+            p.setEventListener { ev -> if (ev.type == MediaPlayer.Event.Playing) ui.post { applyAudio() } }
+        }
         if (!attached[i]) { mp.attachViews(panes[i].video, null, false, false); attached[i] = true }
         val mine = ++seqs[i]
         io.execute {
