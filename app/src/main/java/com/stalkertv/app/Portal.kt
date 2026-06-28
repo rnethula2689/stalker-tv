@@ -35,6 +35,7 @@ object Portal {
     )
     data class Genre(val id: String, val title: String, val censored: Boolean = false)
     data class VodCat(val id: String, val title: String)
+    data class RadioStation(val id: String, val name: String, val cmd: String, val number: String = "")
     data class VodItem(
         val id: String, val name: String, val cmd: String, val posterUrl: String, val isSeries: Boolean,
         // Extra metadata the portal already returns (used by the movie info sheet); blank when absent.
@@ -145,6 +146,56 @@ object Portal {
             parseChannels(JSONObject(body).optJSONObject("js")?.optJSONArray("data"), out)
         } catch (_: Exception) {}
         return out
+    }
+
+    /** All radio stations (the portal returns them as one flat, paged list — no genres). */
+    fun radioStations(): List<RadioStation> {
+        val out = ArrayList<RadioStation>()
+        try {
+            var page = 1
+            var total = Int.MAX_VALUE
+            while ((page - 1) * 14 < total && page <= 60) {
+                val body = get("$base?type=radio&action=get_ordered_list&p=$page&JsHttpRequest=1-xml", true)
+                val js = JSONObject(body).optJSONObject("js") ?: break
+                total = js.optString("total_items").toIntOrNull() ?: 0
+                val data = js.optJSONArray("data") ?: break
+                if (data.length() == 0) break
+                for (i in 0 until data.length()) {
+                    val o = data.optJSONObject(i) ?: continue
+                    val cmd = o.optString("cmd")
+                    if (cmd.isNotBlank()) out.add(RadioStation(o.optString("id"), o.optString("name"), cmd, o.optString("number")))
+                }
+                page++
+            }
+        } catch (_: Exception) {}
+        return out
+    }
+
+    /** Resolve a radio station's play URL (cmd is usually already a direct stream URL). */
+    fun radioLink(cmd: String): String? =
+        if (cmd.contains("http")) cmd.substring(cmd.indexOf("http")).trim() else resolve("radio", cmd)
+
+    private val streamClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS).callTimeout(11, TimeUnit.SECONDS)
+            .followRedirects(true).followSslRedirects(true).build()
+    }
+
+    /** Is a stream URL reachable? Retries once on 429/timeout (shared CDNs rate-limit bulk checks). */
+    fun streamReachable(cmd: String): Boolean {
+        val url = radioLink(cmd) ?: return false
+        for (attempt in 0..1) {
+            try {
+                streamClient.newCall(Request.Builder().url(url).header("User-Agent", UA).get().build()).execute().use { r ->
+                    if (r.code in 200..399) return true
+                    if (r.code != 429) return false
+                }
+            } catch (e: Exception) {
+                if (attempt == 1 || e !is java.net.SocketTimeoutException) return false
+            }
+            try { Thread.sleep(1200) } catch (_: Exception) {}
+        }
+        return false
     }
 
     fun liveGenres(): List<Genre> {
