@@ -52,9 +52,40 @@ class SettingsActivity : AppCompatActivity() {
         b.diagnosticsBtn.setOnClickListener {
             startActivity(android.content.Intent(this, DiagnosticsActivity::class.java))
         }
+
+        b.backupBtn.setOnClickListener {
+            try {
+                val f = Backup.writeToFile(this)
+                val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.fileprovider", f)
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+                    .setType("application/json")
+                    .putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                    .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                startActivity(android.content.Intent.createChooser(send, "Back up data"))
+                b.backupMsg.text = "Saved ✓  ${f.absolutePath}"
+            } catch (e: Exception) { b.backupMsg.text = "Backup failed: ${e.message}" }
+        }
+        b.restoreBtn.setOnClickListener {
+            try { openBackup.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) }
+            catch (e: Exception) { b.backupMsg.text = "Couldn't open the file picker: ${e.message}" }
+        }
     }
 
     private val epgIo = java.util.concurrent.Executors.newSingleThreadExecutor()
+
+    /** SAF picker for restoring a backup file → merge into the current account/profile. */
+    private val openBackup = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@registerForActivityResult
+        try {
+            val text = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+            val r = Backup.importJson(this, text)
+            b.backupMsg.text = "Restored ✓  +${r.favorites} favourites, +${r.watchLater} watch-later, +${r.resume} continue-watching"
+        } catch (e: Exception) {
+            b.backupMsg.text = "Restore failed: ${e.message}"
+        }
+    }
 
     private fun refreshList() {
         b.configList.removeAllViews()

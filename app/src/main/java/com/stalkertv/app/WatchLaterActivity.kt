@@ -28,6 +28,10 @@ class WatchLaterActivity : AppCompatActivity() {
     private var lastEmpty = false
     private val tv by lazy { Tv.isTv(this) }
     private var hasCheckable = false
+    // P4.2: root-level sort + search
+    private var wlSort = 0 // 0 = Newest, 1 = A–Z, 2 = Z–A
+    private val wlSortLabels = arrayOf("⇅  Newest", "⇅  A–Z", "⇅  Z–A")
+    private var wlQuery = ""
 
     /** Show "Remove selected" when items are ticked (TV) / whenever the list has items (tablet). */
     private fun updateRemoveSelBtn() {
@@ -58,7 +62,47 @@ class WatchLaterActivity : AppCompatActivity() {
         b.list.adapter = adapter
         b.removeSelBtn.setOnClickListener { removeSelected() }
         b.removeAllBtn.setOnClickListener { confirmRemoveAll() }
+        b.sortBtn.text = wlSortLabels[wlSort]
+        b.sortBtn.setOnClickListener {
+            wlSort = (wlSort + 1) % wlSortLabels.size
+            b.sortBtn.text = wlSortLabels[wlSort]
+            resetToRoot()
+        }
+        b.exportBtn.setOnClickListener { exportList() }
+        b.search.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                wlQuery = s?.toString()?.trim() ?: ""
+                resetToRoot()
+            }
+        })
         go { buildRoot() }
+    }
+
+    /** Collapse any nested folder navigation and re-show the (filtered/sorted) root. */
+    private fun resetToRoot() {
+        while (stack.size > 1) stack.removeLast()
+        selected.clear()
+        if (stack.isEmpty()) go { buildRoot() } else stack.last().invoke()
+    }
+
+    /** Share the whole Watch Later list as plain text. */
+    private fun exportList() {
+        val all = WatchLater.all(this)
+        if (all.isEmpty()) {
+            android.widget.Toast.makeText(this, "Nothing to export yet.", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val text = buildString {
+            append("My Watch Later (${all.size})\n\n")
+            all.forEachIndexed { i, e -> append("${i + 1}. ${e.title}\n") }
+        }
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(Intent.EXTRA_SUBJECT, "My Watch Later")
+            .putExtra(Intent.EXTRA_TEXT, text)
+        try { startActivity(Intent.createChooser(send, "Export Watch Later")) }
+        catch (_: Exception) { android.widget.Toast.makeText(this, "No app to share with.", android.widget.Toast.LENGTH_SHORT).show() }
     }
 
     private fun parts(title: String) = title.split("/").map { it.trim() }
@@ -74,13 +118,28 @@ class WatchLaterActivity : AppCompatActivity() {
         b.title.text = "🕒  Watch Later"
         selected.clear()
         val all = WatchLater.all(this)
+        val q = wlQuery.lowercase()
+        fun sortNames(l: List<String>) = when (wlSort) {
+            1 -> l.sortedBy { it.lowercase() }; 2 -> l.sortedByDescending { it.lowercase() }; else -> l
+        }
+        var movies = all.filter { it.kind == "movie" }
+        if (q.isNotEmpty()) movies = movies.filter { it.title.lowercase().contains(q) }
+        movies = when (wlSort) {
+            1 -> movies.sortedBy { it.title.lowercase() }
+            2 -> movies.sortedByDescending { it.title.lowercase() }
+            else -> movies // Newest: all() is already newest-first
+        }
         val rows = ArrayList<WlRow>()
-        for (m in all.filter { it.kind == "movie" })
-            rows.add(WlRow(m.id, "🎬  ${m.title}", m.poster.ifBlank { null }, true) { play(m) })
-        val eps = all.filter { it.kind == "episode" }
-        for (seriesName in eps.map { e -> parts(e.title).getOrElse(0) { e.title } }.distinct())
+        for (m in movies) rows.add(WlRow(m.id, "🎬  ${m.title}", m.poster.ifBlank { null }, true) { play(m) })
+        var seriesNames = all.filter { it.kind == "episode" }
+            .map { e -> parts(e.title).getOrElse(0) { e.title } }.distinct()
+        if (q.isNotEmpty()) seriesNames = seriesNames.filter { it.lowercase().contains(q) }
+        for (seriesName in sortNames(seriesNames))
             rows.add(WlRow(null, "📁  $seriesName", null, false) { go { buildSeries(seriesName) } })
-        render(rows, all.isEmpty())
+        b.empty.text = if (all.isEmpty())
+            "Nothing saved for later yet.\n\nOpen a movie or episode and choose “🕒 Watch later”."
+        else "No matches for “$wlQuery”."
+        render(rows, rows.isEmpty())
     }
 
     private fun buildSeries(seriesName: String) {
@@ -108,6 +167,8 @@ class WatchLaterActivity : AppCompatActivity() {
 
     private fun render(rows: List<WlRow>, empty: Boolean) {
         lastEmpty = empty
+        // Search + sort act on the root list only — hide them while inside a series/season folder.
+        b.toolbar.visibility = if (stack.size > 1) View.GONE else View.VISIBLE
         b.empty.visibility = if (empty) View.VISIBLE else View.GONE
         b.list.visibility = if (empty) View.GONE else View.VISIBLE
         hasCheckable = rows.any { it.checkable }

@@ -229,6 +229,57 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:text="Sync &amp; Backup"
+            android:textColor="#e6edf3"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Back up your Favourites, Watch Later and Continue Watching to a file you can save or move to another device. Restore merges — it won't erase what's already here. (No portal login is included.)"
+            android:textColor="#8b97a5"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="10dp">
+
+            <Button
+                android:id="@+id/backupBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⬆  Back up my data" />
+
+            <Button
+                android:id="@+id/restoreBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="⬇  Restore" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/backupMsg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textColor="#9fb0c0"
+            android:textSize="14sp"
+            android:text="" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1c2530"
+            android:layout_marginVertical="20dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="Troubleshooting"
             android:textColor="#e6edf3"
             android:textSize="18sp"

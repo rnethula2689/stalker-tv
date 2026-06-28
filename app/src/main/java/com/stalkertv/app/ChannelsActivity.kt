@@ -755,7 +755,7 @@ class ChannelsActivity : AppCompatActivity() {
     ) {
         val labels = ArrayList<String>()
         val acts = ArrayList<() -> Unit>()
-        labels.add("▶  Play"); acts.add { play(title, id, poster, source, playlist, plIndex) }
+        labels.add("▶  Play"); acts.add { Taste.record(applicationContext, info?.genre ?: ""); play(title, id, poster, source, playlist, plIndex) }
         labels.add("🎬  Watch trailer"); acts.add { watchTrailer(title, info?.year ?: "") }
         if (info != null) { // TMDb can fill rating/overview even when the portal metadata is sparse
             labels.add("ℹ  Movie info & rating"); acts.add { showMovieInfo(title, info) }
@@ -980,8 +980,19 @@ class ChannelsActivity : AppCompatActivity() {
         if (wl.isNotEmpty()) rows.add(Row("Watch Later", null, rail = wl.map { e ->
             Card(e.title, e.poster.ifBlank { null }) { play(e.title, e.id, e.poster, e.source) }
         }) {})
-        // Newest movies from the portal (fetched in the background after connect; absent until ready).
+        // "For You": the newest movies re-ranked by the user's taste (genres they've played).
         val recent = cachedRecent
+        if (recent.isNotEmpty() && Taste.hasData(this)) {
+            val ranked = recent.map { it to Taste.score(this, it.genre) }
+                .filter { it.second > 0 }.sortedByDescending { it.second }.map { it.first }
+            if (ranked.isNotEmpty()) rows.add(Row("For You", null, rail = ranked.take(15).map { v ->
+                Card(v.name, v.posterUrl.ifBlank { null }) {
+                    if (v.isSeries) showSeasons(v)
+                    else mediaActions(v.name, v.posterUrl, "movie_${v.id}", "vod|${v.id}|${v.cmd}", info = MovieInfo.from(v))
+                }
+            }) {})
+        }
+        // Newest movies from the portal (fetched in the background after connect; absent until ready).
         if (recent.isNotEmpty()) rows.add(Row("Recently Added", null, rail = recent.map { v ->
             Card(v.name, v.posterUrl.ifBlank { null }) {
                 if (v.isSeries) showSeasons(v)

@@ -15,6 +15,53 @@
         android:textSize="22sp"
         android:textStyle="bold" />
 
+    <LinearLayout
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="12dp"
+        android:baselineAligned="false">
+
+        <EditText
+            android:id="@+id/search"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Search Watch Later…"
+            android:textColorHint="#5a6675"
+            android:textColor="#e6edf3"
+            android:singleLine="true"
+            android:imeOptions="actionSearch"
+            android:inputType="text" />
+
+        <TextView
+            android:id="@+id/sortBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="⇅  Newest"
+            android:textColor="#e6edf3"
+            android:textSize="14sp"
+            android:padding="12dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+
+        <TextView
+            android:id="@+id/exportBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="↗  Export"
+            android:textColor="#e6edf3"
+            android:textSize="14sp"
+            android:padding="12dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/item_bg" />
+    </LinearLayout>
+
     <TextView
         android:id="@+id/empty"
         android:layout_width="match_parent"
