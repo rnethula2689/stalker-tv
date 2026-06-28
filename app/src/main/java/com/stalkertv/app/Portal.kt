@@ -172,9 +172,9 @@ object Portal {
         val fail = java.util.concurrent.atomic.AtomicInteger()
         val fails = java.util.Collections.synchronizedList(ArrayList<String>())
         val checkClient = OkHttpClient.Builder()
-            .connectTimeout(7, TimeUnit.SECONDS).readTimeout(7, TimeUnit.SECONDS).callTimeout(9, TimeUnit.SECONDS)
+            .connectTimeout(12, TimeUnit.SECONDS).readTimeout(12, TimeUnit.SECONDS).callTimeout(15, TimeUnit.SECONDS)
             .followRedirects(true).followSslRedirects(true).build()
-        val pool = java.util.concurrent.Executors.newFixedThreadPool(16)
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(6)
         val latch = java.util.concurrent.CountDownLatch(items.size)
         for ((name, cmd) in items) {
             pool.execute {
@@ -192,9 +192,10 @@ object Portal {
                 latch.countDown()
             }
         }
-        latch.await(180, TimeUnit.SECONDS)
+        latch.await(420, TimeUnit.SECONDS)
+        val unfinished = latch.count
         pool.shutdownNow()
-        val sb = StringBuilder("RADIOHEALTH total=${items.size} ok=${ok.get()} fail=${fail.get()}\n")
+        val sb = StringBuilder("RADIOHEALTH total=${items.size} ok=${ok.get()} fail=${fail.get()} unfinished=$unfinished\n")
         synchronized(fails) { for (f in fails) sb.append("FAIL: ").append(f).append("\n") }
         return sb.toString()
     }
