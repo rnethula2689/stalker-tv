@@ -690,10 +690,12 @@ class LiveVlcActivity : AppCompatActivity() {
         dlg.show()
     }
 
-    /** Open Multi-view: pane 1 = the channel playing now; other panes empty. Picker spans all categories. */
+    /** Open Multi-view: pane 1 = the channel playing now; other panes empty. Only the active profile's
+     *  categories/channels are offered. */
     private fun openMultiView() {
-        MultiViewActivity.channels = ChannelsActivity.allChannelsCatalog().ifEmpty { LiveVlcActivity.liveChannels }
-        MultiViewActivity.genres = ChannelsActivity.catGenres()
+        MultiViewActivity.channels = ChannelsActivity.allChannelsCatalog()
+            .filter { ContentProfiles.liveCatVisible(this, it.genreId) }.ifEmpty { channels }
+        MultiViewActivity.genres = ChannelsActivity.catGenres().filter { ContentProfiles.liveCatVisible(this, it.id) }
         val cur = channels.getOrNull(chIndex)
         MultiViewActivity.startChannels = if (cur != null) listOf(cur) else emptyList()
         startActivity(Intent(this, MultiViewActivity::class.java))

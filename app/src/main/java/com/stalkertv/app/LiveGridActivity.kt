@@ -466,10 +466,11 @@ class LiveGridActivity : AppCompatActivity() {
         ).show()
     }
 
-    /** Open Multi-view: pane 1 = the channel being previewed; picker spans all categories. */
+    /** Open Multi-view: pane 1 = the previewed channel; only the active profile's categories are offered. */
     private fun openMultiView() {
-        MultiViewActivity.channels = ChannelsActivity.allChannelsCatalog().ifEmpty { all }
-        MultiViewActivity.genres = ChannelsActivity.catGenres()
+        MultiViewActivity.channels = ChannelsActivity.allChannelsCatalog()
+            .filter { ContentProfiles.liveCatVisible(this, it.genreId) }.ifEmpty { all }
+        MultiViewActivity.genres = ChannelsActivity.catGenres().filter { ContentProfiles.liveCatVisible(this, it.id) }
         MultiViewActivity.startChannels = listOfNotNull(current)
         startActivity(Intent(this, MultiViewActivity::class.java))
     }

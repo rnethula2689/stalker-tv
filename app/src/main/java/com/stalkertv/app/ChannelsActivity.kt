@@ -491,7 +491,6 @@ class ChannelsActivity : AppCompatActivity() {
             runOnUiThread { setProgress(65, "Authenticated ✓   Loading channels…", 700) }
             val ch = Portal.liveChannels()
             runOnUiThread { setProgress(88, "Loading categories…", 700) }
-            try { android.util.Log.d("RADIOPROBE", Portal.radioRaw()) } catch (_: Exception) {}
             val g = Portal.liveGenres()
             runOnUiThread {
                 allChannels = ch

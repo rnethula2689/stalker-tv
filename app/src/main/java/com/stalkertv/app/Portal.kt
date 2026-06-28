@@ -147,13 +147,6 @@ object Portal {
         return out
     }
 
-    /** TEMP probe: does this portal expose a radio section? Logs the raw responses. */
-    fun radioRaw(): String {
-        val genres = try { get("$base?type=radio&action=get_genres&JsHttpRequest=1-xml", true) } catch (e: Exception) { "ERR ${e.message}" }
-        val list = try { get("$base?type=radio&action=get_ordered_list&p=1&JsHttpRequest=1-xml", true) } catch (e: Exception) { "ERR ${e.message}" }
-        return "RADIO_GENRES=" + genres.take(900) + "\nRADIO_LIST=" + list.take(1600)
-    }
-
     fun liveGenres(): List<Genre> {
         val out = ArrayList<Genre>()
         val arr = jsArray(get("$base?type=itv&action=get_genres&JsHttpRequest=1-xml", true)) ?: return out
