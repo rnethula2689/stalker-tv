@@ -509,7 +509,10 @@ class LiveVlcActivity : AppCompatActivity() {
         refreshVol()
         b.volSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
-                if (fromUser) { volSet(progress); updateMuteLabel() }
+                if (fromUser) {
+                    volSet(progress); updateMuteLabel()
+                    b.volLabel.text = "🔊  Volume  ${if (volMax() > 0) progress * 100 / volMax() else 0}%"
+                }
             }
             override fun onStartTrackingTouch(sb: SeekBar) {}
             override fun onStopTrackingTouch(sb: SeekBar) {}
@@ -521,13 +524,14 @@ class LiveVlcActivity : AppCompatActivity() {
         b.brightSeek.progress = brightGetPct()
         b.brightSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
-                if (fromUser) brightSetPct(progress)
+                if (fromUser) { brightSetPct(progress); updateBrightLabel() }
             }
             override fun onStartTrackingTouch(sb: SeekBar) {}
             override fun onStopTrackingTouch(sb: SeekBar) {}
         })
         b.brightBtn.setOnClickListener {
             b.brightSeek.progress = brightGetPct()
+            updateBrightLabel()
             openPanel(b.brightnessPanel)
         }
         b.nightBtn.setOnClickListener { toggleNight() }
@@ -558,13 +562,17 @@ class LiveVlcActivity : AppCompatActivity() {
             .show()
     }
 
-    /** Open one panel (and close the other). While a panel is open the auto-hide timer is paused. */
+    /** Open one panel (and close the other) and focus its slider so the remote ◀▶ adjusts it natively. */
     private fun openPanel(panel: View) {
         val show = panel.visibility != View.VISIBLE
         b.volumePanel.visibility = View.GONE
         b.brightnessPanel.visibility = View.GONE
         panel.visibility = if (show) View.VISIBLE else View.GONE
-        if (show) hideBarRunnable?.let { ui.removeCallbacks(it) } else scheduleHide()
+        if (show) {
+            hideBarRunnable?.let { ui.removeCallbacks(it) }
+            val sb = if (panel === b.volumePanel) b.volSeek else b.brightSeek
+            sb.post { sb.requestFocus() }
+        } else scheduleHide()
     }
 
     private fun cycleAspect() {
@@ -595,7 +603,11 @@ class LiveVlcActivity : AppCompatActivity() {
     private fun refreshVol() {
         b.volSeek.progress = volGet()
         updateMuteLabel()
+        val pct = if (volMax() > 0) volGet() * 100 / volMax() else 0
+        b.volLabel.text = "🔊  Volume  $pct%"
     }
+
+    private fun updateBrightLabel() { b.brightLabel.text = "☀  Brightness  ${brightGetPct()}%" }
 
     private fun updateMuteLabel() {
         val muted = volGet() == 0
@@ -603,15 +615,10 @@ class LiveVlcActivity : AppCompatActivity() {
         b.volBtn.text = if (muted) "🔇" else "🔊"
     }
 
-    /** D-pad volume/brightness while a panel is open (TV): up/down adjust, 0 volume = muted. */
-    private fun adjustVol(delta: Int) { volSet(volGet() + delta); refreshVol() }
-    private fun adjustBright(deltaPct: Int) {
-        brightSetPct(brightGetPct() + deltaPct)
-        b.brightSeek.progress = brightGetPct()
-    }
     private fun closePanels() {
         b.volumePanel.visibility = View.GONE
         b.brightnessPanel.visibility = View.GONE
+        if (b.topBar.visibility == View.VISIBLE) b.topBar.requestFocus()
         scheduleHide()
     }
     private fun panelOpen() = b.volumePanel.visibility == View.VISIBLE || b.brightnessPanel.visibility == View.VISIBLE
@@ -703,16 +710,11 @@ class LiveVlcActivity : AppCompatActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
-            // While the volume/brightness panel is open, D-pad up/down adjusts it (volume 0 = mute).
+            // Panel open: the focused slider handles ◀▶, focus nav moves to the Mute/Night button.
+            // We only intercept Back (close) — everything else goes to native focus handling.
             if (panelOpen()) {
-                val vol = b.volumePanel.visibility == View.VISIBLE
-                when (event.keyCode) {
-                    KeyEvent.KEYCODE_DPAD_UP -> { if (vol) adjustVol(1) else adjustBright(7); return true }
-                    KeyEvent.KEYCODE_DPAD_DOWN -> { if (vol) adjustVol(-1) else adjustBright(-7); return true }
-                    // Center toggles the panel's button (Mute / Night mode) so it's reachable on TV.
-                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { if (vol) toggleMute() else toggleNight(); return true }
-                    KeyEvent.KEYCODE_BACK -> { closePanels(); return true }
-                }
+                if (event.keyCode == KeyEvent.KEYCODE_BACK) { closePanels(); return true }
+                return super.dispatchKeyEvent(event)
             }
             if (isArchive) {
                 when (event.keyCode) {

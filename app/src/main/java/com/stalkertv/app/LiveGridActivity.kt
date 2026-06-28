@@ -530,6 +530,15 @@ class LiveGridActivity : AppCompatActivity() {
         return super.onKeyUp(keyCode, event)
     }
 
+    override fun onBackPressed() {
+        // Back first clears an open search / active filter / A–Z letter, only then leaves the grid.
+        if (b.searchRow.visibility == View.VISIBLE) { b.search.setText(""); b.searchRow.visibility = View.GONE; return }
+        if (liveFilter != null || liveLetter != null) {
+            liveFilter = null; liveLetter = null; updateLiveButtons(); applyView(); return
+        }
+        super.onBackPressed()
+    }
+
     override fun onStart() {
         super.onStart()
         // (Re)attach the VLC surface and (re)start the preview. Without re-attaching, the

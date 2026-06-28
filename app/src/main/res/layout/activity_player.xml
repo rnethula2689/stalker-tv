@@ -188,6 +188,7 @@
         android:visibility="gone">
 
         <TextView
+            android:id="@+id/volLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="🔊  Volume"
@@ -203,7 +204,17 @@
             android:paddingVertical="12dp"
             android:thumb="@drawable/seek_thumb"
             android:thumbOffset="0dp"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
             android:max="100" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="◀ ▶ adjust · OK mute · Back close"
+            android:textColor="#7a8a9a"
+            android:textSize="10sp" />
 
         <TextView
             android:id="@+id/muteBtn"
@@ -234,6 +245,7 @@
         android:visibility="gone">
 
         <TextView
+            android:id="@+id/brightLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="☀  Brightness"
@@ -249,7 +261,17 @@
             android:paddingVertical="12dp"
             android:thumb="@drawable/seek_thumb"
             android:thumbOffset="0dp"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
             android:max="100" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="◀ ▶ adjust · OK night · Back close"
+            android:textColor="#7a8a9a"
+            android:textSize="10sp" />
 
         <TextView
             android:id="@+id/nightBtn"

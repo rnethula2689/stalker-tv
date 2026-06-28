@@ -109,7 +109,10 @@ class ChannelsActivity : AppCompatActivity() {
         b.reloadBtn.setOnClickListener { connectAndLoad(true) } // true = real portal reconnect, not a cache rebuild
         b.sortBtn.setOnClickListener { showSortDialog() }
         b.filterBtn.setOnClickListener { showFilterDialog() }
+        b.settingsBtn.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
         b.menuBtn.setOnClickListener { showMenu() }
+        b.profileBtn.setOnClickListener { showProfilePicker() }
+        b.profileBtn.setOnFocusChangeListener { v, f -> val s = if (f) 1.18f else 1f; v.animate().scaleX(s).scaleY(s).setDuration(120).start() }
 
         b.liveCatList.layoutManager = LinearLayoutManager(this)
         b.liveCatList.adapter = liveCatAdapter
@@ -243,17 +246,16 @@ class ChannelsActivity : AppCompatActivity() {
     private var menuDialog: androidx.appcompat.app.AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("👤   Switch profile", "🔄   Refresh portal", "⚙   Settings", "🔒   Parental PIN", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("👤   Switch profile", "🔄   Refresh portal", "🔒   Parental PIN", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> showProfilePicker()
                     1 -> connectAndLoad(true)
-                    2 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    3 -> changePin()
-                    4 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
-                    5 -> About.show(this)
-                    6 -> finishAffinity()
+                    2 -> changePin()
+                    3 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
+                    4 -> About.show(this)
+                    5 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }
@@ -274,6 +276,27 @@ class ChannelsActivity : AppCompatActivity() {
             .setPositiveButton("Yes") { _, _ -> finishAffinity() }
             .setNegativeButton("No", null)
             .show()
+    }
+
+    private fun isInList(v: android.view.View?): Boolean {
+        var p = v?.parent
+        while (p != null) { if (p === b.list) return true; p = (p as? android.view.View)?.parent }
+        return false
+    }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        // TV: pressing UP from the top of the content list jumps to the top-bar icons (the nested
+        // horizontal rails otherwise trap focus and never reach search/refresh/etc.).
+        if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+            event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP &&
+            b.profileOverlay.visibility != View.VISIBLE && b.liveCatOverlay.visibility != View.VISIBLE &&
+            b.searchRow.visibility != View.VISIBLE &&
+            isInList(currentFocus) && !b.list.canScrollVertically(-1)
+        ) {
+            b.searchBtn.requestFocus()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
@@ -328,6 +351,13 @@ class ChannelsActivity : AppCompatActivity() {
         // Continue-Watching progress are current (all in-memory; no portal reconnect).
         val top = backStack.lastOrNull()
         if (top?.rebuild != null) { backStack.removeLast(); top.rebuild!!.invoke() }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // If the Live category overlay was left up while launching the player, drop it now (while we're
+        // hidden behind the player) so home doesn't flash through, and the panel isn't stuck on return.
+        if (b.liveCatOverlay.visibility == View.VISIBLE) hideLiveCategories()
     }
 
     private var progressAnim: android.animation.ObjectAnimator? = null
@@ -554,6 +584,19 @@ class ChannelsActivity : AppCompatActivity() {
     override fun onBackPressed() {
         if (b.profileOverlay.visibility == View.VISIBLE) { hideProfilePicker(); showHome(); return }
         if (b.liveCatOverlay.visibility == View.VISIBLE) { hideLiveCategories(); return }
+        // In a movie folder, Back first clears an active filter / A–Z / search → back to the full folder,
+        // only then (next Back) exits to the Movies grid.
+        val cur = backStack.lastOrNull()
+        if (cur?.kind == SearchKind.VOD_CATEGORY) {
+            val hadSearch = b.search.text.isNotEmpty()
+            if (hadSearch || vodFilterAttr != null || vodLetter != null) {
+                vodFilterAttr = null; vodFilterVal = null; vodLetter = null
+                updateVodButtons()
+                if (hadSearch) { b.search.setText(""); b.searchRow.visibility = View.GONE } // → vodSearchUi("") reloads full folder
+                else renderVodItems(0)
+                return
+            }
+        }
         if (b.searchRow.visibility == View.VISIBLE) {
             b.search.setText("")
             b.searchRow.visibility = View.GONE
@@ -878,16 +921,10 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     // ---- screens ----
-    private fun homeGreeting(): String {
-        val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        val g = when { h < 12 -> "Good morning"; h < 17 -> "Good afternoon"; else -> "Good evening" }
-        return "$g — here's what's on tonight"
-    }
-
     private fun showHome() {
         backStack.clear()
+        updateProfileBadge()
         val rows = ArrayList<Row>()
-        rows.add(Row(homeGreeting(), null, isHeader = true) {})
 
         // Content rails (thumbnails) from local data — no portal calls, so the home is instant.
         val cw = Resume.all(this)
@@ -940,15 +977,16 @@ class ChannelsActivity : AppCompatActivity() {
         val favChannels = allChannels.filter { favs.contains(it.id) }
         // Only the categories/channels this profile is allowed to see.
         val visChannels = allChannels.filter { ContentProfiles.liveCatVisible(this, it.genreId) }
+        // Keep the overlay up while the player launches (hidden in onStop) so home doesn't flash through.
         if (favChannels.isNotEmpty())
-            rows.add(Row("⭐  Favourites  (${favChannels.size})", null, sortKey = "Favourites") { hideLiveCategories(); openLiveGrid(favChannels, "Favourites") })
-        rows.add(Row("All Channels  (${visChannels.size})", null, sortKey = "All Channels") { hideLiveCategories(); openLiveGrid(visChannels, "All Channels") })
+            rows.add(Row("⭐  Favourites  (${favChannels.size})", null, sortKey = "Favourites") { openLiveGrid(favChannels, "Favourites") })
+        rows.add(Row("All Channels  (${visChannels.size})", null, sortKey = "All Channels") { openLiveGrid(visChannels, "All Channels") })
         for (g in genres) {
             if (!ContentProfiles.liveCatVisible(this, g.id)) continue
             val list = byGenre[g.id] ?: emptyList()
             if (list.isEmpty() && !g.censored) continue
             val label = (if (g.censored) "🔒  " else "") + g.title + (if (list.isNotEmpty()) "  (${list.size})" else "")
-            rows.add(Row(label, null, sortKey = g.title) { hideLiveCategories(); openGenre(g) })
+            rows.add(Row(label, null, sortKey = g.title) { openGenre(g) })
         }
         liveCatRows = rows
         liveCatAdapter.submit(rows)
@@ -991,6 +1029,16 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     // ---- Content profiles ("Who's watching?") ----
+
+    /** Top-bar avatar = active profile's initial on its colour (tap → switch profile). */
+    private fun updateProfileBadge() {
+        val p = ContentProfiles.active(this)
+        b.profileBtn.text = p?.name?.firstOrNull()?.uppercaseChar()?.toString() ?: "👤"
+        val d = android.graphics.drawable.GradientDrawable()
+        d.shape = android.graphics.drawable.GradientDrawable.OVAL
+        d.setColor(p?.color ?: 0x55FFFFFF.toInt())
+        b.profileBtn.background = d
+    }
 
     /** Show the picker once on first run (no profile yet). Afterwards we auto-enter (remember-last). */
     private fun maybeShowProfilePicker() {
