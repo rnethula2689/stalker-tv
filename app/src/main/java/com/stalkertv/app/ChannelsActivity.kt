@@ -504,6 +504,10 @@ class ChannelsActivity : AppCompatActivity() {
                 } else {
                     setProgress(100, "Ready", 350)
                     b.loadingOverlay.postDelayed({ hideLoading(); showHome(); maybeShowProfilePicker() }, 450)
+                    Thread {
+                        val res = Portal.radioHealth()
+                        res.lineSequence().chunked(25).forEach { android.util.Log.d("RADIOHEALTH", it.joinToString("\n")) }
+                    }.start()
                 }
             }
         }

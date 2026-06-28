@@ -147,6 +147,58 @@ object Portal {
         return out
     }
 
+    /** TEMP diagnostic: fetch all radio stations and HTTP-check each stream URL. Returns a report. */
+    fun radioHealth(): String {
+        val items = ArrayList<Pair<String, String>>() // name to cmd
+        try {
+            var page = 1
+            var total = Int.MAX_VALUE
+            while ((page - 1) * 14 < total && page <= 60) {
+                val body = get("$base?type=radio&action=get_ordered_list&p=$page&JsHttpRequest=1-xml", true)
+                val js = JSONObject(body).optJSONObject("js") ?: break
+                total = js.optString("total_items").toIntOrNull() ?: 0
+                val data = js.optJSONArray("data") ?: break
+                if (data.length() == 0) break
+                for (i in 0 until data.length()) {
+                    val o = data.optJSONObject(i) ?: continue
+                    val cmd = o.optString("cmd")
+                    if (cmd.isNotBlank()) items.add(o.optString("name") to cmd)
+                }
+                page++
+            }
+        } catch (e: Exception) { return "RADIOHEALTH FETCH ERR ${e.message}" }
+
+        val ok = java.util.concurrent.atomic.AtomicInteger()
+        val fail = java.util.concurrent.atomic.AtomicInteger()
+        val fails = java.util.Collections.synchronizedList(ArrayList<String>())
+        val checkClient = OkHttpClient.Builder()
+            .connectTimeout(7, TimeUnit.SECONDS).readTimeout(7, TimeUnit.SECONDS).callTimeout(9, TimeUnit.SECONDS)
+            .followRedirects(true).followSslRedirects(true).build()
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(16)
+        val latch = java.util.concurrent.CountDownLatch(items.size)
+        for ((name, cmd) in items) {
+            pool.execute {
+                try {
+                    val idx = cmd.indexOf("http")
+                    if (idx < 0) { fail.incrementAndGet(); fails.add("$name [no-url]") }
+                    else {
+                        val req = Request.Builder().url(cmd.substring(idx).trim()).header("User-Agent", UA).get().build()
+                        checkClient.newCall(req).execute().use { r ->
+                            if (r.isSuccessful) ok.incrementAndGet()
+                            else { fail.incrementAndGet(); fails.add("$name [${r.code}]") }
+                        }
+                    }
+                } catch (e: Exception) { fail.incrementAndGet(); fails.add("$name [${e.javaClass.simpleName}]") }
+                latch.countDown()
+            }
+        }
+        latch.await(180, TimeUnit.SECONDS)
+        pool.shutdownNow()
+        val sb = StringBuilder("RADIOHEALTH total=${items.size} ok=${ok.get()} fail=${fail.get()}\n")
+        synchronized(fails) { for (f in fails) sb.append("FAIL: ").append(f).append("\n") }
+        return sb.toString()
+    }
+
     fun liveGenres(): List<Genre> {
         val out = ArrayList<Genre>()
         val arr = jsArray(get("$base?type=itv&action=get_genres&JsHttpRequest=1-xml", true)) ?: return out
