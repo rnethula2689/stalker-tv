@@ -47,7 +47,7 @@ class MultiViewActivity : AppCompatActivity() {
         goImmersive()
 
         panes = listOf(b.pane0, b.pane1, b.pane2, b.pane3)
-        libVlc = LibVLC(this, arrayListOf("--network-caching=1500", "--http-reconnect", "--no-drop-late-frames", "--no-skip-frames"))
+        libVlc = LibVLC(this, arrayListOf("--network-caching=${Configs.netCachingMs(this)}", "--http-reconnect", "--no-drop-late-frames", "--no-skip-frames"))
 
         for (i in panes.indices) {
             panes[i].root.setOnClickListener { if (paneCh[i] == null) pickChannel(i) else setAudio(i) }
@@ -100,8 +100,8 @@ class MultiViewActivity : AppCompatActivity() {
                 if (url.isNullOrEmpty()) { panes[i].paneName.text = "${ch.name}  (no stream)"; return@post }
                 try {
                     val media = Media(vlc, Uri.parse(url))
-                    media.setHWDecoderEnabled(true, false)
-                    media.addOption(":network-caching=1500")
+                    media.setHWDecoderEnabled(Configs.hwDecode(this@MultiViewActivity), false)
+                    media.addOption(":network-caching=${Configs.netCachingMs(this@MultiViewActivity)}")
                     media.addOption(":http-user-agent=" + Portal.UA)
                     media.addOption(":http-reconnect")
                     mp.media = media

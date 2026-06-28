@@ -86,6 +86,30 @@ object Configs {
     fun autoplay(ctx: Context): Boolean = prefs(ctx).getBoolean("autoplay_next", true)
     fun setAutoplay(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("autoplay_next", on).apply() }
 
+    // ---- Playback: stream buffering + hardware decoding (global, both players) ----
+    /** Buffering level. Higher = smoother on flaky connections, but slower to start / zap. */
+    const val BUF_LOW = 0
+    const val BUF_NORMAL = 1
+    const val BUF_HIGH = 2
+    fun bufferMode(ctx: Context): Int = prefs(ctx).getInt("bufferMode", BUF_NORMAL)
+    fun setBufferMode(ctx: Context, m: Int) { prefs(ctx).edit().putInt("bufferMode", m.coerceIn(0, 2)).apply() }
+    fun bufferLabel(ctx: Context): String = when (bufferMode(ctx)) {
+        BUF_LOW -> "Low (fast zap)"; BUF_HIGH -> "High (smoothest)"; else -> "Normal"
+    }
+    /** libVLC network-caching (ms) for the chosen level. */
+    fun netCachingMs(ctx: Context): Int = when (bufferMode(ctx)) {
+        BUF_LOW -> 800; BUF_HIGH -> 4000; else -> 1500
+    }
+    /** ExoPlayer min/max buffer (ms) for the chosen level. */
+    fun exoBufferMs(ctx: Context): Pair<Int, Int> = when (bufferMode(ctx)) {
+        BUF_LOW -> 10_000 to 30_000; BUF_HIGH -> 40_000 to 120_000; else -> 20_000 to 60_000
+    }
+
+    /** Hardware video decoding. On = use the GPU decoder (smooth, battery-light); turn Off if a
+     *  channel shows a green/garbled picture or audio-only (forces software decoding). */
+    fun hwDecode(ctx: Context): Boolean = prefs(ctx).getBoolean("hwDecode", true)
+    fun setHwDecode(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("hwDecode", on).apply() }
+
     // ---- Favourite channels (per active provider) ----
     private fun favKey(ctx: Context) = "fav:" + (active(ctx)?.sig() ?: "default") + ContentProfiles.scopeSuffix(ctx)
 

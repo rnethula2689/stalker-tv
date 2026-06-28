@@ -182,11 +182,13 @@ class PlayerActivity : AppCompatActivity() {
             .setReadTimeoutMs(20000)
         // Wrap so the factory can open both the http stream AND the local subtitle file://.
         val dataSource = androidx.media3.datasource.DefaultDataSource.Factory(this, http)
+        val (minBuf, maxBuf) = Configs.exoBufferMs(this)
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(20000, 60000, 1500, 3000)
+            .setBufferDurationsMs(minBuf, maxBuf, 1500, 3000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
-        val mode = if (forceSoftware)
+        // Honour the user's hardware-decoding pref, plus the auto software-fallback flag.
+        val mode = if (forceSoftware || !Configs.hwDecode(this))
             androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
         else
             androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
@@ -274,21 +276,22 @@ class PlayerActivity : AppCompatActivity() {
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
         val autoLabel = if (Configs.autoplay(this)) "🔁   Autoplay next: ON" else "🔁   Autoplay next: OFF"
-        val items = arrayOf("⏲   Sleep timer", "📡   Cast to TV", "💬   Subtitles", autoLabel, "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("⏲   Sleep timer", "🎚   Playback settings", "📡   Cast to TV", "💬   Subtitles", autoLabel, "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> SleepTimer.showDialog(this)
-                    1 -> if (videoUrl.isNotEmpty()) CastHelper.show(this, videoUrl, titleText, isLive)
-                    2 -> searchSubtitles()
-                    3 -> {
+                    1 -> PlaybackSettings.show(this)
+                    2 -> if (videoUrl.isNotEmpty()) CastHelper.show(this, videoUrl, titleText, isLive)
+                    3 -> searchSubtitles()
+                    4 -> {
                         Configs.setAutoplay(this, !Configs.autoplay(this))
                         Toast.makeText(this, if (Configs.autoplay(this)) "Autoplay next: ON" else "Autoplay next: OFF", Toast.LENGTH_SHORT).show()
                     }
-                    4 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
-                    5 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
-                    6 -> About.show(this)
-                    7 -> finishAffinity()
+                    5 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
+                    6 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
+                    7 -> About.show(this)
+                    8 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }

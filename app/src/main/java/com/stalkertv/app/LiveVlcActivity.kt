@@ -143,7 +143,7 @@ class LiveVlcActivity : AppCompatActivity() {
         b.title.text = titleText
 
         val options = arrayListOf(
-            "--network-caching=1500",
+            "--network-caching=${Configs.netCachingMs(this)}",
             "--http-reconnect",
             "--no-drop-late-frames",
             "--no-skip-frames"
@@ -434,8 +434,8 @@ class LiveVlcActivity : AppCompatActivity() {
         b.status.text = "Loading…"
         player.stop()
         val media = Media(vlc, Uri.parse(url))
-        media.setHWDecoderEnabled(true, false) // HW first, auto software fallback
-        media.addOption(":network-caching=1500")
+        media.setHWDecoderEnabled(Configs.hwDecode(this), false) // HW first (pref), auto software fallback
+        media.addOption(":network-caching=${Configs.netCachingMs(this)}")
         media.addOption(":http-user-agent=" + Portal.UA)
         media.addOption(":http-reconnect")
         player.media = media
@@ -680,16 +680,17 @@ class LiveVlcActivity : AppCompatActivity() {
     private var menuDialog: AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("⏲   Sleep timer", "📡   Cast to TV", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("⏲   Sleep timer", "🎚   Playback settings", "📡   Cast to TV", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> SleepTimer.showDialog(this)
-                    1 -> if (currentUrl.isNotEmpty()) CastHelper.show(this, currentUrl, titleText, isLive = !isArchive)
-                    2 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    3 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
-                    4 -> About.show(this)
-                    5 -> finishAffinity()
+                    1 -> PlaybackSettings.show(this)
+                    2 -> if (currentUrl.isNotEmpty()) CastHelper.show(this, currentUrl, titleText, isLive = !isArchive)
+                    3 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    4 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
+                    5 -> About.show(this)
+                    6 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }

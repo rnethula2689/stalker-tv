@@ -209,9 +209,10 @@ class PipService : Service() {
             .setUserAgent(Portal.UA).setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(20000).setReadTimeoutMs(20000)
         val ds = DefaultDataSource.Factory(this, http)
+        val (minBuf, maxBuf) = Configs.exoBufferMs(this)
         val load = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(20000, 60000, 1500, 3000).setPrioritizeTimeOverSizeThresholds(true).build()
-        val mode = if (forceSoftware) DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+            .setBufferDurationsMs(minBuf, maxBuf, 1500, 3000).setPrioritizeTimeOverSizeThresholds(true).build()
+        val mode = if (forceSoftware || !Configs.hwDecode(this)) DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
         else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
         val renderers = NextRenderersFactory(this).setExtensionRendererMode(mode).setEnableDecoderFallback(true)
         val p = ExoPlayer.Builder(this, renderers).setMediaSourceFactory(DefaultMediaSourceFactory(ds)).setLoadControl(load).build()

@@ -59,7 +59,7 @@ class LiveGridActivity : AppCompatActivity() {
         b.title.text = gridTitle
         all = baseChannels()
 
-        val vlc = LibVLC(this, arrayListOf("--network-caching=1500", "--http-reconnect", "--no-drop-late-frames", "--no-skip-frames"))
+        val vlc = LibVLC(this, arrayListOf("--network-caching=${Configs.netCachingMs(this)}", "--http-reconnect", "--no-drop-late-frames", "--no-skip-frames"))
         libVlc = vlc
         mp = MediaPlayer(vlc) // attached to the surface in onStart (and re-attached on return from fullscreen)
 
@@ -144,8 +144,8 @@ class LiveGridActivity : AppCompatActivity() {
         val player = mp ?: return
         player.stop()
         val media = Media(vlc, Uri.parse(url))
-        media.setHWDecoderEnabled(true, false)
-        media.addOption(":network-caching=1500")
+        media.setHWDecoderEnabled(Configs.hwDecode(this), false)
+        media.addOption(":network-caching=${Configs.netCachingMs(this)}")
         media.addOption(":http-user-agent=" + Portal.UA)
         media.addOption(":http-reconnect")
         player.media = media
