@@ -43,7 +43,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: stalker-tv-apk
+          name: vibe-tv-apk
           path: app/build/outputs/apk/debug/*.apk
 
       - name: Publish APK to a release (for easy Fire TV download)
