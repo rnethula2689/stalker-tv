@@ -147,9 +147,9 @@ object Portal {
         return out
     }
 
-    /** TEMP diagnostic: fetch all radio stations and HTTP-check each stream URL. Returns a report. */
-    fun radioHealth(): String {
-        val items = ArrayList<Pair<String, String>>() // name to cmd
+    /** TEMP diagnostic: fetch every radio station; returns name+cmd pairs (checked off-device). */
+    fun radioList(): List<Pair<String, String>> {
+        val items = ArrayList<Pair<String, String>>()
         try {
             var page = 1
             var total = Int.MAX_VALUE
@@ -166,38 +166,8 @@ object Portal {
                 }
                 page++
             }
-        } catch (e: Exception) { return "RADIOHEALTH FETCH ERR ${e.message}" }
-
-        val ok = java.util.concurrent.atomic.AtomicInteger()
-        val fail = java.util.concurrent.atomic.AtomicInteger()
-        val fails = java.util.Collections.synchronizedList(ArrayList<String>())
-        val checkClient = OkHttpClient.Builder()
-            .connectTimeout(12, TimeUnit.SECONDS).readTimeout(12, TimeUnit.SECONDS).callTimeout(15, TimeUnit.SECONDS)
-            .followRedirects(true).followSslRedirects(true).build()
-        val pool = java.util.concurrent.Executors.newFixedThreadPool(6)
-        val latch = java.util.concurrent.CountDownLatch(items.size)
-        for ((name, cmd) in items) {
-            pool.execute {
-                try {
-                    val idx = cmd.indexOf("http")
-                    if (idx < 0) { fail.incrementAndGet(); fails.add("$name [no-url]") }
-                    else {
-                        val req = Request.Builder().url(cmd.substring(idx).trim()).header("User-Agent", UA).get().build()
-                        checkClient.newCall(req).execute().use { r ->
-                            if (r.isSuccessful) ok.incrementAndGet()
-                            else { fail.incrementAndGet(); fails.add("$name [${r.code}]") }
-                        }
-                    }
-                } catch (e: Exception) { fail.incrementAndGet(); fails.add("$name [${e.javaClass.simpleName}]") }
-                latch.countDown()
-            }
-        }
-        latch.await(420, TimeUnit.SECONDS)
-        val unfinished = latch.count
-        pool.shutdownNow()
-        val sb = StringBuilder("RADIOHEALTH total=${items.size} ok=${ok.get()} fail=${fail.get()} unfinished=$unfinished\n")
-        synchronized(fails) { for (f in fails) sb.append("FAIL: ").append(f).append("\n") }
-        return sb.toString()
+        } catch (_: Exception) {}
+        return items
     }
 
     fun liveGenres(): List<Genre> {

@@ -505,8 +505,12 @@ class ChannelsActivity : AppCompatActivity() {
                     setProgress(100, "Ready", 350)
                     b.loadingOverlay.postDelayed({ hideLoading(); showHome(); maybeShowProfilePicker() }, 450)
                     Thread {
-                        val res = Portal.radioHealth()
-                        res.lineSequence().chunked(25).forEach { android.util.Log.d("RADIOHEALTH", it.joinToString("\n")) }
+                        try {
+                            val sb = StringBuilder()
+                            for ((n, c) in Portal.radioList()) sb.append(n).append("\t").append(c).append("\n")
+                            java.io.File(getExternalFilesDir(null), "radio_dump.txt").writeText(sb.toString())
+                            android.util.Log.d("RADIODUMP", "wrote radio_dump.txt")
+                        } catch (e: Exception) { android.util.Log.d("RADIODUMP", "ERR ${e.message}") }
                     }.start()
                 }
             }
