@@ -1,83 +1,241 @@
 package com.stalkertv.app
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.stalkertv.app.databinding.ActivitySettingsBinding
+import java.util.concurrent.Executors
 
+/** One place for everything: a hub of sections, each opening its own screen or dialog. */
 class SettingsActivity : AppCompatActivity() {
     private lateinit var b: ActivitySettingsBinding
-    private var accounts = mutableListOf<Configs.Account>()
-    private var editingIndex: Int? = null // null = adding a new one
+    private val epgIo = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         b = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(b.root)
 
-        accounts = Configs.load(this)
-        refreshList()
-        loadForm(null)
+        b.rowProviders.setOnClickListener { startActivity(Intent(this, ProvidersActivity::class.java)) }
+        b.rowProfiles.setOnClickListener { showProfilesDialog() }
+        b.rowPin.setOnClickListener { showParentalPinDialog() }
+        b.rowPlayback.setOnClickListener { PlaybackSettings.show(this) }
+        b.rowSleep.setOnClickListener { SleepTimer.showDialog(this, closeApp = true) }
+        b.rowStorage.setOnClickListener { showStorageDialog() }
+        b.rowSubs.setOnClickListener { showSubtitlesDialog() }
+        b.rowEpg.setOnClickListener { showEpgDialog() }
+        b.rowUpdates.setOnClickListener { startActivity(Intent(this, AppUpdatesActivity::class.java)) }
+        b.rowBackup.setOnClickListener { showBackupDialog() }
+        b.rowDiag.setOnClickListener { startActivity(Intent(this, DiagnosticsActivity::class.java)) }
+        b.rowAbout.setOnClickListener { About.show(this) }
+        b.rowExit.setOnClickListener { finishAffinity() }
 
-        b.submitBtn.setOnClickListener { onSubmit() }
-        b.clearBtn.setOnClickListener { loadForm(null) }
-        b.deleteBtn.setOnClickListener { onDelete() }
-
-        b.ossKey.setText(Configs.ossKey(this))
-        b.saveKeyBtn.setOnClickListener {
-            val key = b.ossKey.text.toString().trim()
-            Configs.setOssKey(this, key)
-            Subtitles.apiKey = key
-            b.msg.text = if (key.isEmpty()) "Subtitle key cleared." else "Subtitle key saved ✓"
-        }
-
-        b.epgUrl.setText(Configs.epgXmltvUrl(this))
-        b.saveEpgBtn.setOnClickListener {
-            val url = b.epgUrl.text.toString().trim()
-            Configs.setEpgXmltvUrl(this, url)
-            if (url.isEmpty()) { b.epgMsg.text = "Cleared — using the portal's own guide."; return@setOnClickListener }
-            b.epgMsg.text = "Downloading & testing…"
-            epgIo.execute {
-                val ok = XmltvEpg.ensureLoaded(this, force = true)
-                runOnUiThread { b.epgMsg.text = XmltvEpg.lastStatus + (if (ok) "" else "\nThe portal guide will be used as a fallback.") }
-            }
-        }
-        b.clearEpgBtn.setOnClickListener {
-            b.epgUrl.setText("")
-            Configs.setEpgXmltvUrl(this, "")
-            b.epgMsg.text = "Cleared — using the portal's own guide."
-        }
-
-        b.diagnosticsBtn.setOnClickListener {
-            startActivity(android.content.Intent(this, DiagnosticsActivity::class.java))
-        }
-
-        b.backupBtn.setOnClickListener {
-            // Save first; the backup succeeds even if there's no app to share with (e.g. on a TV).
-            val f = try { Backup.writeToFile(this) }
-                catch (e: Exception) { b.backupMsg.text = "Backup failed: ${e.message}"; return@setOnClickListener }
-            b.backupMsg.text = "Saved ✓  ${f.absolutePath}"
-            try {
-                val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.fileprovider", f)
-                val send = android.content.Intent(android.content.Intent.ACTION_SEND)
-                    .setType("application/json")
-                    .putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                    .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                if (send.resolveActivity(packageManager) != null)
-                    startActivity(android.content.Intent.createChooser(send, "Share backup"))
-            } catch (_: Exception) { /* no share target (TV) — file is already saved, that's fine */ }
-        }
-        b.deleteBackupBtn.setOnClickListener {
-            b.backupMsg.text = if (Backup.deleteFile(this)) "Backup file deleted." else "No backup file to delete."
-        }
-        b.restoreBtn.setOnClickListener {
-            try { openBackup.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) }
-            catch (e: Exception) { b.backupMsg.text = "Couldn't open the file picker: ${e.message}" }
-        }
+        b.rowProviders.requestFocus()
     }
 
-    private val epgIo = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private fun toast(m: String) = android.widget.Toast.makeText(this, m, android.widget.Toast.LENGTH_SHORT).show()
+
+    private fun padded(v: View): FrameLayout {
+        val pad = (20 * resources.displayMetrics.density).toInt()
+        return FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(v) }
+    }
+
+    // ---- Profiles ----
+    private fun showProfilesDialog() {
+        val profiles = ContentProfiles.list(this)
+        val activeId = ContentProfiles.activeId(this)
+        val labels = profiles.map { (if (it.id == activeId) "✓  " else "     ") + it.name }.toMutableList()
+        labels.add("➕  New profile")
+        AlertDialog.Builder(this)
+            .setTitle("Profiles")
+            .setItems(labels.toTypedArray()) { _, w ->
+                if (w >= profiles.size) startActivity(Intent(this, ProfileEditActivity::class.java))
+                else profileActions(profiles[w])
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun profileActions(p: ContentProfiles.Profile) {
+        AlertDialog.Builder(this)
+            .setTitle(p.name)
+            .setItems(arrayOf("✓  Use this profile", "✏  Edit", "🗑  Delete")) { _, w ->
+                when (w) {
+                    0 -> { ContentProfiles.setActive(this, p.id); Configs.dirty = true; toast("Switched to “${p.name}”.") }
+                    1 -> startActivity(Intent(this, ProfileEditActivity::class.java).putExtra("profileId", p.id))
+                    2 -> { ContentProfiles.delete(this, p.id); Configs.dirty = true; toast("Deleted “${p.name}”.") }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // ---- Parental PIN ----
+    private fun pinInput(hint: String) = EditText(this).apply {
+        inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        this.hint = hint
+    }
+
+    private fun showParentalPinDialog() {
+        val saved = Configs.parentalPin(this)
+        if (saved.isBlank()) { promptNewPin("Set a parental PIN"); return }
+        val cur = pinInput("Current PIN")
+        AlertDialog.Builder(this)
+            .setTitle("Parental PIN")
+            .setMessage("Locks adult / restricted channels.")
+            .setView(padded(cur))
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Change PIN") { _, _ ->
+                if (cur.text.toString().trim() != saved) toast("Incorrect PIN.")
+                else promptNewPin("New parental PIN")
+            }
+            .show()
+    }
+
+    private fun promptNewPin(title: String) {
+        val next = pinInput("New PIN (min 3 digits)")
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(padded(next))
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Save") { _, _ ->
+                val n = next.text.toString().trim()
+                if (n.length >= 3) { Configs.setParentalPin(this, n); toast("Parental PIN saved ✓") }
+                else toast("PIN must be at least 3 digits.")
+            }
+            .show()
+    }
+
+    // ---- Storage ----
+    private fun showStorageDialog() {
+        val items = arrayOf("Cache", "Favourites", "Watch Later", "Continue Watching", "Downloads", "Recordings")
+        val checked = BooleanArray(items.size)
+        AlertDialog.Builder(this)
+            .setTitle("Storage — clear data")
+            .setMultiChoiceItems(items, checked) { _, which, isChecked -> checked[which] = isChecked }
+            .setPositiveButton("Clear selected") { _, _ ->
+                if (checked.any { it }) confirmClear(items, checked) else toast("Nothing selected.")
+            }
+            .setNeutralButton("Clear ALL") { _, _ -> confirmClear(items, BooleanArray(items.size) { true }) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun confirmClear(items: Array<String>, sel: BooleanArray) {
+        val names = items.filterIndexed { i, _ -> sel[i] }.joinToString(", ")
+        AlertDialog.Builder(this)
+            .setTitle("Clear $names?")
+            .setMessage("This permanently removes the selected data on this device.")
+            .setPositiveButton("Clear") { _, _ -> doClear(sel) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun doClear(sel: BooleanArray) {
+        if (sel[0]) try { cacheDir.listFiles()?.forEach { it.deleteRecursively() } } catch (_: Exception) {}
+        if (sel[1]) { Favorites.clearAll(this); Configs.clearFavorites(this) }
+        if (sel[2]) WatchLater.clearAll(this)
+        if (sel[3]) Resume.clearAll(this)
+        if (sel[4]) Downloads.deleteAll(this)
+        if (sel[5]) Recordings.deleteAll(this)
+        toast("Cleared.")
+    }
+
+    // ---- Subtitles ----
+    private fun showSubtitlesDialog() {
+        val input = EditText(this).apply {
+            setText(Configs.ossKey(this@SettingsActivity))
+            hint = "OpenSubtitles API key"
+            setSingleLine()
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Subtitles (OpenSubtitles API key)")
+            .setView(padded(input))
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Save") { _, _ ->
+                val key = input.text.toString().trim()
+                Configs.setOssKey(this, key); Subtitles.apiKey = key
+                toast(if (key.isEmpty()) "Subtitle key cleared." else "Subtitle key saved ✓")
+            }
+            .show()
+    }
+
+    // ---- EPG (external XMLTV) ----
+    private fun showEpgDialog() {
+        val dp = resources.displayMetrics.density
+        val pad = (20 * dp).toInt()
+        val urlField = EditText(this).apply {
+            setText(Configs.epgXmltvUrl(this@SettingsActivity))
+            hint = "https://example.com/epg.xml(.gz)"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+            setSingleLine()
+        }
+        val status = TextView(this).apply { setTextColor(0xFF9fb0c0.toInt()); textSize = 14f }
+        val note = TextView(this).apply {
+            text = "Blank = use the portal's own guide. If set, the TV Guide prefers this source (matched by channel name). Supports .xml and .xml.gz."
+            setTextColor(0xFF8b97a5.toInt()); textSize = 12f
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(pad, pad / 2, pad, 0)
+            addView(urlField); addView(note); addView(status)
+        }
+        val dlg = AlertDialog.Builder(this)
+            .setTitle("TV Guide (external XMLTV)")
+            .setView(box)
+            .setPositiveButton("Save & test", null) // overridden below so the dialog stays open
+            .setNeutralButton("Clear") { _, _ ->
+                Configs.setEpgXmltvUrl(this, ""); urlField.setText(""); toast("Cleared — using the portal's guide.")
+            }
+            .setNegativeButton("Close", null)
+            .create()
+        dlg.setOnShowListener {
+            dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val url = urlField.text.toString().trim()
+                Configs.setEpgXmltvUrl(this, url)
+                if (url.isEmpty()) { status.text = "Cleared — using the portal's guide."; return@setOnClickListener }
+                status.text = "Downloading & testing…"
+                epgIo.execute {
+                    val ok = XmltvEpg.ensureLoaded(this, force = true)
+                    runOnUiThread { status.text = XmltvEpg.lastStatus + (if (ok) "" else "\nThe portal guide will be used as a fallback.") }
+                }
+            }
+        }
+        dlg.show()
+    }
+
+    // ---- Sync & Backup ----
+    private fun showBackupDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Sync & Backup")
+            .setMessage("Back up Favourites, Watch Later and Continue Watching to a file you can move to another device. Restore merges; no portal login is included.")
+            .setItems(arrayOf("⬆  Back up my data", "⬇  Restore from file", "🗑  Delete backup file")) { _, w ->
+                when (w) {
+                    0 -> doBackup()
+                    1 -> try { openBackup.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) }
+                        catch (e: Exception) { toast("Couldn't open the file picker: ${e.message}") }
+                    2 -> toast(if (Backup.deleteFile(this)) "Backup file deleted." else "No backup file to delete.")
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun doBackup() {
+        val f = try { Backup.writeToFile(this) } catch (e: Exception) { toast("Backup failed: ${e.message}"); return }
+        toast("Saved ✓  ${f.absolutePath}")
+        try {
+            val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.fileprovider", f)
+            val send = Intent(Intent.ACTION_SEND).setType("application/json")
+                .putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            if (send.resolveActivity(packageManager) != null) startActivity(Intent.createChooser(send, "Share backup"))
+        } catch (_: Exception) { /* no share target (TV) — file is already saved */ }
+    }
 
     /** SAF picker for restoring a backup file → merge into the current account/profile. */
     private val openBackup = registerForActivityResult(
@@ -87,93 +245,7 @@ class SettingsActivity : AppCompatActivity() {
         try {
             val text = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
             val r = Backup.importJson(this, text)
-            b.backupMsg.text = "Restored ✓  +${r.favorites} favourites, +${r.watchLater} watch-later, +${r.resume} continue-watching"
-        } catch (e: Exception) {
-            b.backupMsg.text = "Restore failed: ${e.message}"
-        }
-    }
-
-    private fun refreshList() {
-        b.configList.removeAllViews()
-        val active = Configs.activeIndex(this)
-        if (accounts.isEmpty()) {
-            val tv = TextView(this)
-            tv.text = "No providers yet — add one below."
-            tv.setTextColor(0xFF8b97a5.toInt())
-            tv.setPadding(16, 16, 16, 16)
-            b.configList.addView(tv)
-            return
-        }
-        accounts.forEachIndexed { i, a ->
-            val tv = TextView(this)
-            tv.text = (if (i == active) "✓  " else "    ") + a.name + "   (" + a.mac + ")"
-            tv.setTextColor(0xFFE6EDF3.toInt())
-            tv.textSize = 16f
-            tv.setPadding(20, 20, 20, 20)
-            tv.isFocusable = true
-            tv.isClickable = true
-            tv.setBackgroundResource(R.drawable.item_bg)
-            tv.setOnClickListener { selectConfig(i) }
-            b.configList.addView(tv)
-        }
-    }
-
-    /** Tap an existing provider → make it active and load it into the form. */
-    private fun selectConfig(index: Int) {
-        Configs.setActive(this, index)
-        Configs.dirty = true
-        loadForm(index)
-        refreshList()
-        b.msg.text = "Switched to “${accounts[index].name}”. Press Back to load it."
-    }
-
-    private fun loadForm(index: Int?) {
-        editingIndex = index
-        if (index == null) {
-            b.name.setText(""); b.portal.setText(""); b.mac.setText(""); b.sn.setText("")
-            b.deleteBtn.isEnabled = false
-            b.msg.text = "Adding a new provider."
-        } else {
-            val a = accounts[index]
-            b.name.setText(a.name); b.portal.setText(a.portal); b.mac.setText(a.mac); b.sn.setText(a.sn)
-            b.deleteBtn.isEnabled = true
-            b.msg.text = "Editing “${a.name}”."
-        }
-    }
-
-    private fun onSubmit() {
-        val portal = b.portal.text.toString().trim()
-        val mac = b.mac.text.toString().trim()
-        val sn = b.sn.text.toString().trim()
-        val name = b.name.text.toString().trim().ifBlank { "Provider ${accounts.size + 1}" }
-        if (portal.isEmpty() || mac.isEmpty()) {
-            b.msg.text = "Portal URL and MAC are required."
-            return
-        }
-        val acct = Configs.Account(name, portal, mac, sn)
-        val idx = if (editingIndex == null) {
-            accounts.add(acct); accounts.size - 1
-        } else {
-            accounts[editingIndex!!] = acct; editingIndex!!
-        }
-        Configs.save(this, accounts)
-        Configs.setActive(this, idx)
-        Configs.dirty = true
-        editingIndex = idx
-        refreshList()
-        loadForm(idx)
-        b.msg.text = "Saved & active: “$name”. Press Back to load it."
-    }
-
-    private fun onDelete() {
-        val idx = editingIndex ?: return
-        if (idx !in accounts.indices) return
-        val removed = accounts.removeAt(idx)
-        Configs.save(this, accounts)
-        if (Configs.activeIndex(this) >= accounts.size) Configs.setActive(this, 0)
-        Configs.dirty = true
-        refreshList()
-        loadForm(null)
-        b.msg.text = "Deleted “${removed.name}”."
+            toast("Restored ✓  +${r.favorites} favourites, +${r.watchLater} watch-later, +${r.resume} continue-watching")
+        } catch (e: Exception) { toast("Restore failed: ${e.message}") }
     }
 }

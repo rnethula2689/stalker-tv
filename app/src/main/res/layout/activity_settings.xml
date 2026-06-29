@@ -13,290 +13,75 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="IPTV Configuration"
+            android:text="⚙  Settings"
             android:textColor="#19c37d"
             android:textSize="24sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp" />
 
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Saved providers (tap to switch / edit)"
-            android:textColor="#8b97a5"
-            android:textSize="14sp" />
-
-        <LinearLayout
-            android:id="@+id/configList"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="8dp" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#1c2530"
-            android:layout_marginVertical="20dp" />
+            android:id="@+id/rowProviders"
+            style="@style/SettingsRow"
+            android:text="📡   IPTV configuration" />
 
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Configuration"
-            android:textColor="#e6edf3"
-            android:textSize="18sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/name"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="Name (e.g. My Provider)"
-            android:textColorHint="#5a6675"
-            android:textColor="#e6edf3"
-            android:singleLine="true" />
-
-        <EditText
-            android:id="@+id/portal"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="Portal URL (http://host)"
-            android:textColorHint="#5a6675"
-            android:textColor="#e6edf3"
-            android:inputType="textUri"
-            android:singleLine="true" />
-
-        <EditText
-            android:id="@+id/mac"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="MAC (00:1A:79:xx:xx:xx)"
-            android:textColorHint="#5a6675"
-            android:textColor="#e6edf3"
-            android:singleLine="true" />
-
-        <EditText
-            android:id="@+id/sn"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="Serial Number"
-            android:textColorHint="#5a6675"
-            android:textColor="#e6edf3"
-            android:singleLine="true" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="18dp">
-
-            <Button
-                android:id="@+id/submitBtn"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Submit" />
-
-            <Button
-                android:id="@+id/clearBtn"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="10dp"
-                android:text="Clear" />
-
-            <Button
-                android:id="@+id/deleteBtn"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="10dp"
-                android:text="Delete" />
-        </LinearLayout>
+            android:id="@+id/rowProfiles"
+            style="@style/SettingsRow"
+            android:text="👤   Profiles" />
 
         <TextView
-            android:id="@+id/msg"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:textColor="#e6edf3"
-            android:textSize="15sp"
-            android:text="" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#1c2530"
-            android:layout_marginVertical="20dp" />
+            android:id="@+id/rowPin"
+            style="@style/SettingsRow"
+            android:text="🔒   Parental PIN" />
 
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Subtitles (OpenSubtitles API key)"
-            android:textColor="#e6edf3"
-            android:textSize="18sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/ossKey"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="Paste your OpenSubtitles API key"
-            android:textColorHint="#5a6675"
-            android:textColor="#e6edf3"
-            android:singleLine="true" />
-
-        <Button
-            android:id="@+id/saveKeyBtn"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="Save subtitle key" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#1c2530"
-            android:layout_marginVertical="20dp" />
+            android:id="@+id/rowPlayback"
+            style="@style/SettingsRow"
+            android:text="🎚   Playback settings" />
 
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="TV Guide (external XMLTV — optional)"
-            android:textColor="#e6edf3"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            android:id="@+id/rowSleep"
+            style="@style/SettingsRow"
+            android:text="⏲   Sleep timer" />
 
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Leave blank to use the portal's own guide. If set, the TV Guide prefers this source (matched by channel name). Supports .xml and .xml.gz."
-            android:textColor="#8b97a5"
-            android:textSize="13sp" />
-
-        <EditText
-            android:id="@+id/epgUrl"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="https://example.com/epg.xml(.gz)"
-            android:textColorHint="#5a6675"
-            android:textColor="#e6edf3"
-            android:inputType="textUri"
-            android:singleLine="true" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="10dp">
-
-            <Button
-                android:id="@+id/saveEpgBtn"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Save &amp; test" />
-
-            <Button
-                android:id="@+id/clearEpgBtn"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:text="Clear" />
-        </LinearLayout>
+            android:id="@+id/rowStorage"
+            style="@style/SettingsRow"
+            android:text="🗄   Storage" />
 
         <TextView
-            android:id="@+id/epgMsg"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:textColor="#9fb0c0"
-            android:textSize="14sp"
-            android:text="" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#1c2530"
-            android:layout_marginVertical="20dp" />
+            android:id="@+id/rowSubs"
+            style="@style/SettingsRow"
+            android:text="💬   Subtitles" />
 
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Sync &amp; Backup"
-            android:textColor="#e6edf3"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            android:id="@+id/rowEpg"
+            style="@style/SettingsRow"
+            android:text="📺   TV Guide (EPG)" />
 
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Back up your Favourites, Watch Later and Continue Watching to a file you can save or move to another device. Restore merges — it won't erase what's already here. (No portal login is included.)"
-            android:textColor="#8b97a5"
-            android:textSize="13sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="10dp">
-
-            <Button
-                android:id="@+id/backupBtn"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="⬆  Back up my data" />
-
-            <Button
-                android:id="@+id/restoreBtn"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:text="⬇  Restore" />
-
-            <Button
-                android:id="@+id/deleteBackupBtn"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:text="🗑  Delete" />
-        </LinearLayout>
+            android:id="@+id/rowUpdates"
+            style="@style/SettingsRow"
+            android:text="📥   App updates" />
 
         <TextView
-            android:id="@+id/backupMsg"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:textColor="#9fb0c0"
-            android:textSize="14sp"
-            android:text="" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#1c2530"
-            android:layout_marginVertical="20dp" />
+            android:id="@+id/rowBackup"
+            style="@style/SettingsRow"
+            android:text="⬆   Sync &amp; Backup" />
 
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Troubleshooting"
-            android:textColor="#e6edf3"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            android:id="@+id/rowDiag"
+            style="@style/SettingsRow"
+            android:text="🩺   Troubleshooting" />
 
-        <Button
-            android:id="@+id/diagnosticsBtn"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="🩺  Open Diagnostics" />
+        <TextView
+            android:id="@+id/rowAbout"
+            style="@style/SettingsRow"
+            android:text="ℹ️   About" />
+
+        <TextView
+            android:id="@+id/rowExit"
+            style="@style/SettingsRow"
+            android:text="✖   Exit" />
     </LinearLayout>
 </ScrollView>

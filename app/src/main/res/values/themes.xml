@@ -11,6 +11,19 @@
         <item name="android:alertDialogTheme">@style/AppDialog</item>
     </style>
 
+    <!-- A tappable/focusable row in the Settings hub. -->
+    <style name="SettingsRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginBottom">10dp</item>
+        <item name="android:padding">18dp</item>
+        <item name="android:textColor">#e6edf3</item>
+        <item name="android:textSize">17sp</item>
+        <item name="android:focusable">true</item>
+        <item name="android:clickable">true</item>
+        <item name="android:background">@drawable/item_bg</item>
+    </style>
+
     <!-- Modern rounded dark dialogs (menus, programme details, date picker). -->
     <style name="AppDialog" parent="Theme.AppCompat.Dialog.Alert">
         <item name="android:windowBackground">@drawable/dialog_bg</item>

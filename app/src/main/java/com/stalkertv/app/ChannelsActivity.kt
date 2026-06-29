@@ -203,7 +203,7 @@ class ChannelsActivity : AppCompatActivity() {
                     "3. Tap Submit — channels and movies load automatically.\n\n" +
                     "You get these details from your IPTV provider."
             )
-            .setPositiveButton("Open Settings") { _, _ -> startActivity(Intent(this, SettingsActivity::class.java)) }
+            .setPositiveButton("Add provider") { _, _ -> startActivity(Intent(this, ProvidersActivity::class.java)) }
             .setNegativeButton("Later", null)
             .show()
     }
