@@ -211,9 +211,9 @@ class SettingsActivity : AppCompatActivity() {
 
     // ---- Sync & Backup ----
     private fun showBackupDialog() {
+        // Note: an AlertDialog shows EITHER a message OR a list — setting a message hides setItems().
         AlertDialog.Builder(this)
             .setTitle("Sync & Backup")
-            .setMessage("Back up Favourites, Watch Later and Continue Watching to a file you can move to another device. Restore merges; no portal login is included.")
             .setItems(arrayOf("⬆  Back up my data", "⬇  Restore from file", "🗑  Delete backup file")) { _, w ->
                 when (w) {
                     0 -> doBackup()
