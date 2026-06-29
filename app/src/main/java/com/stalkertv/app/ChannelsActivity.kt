@@ -284,7 +284,37 @@ class ChannelsActivity : AppCompatActivity() {
         return false
     }
 
+    private fun isNavKey(kc: Int) = kc == android.view.KeyEvent.KEYCODE_DPAD_UP ||
+        kc == android.view.KeyEvent.KEYCODE_DPAD_DOWN || kc == android.view.KeyEvent.KEYCODE_DPAD_LEFT ||
+        kc == android.view.KeyEvent.KEYCODE_DPAD_RIGHT || kc == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+        kc == android.view.KeyEvent.KEYCODE_ENTER
+
+    /** Put focus somewhere sensible for the current screen — used so a remote always has a target. */
+    private fun grabInitialFocus() {
+        when {
+            b.searchRow.visibility == View.VISIBLE -> b.search.requestFocus()
+            b.profileOverlay.visibility == View.VISIBLE -> (b.profileRow.getChildAt(0))?.requestFocus()
+            b.liveCatOverlay.visibility == View.VISIBLE ->
+                (b.liveCatList.findViewHolderForAdapterPosition(0)?.itemView ?: b.liveCatList).requestFocus()
+            (b.list.adapter?.itemCount ?: 0) > 0 -> { if (!b.list.requestFocus()) b.searchBtn.requestFocus() }
+            else -> b.searchBtn.requestFocus()
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Some Android-TV launchers hand the app focus with nothing selected → grab a default.
+        if (hasFocus && currentFocus == null) b.list.post { if (currentFocus == null) grabInitialFocus() }
+    }
+
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        // Universal remote safety net: if a navigation key arrives but nothing is focused (common on
+        // non-Fire Android-TV boxes — the "cursor keeps dropping" symptom), grab a sensible focus first
+        // so the remote always controls the UI.
+        if (event.action == android.view.KeyEvent.ACTION_DOWN && currentFocus == null && isNavKey(event.keyCode)) {
+            grabInitialFocus()
+            return true
+        }
         // TV: pressing UP from the top of the content list jumps to the top-bar icons (the nested
         // horizontal rails otherwise trap focus and never reach search/refresh/etc.).
         if (event.action == android.view.KeyEvent.ACTION_DOWN &&

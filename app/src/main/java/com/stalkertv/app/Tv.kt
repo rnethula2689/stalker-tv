@@ -12,6 +12,9 @@ object Tv {
         if (pm.hasSystemFeature("android.software.leanback")) return true
         if (pm.hasSystemFeature("android.hardware.type.television")) return true
         val ui = ctx.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
-        return ui?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+        if (ui?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) return true
+        // Catch generic Android-TV boxes that don't advertise leanback/television: a device with no
+        // touchscreen is remote-driven, so treat it as a TV (enables D-pad-first behaviour).
+        return !pm.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TOUCHSCREEN)
     }
 }
