@@ -197,7 +197,7 @@ class ChannelsActivity : AppCompatActivity() {
             .setTitle("Welcome to Vibe TV")
             .setMessage(
                 "To start watching, add your IPTV provider:\n\n" +
-                    "1. Open Settings (⚙ top-right, or ⋮ menu → Settings).\n" +
+                    "1. Open Settings (⚙ top-right, or the MENU button on your remote).\n" +
                     "2. Enter your Portal URL, MAC address, and Serial Number.\n" +
                     "3. Tap Submit — channels and movies load automatically.\n\n" +
                     "You get these details from your IPTV provider."
