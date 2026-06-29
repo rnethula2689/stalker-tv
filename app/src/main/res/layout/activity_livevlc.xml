@@ -29,37 +29,96 @@
         android:background="#40FF7A00"
         android:visibility="gone" />
 
-    <!-- EPG rail: today's programmes for the current channel, as a vertical panel down the right side
-         (kept off the bottom so it never overlaps the transport / timeshift slider). -->
+    <!-- "Now playing" bar (STB-style): the current programme + a progress slider + what's next.
+         Sits at the bottom, shown briefly with the controls; never covers the top icons.
+         Replaces the old full-height side EPG list. -->
     <LinearLayout
-        android:id="@+id/epgBar"
-        android:layout_width="300dp"
-        android:layout_height="match_parent"
-        android:layout_gravity="end"
-        android:layout_marginTop="62dp"
+        android:id="@+id/nowBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
         android:orientation="vertical"
-        android:background="#CC000000"
-        android:paddingHorizontal="14dp"
+        android:background="#cc000000"
+        android:paddingHorizontal="18dp"
         android:paddingTop="10dp"
-        android:paddingBottom="12dp"
+        android:paddingBottom="14dp"
         android:visibility="gone">
 
-        <TextView
-            android:id="@+id/epgBarTitle"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:text="Today's guide"
-            android:textColor="#19c37d"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/epgRail"
+            <TextView
+                android:id="@+id/nowTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:singleLine="true"
+                android:ellipsize="end"
+                android:textColor="#ffffff"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:text="" />
+
+            <TextView
+                android:id="@+id/nowChHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:textColor="#8b97a5"
+                android:textSize="11sp"
+                android:text="▲ ▼ channel" />
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:clipToPadding="false" />
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/nowStart"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="62dp"
+                android:textColor="#9fb0c0"
+                android:textSize="11sp"
+                android:text="" />
+
+            <ProgressBar
+                android:id="@+id/nowProgress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginHorizontal="8dp"
+                android:max="1000"
+                android:progress="0" />
+
+            <TextView
+                android:id="@+id/nowEnd"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="62dp"
+                android:gravity="end"
+                android:textColor="#9fb0c0"
+                android:textSize="11sp"
+                android:text="" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/nowNext"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textColor="#9fb0c0"
+            android:textSize="12sp"
+            android:text="" />
     </LinearLayout>
 
     <TextView
