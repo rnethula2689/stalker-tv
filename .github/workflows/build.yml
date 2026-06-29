@@ -40,11 +40,9 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug -PtmdbKey="${{ secrets.TMDB_KEY }}" --no-daemon --stacktrace
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vibe-tv-apk
-          path: app/build/outputs/apk/debug/*.apk
+      # (No per-run upload-artifact step: the APK is published to the apk-latest release below, which
+      # is what downloads / share-links / the in-app updater use. Skipping the artifact keeps Actions
+      # storage from piling up with redundant copies.)
 
       - name: Publish APK to a release (for easy Fire TV download)
         uses: softprops/action-gh-release@v2
