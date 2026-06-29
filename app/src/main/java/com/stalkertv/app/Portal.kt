@@ -26,6 +26,24 @@ object Portal {
     private var logosBase: String = ""
     var lastError: String = ""
 
+    /** A short, human-friendly version of [lastError] — hides raw parser/network jargon from the UI.
+     *  Returns a lowercase clause meant to follow "Couldn't open “X” — …". */
+    fun lastErrorFriendly(): String {
+        val e = lastError
+        return when {
+            e.contains("JSON", true) || e.contains("cannot be converted", true) ||
+                e.contains("Unterminated", true) || e.contains("End of input", true) ->
+                "the provider returned an unexpected response. Please try again in a moment."
+            e.contains("timeout", true) || e.contains("timed out", true) ->
+                "the provider took too long to respond. Check your connection and try again."
+            e.contains("Unable to resolve host", true) || e.contains("failed to connect", true) ||
+                e.contains("No address associated", true) || e.contains("ECONNREFUSED", true) ||
+                e.contains("Network is unreachable", true) ->
+                "couldn't reach the provider. Check your internet connection."
+            else -> "the stream couldn't be started right now. Please try again."
+        }
+    }
+
     /** True once a handshake + profile have succeeded (a session token exists). */
     fun isConnected(): Boolean = token.isNotEmpty() && base.isNotEmpty()
     /** The endpoint we handshaked against (for the diagnostics screen); blank until connected. */

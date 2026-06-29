@@ -110,7 +110,6 @@ class ChannelsActivity : AppCompatActivity() {
         b.sortBtn.setOnClickListener { showSortDialog() }
         b.filterBtn.setOnClickListener { showFilterDialog() }
         b.settingsBtn.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
-        b.menuBtn.setOnClickListener { showMenu() }
         b.profileBtn.setOnClickListener { showProfilePicker() }
         b.profileBtn.setOnFocusChangeListener { v, f -> val s = if (f) 1.18f else 1f; v.animate().scaleX(s).scaleY(s).setDuration(120).start() }
 
@@ -243,33 +242,6 @@ class ChannelsActivity : AppCompatActivity() {
         }
     }
 
-    private var menuDialog: androidx.appcompat.app.AlertDialog? = null
-    private fun showMenu() {
-        if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
-        val items = arrayOf("👤   Switch profile", "🔄   Refresh portal", "🔒   Parental PIN", "📥   App updates", "ℹ️   About", "✖   Exit")
-        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> showProfilePicker()
-                    1 -> connectAndLoad(true)
-                    2 -> changePin()
-                    3 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
-                    4 -> About.show(this)
-                    5 -> finishAffinity()
-                }
-            }
-            .setOnDismissListener { menuDialog = null }
-            .create()
-        // Pressing the menu/hamburger key again closes it (Back also closes by default).
-        dlg.setOnKeyListener { d, keyCode, ev ->
-            if (keyCode == android.view.KeyEvent.KEYCODE_MENU && ev.action == android.view.KeyEvent.ACTION_UP) {
-                d.dismiss(); true
-            } else false
-        }
-        menuDialog = dlg
-        dlg.show()
-    }
-
     private fun confirmExit() {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Exit Vibe TV?")
@@ -343,7 +315,7 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     override fun onKeyUp(keyCode: Int, event: android.view.KeyEvent): Boolean {
-        if (keyCode == android.view.KeyEvent.KEYCODE_MENU) { showMenu(); return true }
+        if (keyCode == android.view.KeyEvent.KEYCODE_MENU) { startActivity(Intent(this, SettingsActivity::class.java)); return true }
         if (keyCode == android.view.KeyEvent.KEYCODE_BACK && !event.isCanceled) {
             @Suppress("DEPRECATION") onBackPressed(); return true
         }
@@ -749,7 +721,7 @@ class ChannelsActivity : AppCompatActivity() {
                     val why = Portal.lastError
                     b.status.text = if (why == "nothing_to_play")
                         "“${ch.name}” — no stream. The provider may be down, or your connection limit is reached (another device is already streaming)."
-                    else "Couldn't open “${ch.name}” — $why"
+                    else "Couldn't open “${ch.name}” — ${Portal.lastErrorFriendly()}"
                 } else {
                     b.status.visibility = View.GONE
                     LiveVlcActivity.liveChannels = allChannels
@@ -1029,7 +1001,7 @@ class ChannelsActivity : AppCompatActivity() {
         }) {})
         // "For You": the newest movies re-ranked by the user's taste (genres they've played).
         val recent = cachedRecent
-        if (recent.isNotEmpty() && Taste.hasData(this)) {
+        if (recent.isNotEmpty() && Taste.hasData(this) && !Configs.hideForYou(this)) {
             val ranked = recent.map { it to Taste.score(this, it.genre) }
                 .filter { it.second > 0 }.sortedByDescending { it.second }.map { it.first }
             if (ranked.isNotEmpty()) rows.add(Row("For You", null, rail = ranked.take(15).map { v ->
@@ -1040,7 +1012,7 @@ class ChannelsActivity : AppCompatActivity() {
             }) {})
         }
         // Newest movies from the portal (fetched in the background after connect; absent until ready).
-        if (recent.isNotEmpty()) rows.add(Row("Recently Added", null, rail = recent.map { v ->
+        if (recent.isNotEmpty() && !Configs.hideRecentlyAdded(this)) rows.add(Row("Recently Added", null, rail = recent.map { v ->
             Card(v.name, v.posterUrl.ifBlank { null }) {
                 if (v.isSeries) showSeasons(v)
                 else mediaActions(v.name, v.posterUrl, "movie_${v.id}", "vod|${v.id}|${v.cmd}", info = MovieInfo.from(v))
@@ -1908,7 +1880,7 @@ class ChannelsActivity : AppCompatActivity() {
                     val why = Portal.lastError
                     b.status.text = if (why == "nothing_to_play")
                         "“$title” — no stream returned. Either the provider's storage is down, or your account's connection limit is reached (another device is already streaming)."
-                    else "Couldn't open “$title” — $why"
+                    else "Couldn't open “$title” — ${Portal.lastErrorFriendly()}"
                 } else {
                     b.status.visibility = View.GONE
                     PlayerActivity.playlist = playlist

@@ -62,6 +62,12 @@ object Configs {
     fun epgXmltvUrl(ctx: Context): String = (prefs(ctx).getString("epgXmltvUrl", "") ?: "").trim()
     fun setEpgXmltvUrl(ctx: Context, url: String) { prefs(ctx).edit().putString("epgXmltvUrl", url.trim()).apply() }
 
+    /** Home personalization: when on, the matching rail is omitted from the Home screen. */
+    fun hideRecentlyAdded(ctx: Context): Boolean = prefs(ctx).getBoolean("hideRecentlyAdded", false)
+    fun setHideRecentlyAdded(ctx: Context, v: Boolean) { prefs(ctx).edit().putBoolean("hideRecentlyAdded", v).apply() }
+    fun hideForYou(ctx: Context): Boolean = prefs(ctx).getBoolean("hideForYou", false)
+    fun setHideForYou(ctx: Context, v: Boolean) { prefs(ctx).edit().putBoolean("hideForYou", v).apply() }
+
     /** A handful of recent poster URLs, used to paint the loading splash montage (Strimix-style). */
     fun splashPosters(ctx: Context): List<String> =
         (prefs(ctx).getString("splashPosters", "") ?: "").split("\n").filter { it.isNotBlank() }

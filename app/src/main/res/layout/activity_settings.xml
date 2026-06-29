@@ -30,6 +30,11 @@
             android:text="👤   Profiles" />
 
         <TextView
+            android:id="@+id/rowPersonalization"
+            style="@style/SettingsRow"
+            android:text="✨   Personalization" />
+
+        <TextView
             android:id="@+id/rowPin"
             style="@style/SettingsRow"
             android:text="🔒   Parental PIN" />

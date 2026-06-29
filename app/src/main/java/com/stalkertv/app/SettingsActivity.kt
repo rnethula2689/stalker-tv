@@ -24,6 +24,7 @@ class SettingsActivity : AppCompatActivity() {
 
         b.rowProviders.setOnClickListener { startActivity(Intent(this, ProvidersActivity::class.java)) }
         b.rowProfiles.setOnClickListener { showProfilesDialog() }
+        b.rowPersonalization.setOnClickListener { showPersonalizationDialog() }
         b.rowPin.setOnClickListener { showParentalPinDialog() }
         b.rowPlayback.setOnClickListener { PlaybackSettings.show(this) }
         b.rowSleep.setOnClickListener { SleepTimer.showDialog(this, closeApp = true) }
@@ -71,6 +72,22 @@ class SettingsActivity : AppCompatActivity() {
                     1 -> startActivity(Intent(this, ProfileEditActivity::class.java).putExtra("profileId", p.id))
                     2 -> { ContentProfiles.delete(this, p.id); Configs.dirty = true; toast("Deleted “${p.name}”.") }
                 }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // ---- Personalization (Home rails) ----
+    private fun showPersonalizationDialog() {
+        val items = arrayOf("Hide “Recently Added” on Home", "Hide “For You” on Home")
+        val checked = booleanArrayOf(Configs.hideRecentlyAdded(this), Configs.hideForYou(this))
+        AlertDialog.Builder(this)
+            .setTitle("Personalization")
+            .setMultiChoiceItems(items, checked) { _, which, isChecked -> checked[which] = isChecked }
+            .setPositiveButton("Save") { _, _ ->
+                Configs.setHideRecentlyAdded(this, checked[0])
+                Configs.setHideForYou(this, checked[1])
+                toast("Home updated. Changes show next time you open Home.")
             }
             .setNegativeButton("Cancel", null)
             .show()
