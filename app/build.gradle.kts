@@ -18,8 +18,8 @@ android {
         applicationId = "com.stalkertv.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 99
-        versionName = "0.99"
+        versionCode = 1
+        versionName = "1.0"
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
         // TMDb v3 API key, injected from the CI secret (gradle -PtmdbKey=...); empty in local builds.
         buildConfigField("String", "TMDB_KEY", "\"${project.findProperty("tmdbKey") ?: ""}\"")

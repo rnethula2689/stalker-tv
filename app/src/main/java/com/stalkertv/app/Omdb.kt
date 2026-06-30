@@ -16,8 +16,14 @@ object Omdb {
         if (apiKey.isBlank() || title.isBlank()) return null
         return try {
             val q = URLEncoder.encode(Tmdb.cleanTitle(title), "UTF-8")
-            val yp = if (year.isNotBlank()) "&y=$year" else ""
-            val js = JSONObject(httpGet("https://www.omdbapi.com/?apikey=$apiKey&t=$q$yp"))
+            // Try the year-constrained lookup first; portal years often disagree with OMDb's, so
+            // fall back to a title-only lookup rather than giving up (which would drop all ratings).
+            var js = JSONObject(httpGet("https://www.omdbapi.com/?apikey=$apiKey&t=$q&y=$year".let {
+                if (year.isBlank()) "https://www.omdbapi.com/?apikey=$apiKey&t=$q" else it
+            }))
+            if (js.optString("Response") != "True" && year.isNotBlank()) {
+                js = JSONObject(httpGet("https://www.omdbapi.com/?apikey=$apiKey&t=$q"))
+            }
             if (js.optString("Response") != "True") return null
             val imdb = js.optString("imdbRating").takeIf { it.isNotBlank() && it != "N/A" }
             var rt: String? = null; var mc: String? = null
