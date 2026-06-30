@@ -24,7 +24,6 @@ object Omdb {
             if (js.optString("Response") != "True" && year.isNotBlank()) {
                 js = JSONObject(httpGet("https://www.omdbapi.com/?apikey=$apiKey&t=$q"))
             }
-            android.util.Log.i("OMDBDBG", "Response=${js.optString("Response")} Error=${js.optString("Error")} imdb=${js.optString("imdbRating")} rt=${js.optJSONArray("Ratings")}")
             if (js.optString("Response") != "True") return null
             val imdb = js.optString("imdbRating").takeIf { it.isNotBlank() && it != "N/A" }
             var rt: String? = null; var mc: String? = null
