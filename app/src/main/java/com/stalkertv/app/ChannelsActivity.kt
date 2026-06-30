@@ -746,7 +746,7 @@ class ChannelsActivity : AppCompatActivity() {
             vodFav("movie", Favorites.Entry("movie", v.id, v.name, v.posterUrl, "vod|${v.id}|${v.cmd}"))
         return Row(label, v.posterUrl, sortKey = v.name, fav = fav, poster = poster) {
             if (v.isSeries) showSeasons(v)
-            else mediaActions(v.name, v.posterUrl, "movie_${v.id}", "vod|${v.id}|${v.cmd}", info = MovieInfo.from(v))
+            else openMovieDetail(v)
         }
     }
 
@@ -767,6 +767,14 @@ class ChannelsActivity : AppCompatActivity() {
 
     /** Movie / episode action sheet: play, watch trailer, info & ratings, watch later, download.
      *  [source] lets a download resume later; [info] (movies only) drives the info sheet. */
+    /** Open the rich movie details screen (replaces the old action-sheet popup for movies). */
+    private fun openMovieDetail(v: Portal.VodItem) {
+        startActivity(Intent(this, MovieDetailActivity::class.java)
+            .putExtra("vodId", v.id).putExtra("title", v.name).putExtra("cmd", v.cmd)
+            .putExtra("poster", v.posterUrl).putExtra("year", v.year)
+            .putExtra("genre", v.genre).putExtra("imdb", v.imdb))
+    }
+
     private fun mediaActions(
         title: String, poster: String?, id: String, source: String,
         playlist: List<PlayerActivity.PlaylistItem> = emptyList(), plIndex: Int = -1,
@@ -1008,7 +1016,7 @@ class ChannelsActivity : AppCompatActivity() {
             if (ranked.isNotEmpty()) rows.add(Row("For You", null, rail = ranked.take(15).map { v ->
                 Card(v.name, v.posterUrl.ifBlank { null }) {
                     if (v.isSeries) showSeasons(v)
-                    else mediaActions(v.name, v.posterUrl, "movie_${v.id}", "vod|${v.id}|${v.cmd}", info = MovieInfo.from(v))
+                    else openMovieDetail(v)
                 }
             }) {})
         }
@@ -1016,7 +1024,7 @@ class ChannelsActivity : AppCompatActivity() {
         if (recent.isNotEmpty() && !Configs.hideRecentlyAdded(this)) rows.add(Row("Recently Added", null, rail = recent.map { v ->
             Card(v.name, v.posterUrl.ifBlank { null }) {
                 if (v.isSeries) showSeasons(v)
-                else mediaActions(v.name, v.posterUrl, "movie_${v.id}", "vod|${v.id}|${v.cmd}", info = MovieInfo.from(v))
+                else openMovieDetail(v)
             }
         }) {})
 

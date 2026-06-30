@@ -31,6 +31,55 @@ object Tmdb {
         } catch (_: Exception) { null }
     }
 
+    data class CastMember(val name: String, val character: String, val profileUrl: String?)
+    data class Trailer(val name: String, val youtubeKey: String) {
+        val thumbUrl get() = "https://img.youtube.com/vi/$youtubeKey/hqdefault.jpg"
+    }
+    data class Details(
+        val title: String, val tagline: String, val overview: String,
+        val posterUrl: String?, val backdropUrl: String?,
+        val rating: Double, val releaseDate: String, val runtimeMin: Int,
+        val genres: List<String>, val trailers: List<Trailer>, val cast: List<CastMember>
+    )
+
+    /** Full movie details (poster, backdrop, tagline, runtime, genres, trailers, cast) in ONE call. */
+    fun details(apiKey: String, title: String, year: String): Details? {
+        if (apiKey.isBlank() || title.isBlank()) return null
+        return try {
+            val id = searchMovieId(apiKey, title, year)
+                ?: (if (year.isNotBlank()) searchMovieId(apiKey, title, "") else null) ?: return null
+            val js = JSONObject(httpGet("https://api.themoviedb.org/3/movie/$id?api_key=$apiKey&append_to_response=videos,credits"))
+            fun img(path: String, size: String) = path.takeIf { it.isNotBlank() && it != "null" }?.let { "https://image.tmdb.org/t/p/$size$it" }
+            val genres = js.optJSONArray("genres")?.let { a ->
+                (0 until a.length()).mapNotNull { a.optJSONObject(it)?.optString("name")?.takeIf { n -> n.isNotBlank() } }
+            } ?: emptyList()
+            val trailers = ArrayList<Trailer>()
+            js.optJSONObject("videos")?.optJSONArray("results")?.let { a ->
+                for (i in 0 until a.length()) {
+                    val v = a.optJSONObject(i) ?: continue
+                    if (v.optString("site") != "YouTube") continue
+                    val type = v.optString("type"); if (type != "Trailer" && type != "Teaser") continue
+                    val key = v.optString("key"); if (key.isBlank()) continue
+                    trailers.add(Trailer(v.optString("name").ifBlank { type }, key))
+                }
+            }
+            val cast = ArrayList<CastMember>()
+            js.optJSONObject("credits")?.optJSONArray("cast")?.let { a ->
+                for (i in 0 until minOf(a.length(), 20)) {
+                    val c = a.optJSONObject(i) ?: continue
+                    val name = c.optString("name"); if (name.isBlank()) continue
+                    cast.add(CastMember(name, c.optString("character"), img(c.optString("profile_path"), "w185")))
+                }
+            }
+            Details(
+                js.optString("title").ifBlank { title }, js.optString("tagline"), js.optString("overview"),
+                img(js.optString("poster_path"), "w500"), img(js.optString("backdrop_path"), "w780"),
+                js.optDouble("vote_average", 0.0), js.optString("release_date"), js.optInt("runtime", 0),
+                genres, trailers, cast
+            )
+        } catch (_: Exception) { null }
+    }
+
     /** Returns a YouTube video id for the best trailer, or null (no key / no match / network error). */
     fun trailerYoutubeId(apiKey: String, title: String, year: String): String? {
         if (apiKey.isBlank() || title.isBlank()) return null
