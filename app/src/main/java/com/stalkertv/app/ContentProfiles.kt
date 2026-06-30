@@ -22,7 +22,8 @@ object ContentProfiles {
         var allLive: Boolean,                 // true = every Live category visible
         var liveCats: MutableSet<String>,     // genre ids when not allLive
         var allVod: Boolean,                  // true = every Movie category visible
-        var vodCats: MutableSet<String>       // vod category ids when not allVod
+        var vodCats: MutableSet<String>,      // vod category ids when not allVod
+        var avatar: String = ""               // "" | "emoji:🦁" | "file:/path" (see Avatars)
     )
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
@@ -42,7 +43,8 @@ object ContentProfiles {
                         o.optBoolean("allLive", true),
                         jsonToSet(o.optJSONArray("liveCats")),
                         o.optBoolean("allVod", true),
-                        jsonToSet(o.optJSONArray("vodCats"))
+                        jsonToSet(o.optJSONArray("vodCats")),
+                        o.optString("avatar", "")
                     )
                 )
             }
@@ -64,6 +66,7 @@ object ContentProfiles {
                     .put("id", p.id).put("name", p.name).put("color", p.color)
                     .put("allLive", p.allLive).put("liveCats", JSONArray(p.liveCats.toList()))
                     .put("allVod", p.allVod).put("vodCats", JSONArray(p.vodCats.toList()))
+                    .put("avatar", p.avatar)
             )
         }
         prefs(ctx).edit().putString(KEY_LIST, arr.toString()).apply()

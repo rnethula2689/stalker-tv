@@ -3,4 +3,5 @@
     <cache-path name="apk" path="." />
     <external-files-path name="backup" path="backup/" />
     <external-files-path name="guide" path="guide/" />
+    <external-files-path name="avatars" path="avatars/" />
 </paths>

@@ -1116,11 +1116,8 @@ class ChannelsActivity : AppCompatActivity() {
     /** Top-bar avatar = active profile's initial on its colour (tap → switch profile). */
     private fun updateProfileBadge() {
         val p = ContentProfiles.active(this)
-        b.profileBtn.text = p?.name?.firstOrNull()?.uppercaseChar()?.toString() ?: "👤"
-        val d = android.graphics.drawable.GradientDrawable()
-        d.shape = android.graphics.drawable.GradientDrawable.OVAL
-        d.setColor(p?.color ?: 0x55FFFFFF.toInt())
-        b.profileBtn.background = d
+        val initial = p?.name?.firstOrNull()?.uppercaseChar()?.toString() ?: "👤"
+        Avatars.render(b.profileBtn, p?.avatar ?: "", p?.color ?: 0x55FFFFFF.toInt(), initial, false)
     }
 
     /** Show the picker once on first run (no profile yet). Afterwards we auto-enter (remember-last). */
@@ -1153,12 +1150,12 @@ class ChannelsActivity : AppCompatActivity() {
         val activeId = ContentProfiles.activeId(this)
         for (p in ContentProfiles.list(this)) {
             b.profileRow.addView(profileTile(p.name, p.color, p.name.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                p.id == activeId,
+                p.avatar, p.id == activeId,
                 onClick = { ContentProfiles.setActive(this, p.id); hideProfilePicker(); showHome() },
                 onLong = { editProfileMenu(p) }))
         }
         // "＋ Add" tile
-        b.profileRow.addView(profileTile("Add", 0x33FFFFFF, "＋", false,
+        b.profileRow.addView(profileTile("Add", 0x33FFFFFF, "＋", "", false,
             onClick = { startActivity(Intent(this, ProfileEditActivity::class.java)) }, onLong = null))
         val pad = (8 * dp).toInt()
         for (i in 0 until b.profileRow.childCount) {
@@ -1166,7 +1163,7 @@ class ChannelsActivity : AppCompatActivity() {
         }
     }
 
-    private fun profileTile(name: String, color: Int, initial: String, active: Boolean,
+    private fun profileTile(name: String, color: Int, initial: String, avatar: String, active: Boolean,
                             onClick: () -> Unit, onLong: (() -> Unit)?): View {
         val dp = resources.displayMetrics.density
         val col = android.widget.LinearLayout(this)
@@ -1179,14 +1176,9 @@ class ChannelsActivity : AppCompatActivity() {
         val size = (96 * dp).toInt()
         circle.layoutParams = android.widget.LinearLayout.LayoutParams(size, size)
         circle.gravity = android.view.Gravity.CENTER
-        circle.text = initial
-        circle.textSize = 34f
+        circle.textSize = if (avatar.startsWith("emoji:")) 46f else 34f
         circle.setTextColor(0xFFFFFFFF.toInt())
-        val d = android.graphics.drawable.GradientDrawable()
-        d.shape = android.graphics.drawable.GradientDrawable.OVAL
-        d.setColor(color)
-        if (active) d.setStroke((3 * dp).toInt(), 0xFF19C37D.toInt())
-        circle.background = d
+        Avatars.render(circle, avatar, color, initial, active)
         col.addView(circle)
         val label = android.widget.TextView(this)
         label.text = name

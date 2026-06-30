@@ -17,8 +17,27 @@ class ProfileEditActivity : AppCompatActivity() {
 
     private var editing: ContentProfiles.Profile? = null
     private var chosenColor = ContentProfiles.COLORS[0]
+    private var chosenAvatar = ""
+    private var pendingCameraPath: String? = null
     private val liveBoxes = ArrayList<CheckBox>()
     private val vodBoxes = ArrayList<CheckBox>()
+
+    private fun toast(m: String) = android.widget.Toast.makeText(this, m, android.widget.Toast.LENGTH_SHORT).show()
+
+    private val pickGallery = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val a = Avatars.importFrom(this, uri)
+            if (a != null) { chosenAvatar = a; refreshAvatar() } else toast("Couldn't load that image.")
+        }
+    }
+    private val takePhoto = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.TakePicture()
+    ) { ok ->
+        val p = pendingCameraPath
+        if (ok && p != null) { chosenAvatar = Avatars.shrinkFile(this, p) ?: "file:$p"; refreshAvatar() }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,10 +49,18 @@ class ProfileEditActivity : AppCompatActivity() {
             b.editTitle.text = "Edit profile"
             b.profileName.setText(it.name)
             chosenColor = it.color
+            chosenAvatar = it.avatar
             b.deleteBtn.visibility = View.VISIBLE
         }
 
         buildColorRow()
+        buildEmojiRow()
+        refreshAvatar()
+        b.profileName.addTextChangedListener(simpleWatcher { refreshAvatar() })
+        b.galleryBtn.setOnClickListener {
+            try { pickGallery.launch("image/*") } catch (_: Exception) { toast("No gallery app available.") }
+        }
+        b.cameraBtn.setOnClickListener { launchCamera() }
         b.liveAllBtn.setOnClickListener { val v = visible(liveBoxes); setAll(v, !(v.isNotEmpty() && v.all { it.isChecked })); updateAllLabels() }
         b.vodAllBtn.setOnClickListener { val v = visible(vodBoxes); setAll(v, !(v.isNotEmpty() && v.all { it.isChecked })); updateAllLabels() }
         b.saveBtn.setOnClickListener { save() }
@@ -71,10 +98,52 @@ class ProfileEditActivity : AppCompatActivity() {
                 v.animate().scaleX(s).scaleY(s).setDuration(120).start()
             }
             // Update strokes in place (don't rebuild the row, which would drop focus).
-            tv.setOnClickListener { chosenColor = c; refreshColorStrokes() }
+            tv.setOnClickListener { chosenColor = c; refreshColorStrokes(); refreshAvatar() }
             colorSwatches.add(tv)
             b.colorRow.addView(tv)
         }
+    }
+
+    // ---- Avatar (picture) ----
+    private fun buildEmojiRow() {
+        b.emojiRow.removeAllViews()
+        addEmojiTile("Aa", "")               // default: colour + name initial
+        for (e in Avatars.EMOJI) addEmojiTile(e, "emoji:$e")
+    }
+
+    private fun addEmojiTile(display: String, value: String) {
+        val dp = resources.displayMetrics.density
+        val tv = android.widget.TextView(this)
+        val size = (52 * dp).toInt()
+        val lp = android.widget.LinearLayout.LayoutParams(size, size); lp.marginEnd = (8 * dp).toInt()
+        tv.layoutParams = lp
+        tv.gravity = android.view.Gravity.CENTER
+        tv.textSize = 22f
+        tv.text = display
+        tv.setTextColor(0xFFE6EDF3.toInt())
+        tv.isFocusable = true; tv.isClickable = true
+        val bg = android.graphics.drawable.GradientDrawable()
+        bg.shape = android.graphics.drawable.GradientDrawable.OVAL; bg.setColor(0x22FFFFFF)
+        tv.background = bg
+        tv.setOnFocusChangeListener { v, f -> val s = if (f) 1.2f else 1f; v.animate().scaleX(s).scaleY(s).setDuration(120).start() }
+        tv.setOnClickListener { chosenAvatar = value; refreshAvatar() }
+        b.emojiRow.addView(tv)
+    }
+
+    private fun refreshAvatar() {
+        val initial = b.profileName.text?.toString()?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+        Avatars.render(b.avatarPreview, chosenAvatar, chosenColor, initial, false)
+        b.avatarPreview.textSize = if (chosenAvatar.startsWith("emoji:")) 30f else 22f
+    }
+
+    private fun launchCamera() {
+        try {
+            val dir = java.io.File(getExternalFilesDir(null), "avatars").apply { mkdirs() }
+            val f = java.io.File(dir, "cam_${System.currentTimeMillis()}.jpg")
+            pendingCameraPath = f.absolutePath
+            val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.fileprovider", f)
+            takePhoto.launch(uri)
+        } catch (e: Exception) { toast("Camera not available: ${e.message}") }
     }
 
     private fun refreshColorStrokes() {
@@ -163,13 +232,14 @@ class ProfileEditActivity : AppCompatActivity() {
         val allLive = liveBoxes.isNotEmpty() && liveChecked.size == liveBoxes.size
         val allVod = vodBoxes.isNotEmpty() && vodChecked.size == vodBoxes.size
         val p = editing?.also {
-            it.name = name; it.color = chosenColor
+            it.name = name; it.color = chosenColor; it.avatar = chosenAvatar
             it.allLive = allLive; it.liveCats = if (allLive) LinkedHashSet() else liveChecked
             it.allVod = allVod; it.vodCats = if (allVod) LinkedHashSet() else vodChecked
         } ?: ContentProfiles.Profile(
             ContentProfiles.newId(), name, chosenColor,
             allLive, if (allLive) LinkedHashSet() else liveChecked,
-            allVod, if (allVod) LinkedHashSet() else vodChecked
+            allVod, if (allVod) LinkedHashSet() else vodChecked,
+            chosenAvatar
         )
         ContentProfiles.save(this, p)
         // First profile created becomes active right away.

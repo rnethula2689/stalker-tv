@@ -171,6 +171,8 @@ Open Settings from Home (gear icon, or MENU on a remote).
   - IPTV configuration: add/edit your provider(s).
   - Profiles: create separate content profiles (e.g. "Telugu", "Kids") and
     choose which channels/movie categories each one shows. Switch any time.
+    Give each profile a PICTURE: pick a fun icon (animals, toys, etc.), or use
+    "Camera"/"Gallery" to take or choose a photo ("Aa" keeps colour + initial).
   - Personalization: hide the "Recently Added" and/or "For You" rows on Home.
   - Remote control (key mapping): re-assign remote buttons to actions — see 19.
   - Parental PIN: set a PIN that locks restricted channels.
