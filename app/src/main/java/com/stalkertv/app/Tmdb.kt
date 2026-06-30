@@ -14,11 +14,21 @@ import java.net.URLEncoder
 object Tmdb {
     data class Meta(val posterUrl: String?, val rating: Double, val voteCount: Int, val overview: String?)
 
+    /** Strip portal decorations (quality/lang/provider tags, brackets) so TMDb search can match.
+     *  e.g. "The Magnificent Mendez (English-Amazon Prime) (4K)" -> "The Magnificent Mendez". */
+    fun cleanTitle(raw: String): String {
+        var t = raw
+        t = t.replace(Regex("\\([^)]*\\)"), " ").replace(Regex("\\[[^\\]]*\\]"), " ")
+        t = t.replace(Regex("(?i)\\b(4k|uhd|fhd|hd|sd|hq|1080p?|720p?|480p|web-?dl|blu-?ray|x26[45]|hevc|hdr|dolby|atmos|imax|remastered|extended|uncut|multi|dual|dubbed|sub(bed)?)\\b"), " ")
+        t = t.replace(Regex("[|/_.:]+"), " ").replace(Regex("\\s{2,}"), " ").trim()
+        return t.ifBlank { raw.trim() }
+    }
+
     /** One search call → poster + rating + overview for a movie (portal returns ratings=0/no art). */
     fun movieMeta(apiKey: String, title: String, year: String): Meta? {
         if (apiKey.isBlank() || title.isBlank()) return null
         return try {
-            val q = URLEncoder.encode(title, "UTF-8")
+            val q = URLEncoder.encode(cleanTitle(title), "UTF-8")
             fun query(yr: String): JSONObject? {
                 val yp = if (yr.isNotBlank()) "&year=$yr" else ""
                 val js = JSONObject(httpGet("https://api.themoviedb.org/3/search/movie?api_key=$apiKey&query=$q$yp"))
@@ -73,7 +83,7 @@ object Tmdb {
             }
             Details(
                 js.optString("title").ifBlank { title }, js.optString("tagline"), js.optString("overview"),
-                img(js.optString("poster_path"), "w500"), img(js.optString("backdrop_path"), "w780"),
+                img(js.optString("poster_path"), "w500"), img(js.optString("backdrop_path"), "w300"),
                 js.optDouble("vote_average", 0.0), js.optString("release_date"), js.optInt("runtime", 0),
                 genres, trailers, cast
             )
@@ -92,7 +102,7 @@ object Tmdb {
     }
 
     private fun searchMovieId(apiKey: String, title: String, year: String): Int? {
-        val q = URLEncoder.encode(title, "UTF-8")
+        val q = URLEncoder.encode(cleanTitle(title), "UTF-8")
         val yp = if (year.isNotBlank()) "&year=$year" else ""
         val js = JSONObject(httpGet("https://api.themoviedb.org/3/search/movie?api_key=$apiKey&query=$q$yp"))
         val results = js.optJSONArray("results") ?: return null

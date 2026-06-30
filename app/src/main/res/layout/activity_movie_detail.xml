@@ -79,20 +79,30 @@
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:orientation="horizontal">
+                android:layout_marginTop="14dp"
+                android:orientation="horizontal"
+                android:gravity="center">
 
-                <TextView android:id="@+id/favBtn" style="@style/SettingsRow"
-                    android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp" android:text="☆  Favourite" />
+                <TextView android:id="@+id/favBtn"
+                    android:layout_width="54dp" android:layout_height="54dp"
+                    android:layout_marginHorizontal="8dp"
+                    android:gravity="center" android:text="☆" android:textSize="22sp"
+                    android:textColor="#ffffff" android:background="@drawable/icon_circle"
+                    android:focusable="true" android:clickable="true" />
 
-                <TextView android:id="@+id/laterBtn" style="@style/SettingsRow"
-                    android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp" android:text="🕒  Watch later" />
+                <TextView android:id="@+id/laterBtn"
+                    android:layout_width="54dp" android:layout_height="54dp"
+                    android:layout_marginHorizontal="8dp"
+                    android:gravity="center" android:text="🕒" android:textSize="20sp"
+                    android:textColor="#ffffff" android:background="@drawable/icon_circle"
+                    android:focusable="true" android:clickable="true" />
 
-                <TextView android:id="@+id/dlBtn" style="@style/SettingsRow"
-                    android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="⬇  Download" />
+                <TextView android:id="@+id/dlBtn"
+                    android:layout_width="54dp" android:layout_height="54dp"
+                    android:layout_marginHorizontal="8dp"
+                    android:gravity="center" android:text="⬇" android:textSize="20sp"
+                    android:textColor="#ffffff" android:background="@drawable/icon_circle"
+                    android:focusable="true" android:clickable="true" />
             </LinearLayout>
 
             <TextView

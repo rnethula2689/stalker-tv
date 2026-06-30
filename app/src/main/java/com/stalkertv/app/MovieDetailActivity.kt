@@ -72,7 +72,7 @@ class MovieDetailActivity : AppCompatActivity() {
 
     private fun toast(m: String) = android.widget.Toast.makeText(this, m, android.widget.Toast.LENGTH_SHORT).show()
 
-    private fun refreshFav(isFav: Boolean) { b.favBtn.text = if (isFav) "★  Favourited" else "☆  Favourite" }
+    private fun refreshFav(isFav: Boolean) { b.favBtn.text = if (isFav) "★" else "☆" }
 
     // ---- actions ----
     private fun play() {
@@ -119,6 +119,7 @@ class MovieDetailActivity : AppCompatActivity() {
             val d = Tmdb.details(key, title, year) ?: return@execute
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
+                if (d.title.isNotBlank()) b.title.text = d.title // clean TMDb title (drops portal junk)
                 d.backdropUrl?.let { b.backdrop.load(it) }
                 if (poster.isBlank()) d.posterUrl?.let { b.poster.load(it) }
                 if (d.tagline.isNotBlank()) { b.tagline.text = d.tagline; b.tagline.visibility = View.VISIBLE }
