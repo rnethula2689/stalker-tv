@@ -745,7 +745,7 @@ class ChannelsActivity : AppCompatActivity() {
         else
             vodFav("movie", Favorites.Entry("movie", v.id, v.name, v.posterUrl, "vod|${v.id}|${v.cmd}"))
         return Row(label, v.posterUrl, sortKey = v.name, fav = fav, poster = poster) {
-            if (v.isSeries) showSeasons(v)
+            if (v.isSeries) openSeriesDetail(v)
             else openMovieDetail(v)
         }
     }
@@ -773,6 +773,15 @@ class ChannelsActivity : AppCompatActivity() {
             .putExtra("vodId", v.id).putExtra("title", v.name).putExtra("cmd", v.cmd)
             .putExtra("poster", v.posterUrl).putExtra("year", v.year)
             .putExtra("genre", v.genre).putExtra("imdb", v.imdb))
+    }
+
+    /** Open the rich details screen for a series (season selector + episodes + cast/trailers). */
+    private fun openSeriesDetail(v: Portal.VodItem) {
+        startActivity(Intent(this, MovieDetailActivity::class.java)
+            .putExtra("vodId", v.id).putExtra("title", v.name)
+            .putExtra("poster", v.posterUrl).putExtra("year", v.year)
+            .putExtra("genre", v.genre).putExtra("imdb", v.imdb)
+            .putExtra("isSeries", true))
     }
 
     /** Open the movie details screen from a stored source ("vod|<id>|<cmd>") — search & favourites. */
@@ -1024,7 +1033,7 @@ class ChannelsActivity : AppCompatActivity() {
                 .filter { it.second > 0 }.sortedByDescending { it.second }.map { it.first }
             if (ranked.isNotEmpty()) rows.add(Row("For You", null, rail = ranked.take(15).map { v ->
                 Card(v.name, v.posterUrl.ifBlank { null }) {
-                    if (v.isSeries) showSeasons(v)
+                    if (v.isSeries) openSeriesDetail(v)
                     else openMovieDetail(v)
                 }
             }) {})
@@ -1032,7 +1041,7 @@ class ChannelsActivity : AppCompatActivity() {
         // Newest movies from the portal (fetched in the background after connect; absent until ready).
         if (recent.isNotEmpty() && !Configs.hideRecentlyAdded(this)) rows.add(Row("Recently Added", null, rail = recent.map { v ->
             Card(v.name, v.posterUrl.ifBlank { null }) {
-                if (v.isSeries) showSeasons(v)
+                if (v.isSeries) openSeriesDetail(v)
                 else openMovieDetail(v)
             }
         }) {})
@@ -1058,7 +1067,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     /** Open a favourite card from the home rail (movie → play, series → seasons). */
     private fun openFavEntry(e: Favorites.Entry) {
-        if (e.kind == "series") showSeasons(Portal.VodItem(e.id, e.title, "", e.poster, true))
+        if (e.kind == "series") openSeriesDetail(Portal.VodItem(e.id, e.title, "", e.poster, true))
         else play(e.title, e.id, e.poster, e.source)
     }
 
@@ -1633,7 +1642,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     private fun openFavSeries(e: Favorites.Entry) {
         val id = e.source.split("|").getOrElse(1) { e.id }
-        showSeasons(Portal.VodItem(id, e.title, "", e.poster, true))
+        openSeriesDetail(Portal.VodItem(id, e.title, "", e.poster, true))
     }
 
     private fun openFavSeason(e: Favorites.Entry) {

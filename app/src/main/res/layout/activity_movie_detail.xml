@@ -139,6 +139,37 @@
                 android:visibility="gone" />
 
             <TextView
+                android:id="@+id/seasonBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="Season 1  ▾"
+                android:textColor="#ffffff"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:paddingHorizontal="22dp"
+                android:paddingVertical="10dp"
+                android:background="@drawable/icon_circle"
+                android:focusable="true"
+                android:clickable="true"
+                android:visibility="gone" />
+
+            <HorizontalScrollView
+                android:id="@+id/episodesScroll"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:scrollbars="none"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/episodesRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
+
+            <TextView
                 android:id="@+id/trailersHeader"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

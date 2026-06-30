@@ -14,9 +14,10 @@ import com.stalkertv.app.databinding.ActivityMovieDetailBinding
 import java.util.concurrent.Executors
 
 /**
- * Rich movie details (Strimix-style): backdrop, poster, tagline, ratings, expandable overview,
- * a Trailers rail and a Cast rail — plus all the actions (Play / Favourite / Watch later / Download).
- * Replaces the old action-sheet popup. Portal data shows instantly; TMDb enriches in the background.
+ * Rich details for a movie OR series (Strimix-style): blurred backdrop, poster, tagline, ratings,
+ * expandable overview, Trailers + Cast rails, and — for series — a season selector + episode rail.
+ * All actions (Play / Favourite / Watch later / Download) live here; replaces the old popup.
+ * Adapts portrait/landscape automatically (res/layout + res/layout-land).
  */
 class MovieDetailActivity : AppCompatActivity() {
     private lateinit var b: ActivityMovieDetailBinding
@@ -26,8 +27,13 @@ class MovieDetailActivity : AppCompatActivity() {
     private lateinit var title: String
     private var poster: String = ""
     private var year: String = ""
-    private lateinit var source: String
-    private lateinit var resumeId: String
+    private var isSeries: Boolean = false
+    private lateinit var source: String       // movie source ("vod|id|cmd"); unused for series
+    private lateinit var resumeId: String     // movie resumeId; episodes have their own
+
+    private var seasons: List<Portal.Season> = emptyList()
+    private var curSeason: Portal.Season? = null
+    private var firstEp: Portal.Episode? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,9 +42,10 @@ class MovieDetailActivity : AppCompatActivity() {
         setContentView(b.root)
 
         vodId = intent.getStringExtra("vodId") ?: ""
-        title = intent.getStringExtra("title") ?: "Movie"
+        title = intent.getStringExtra("title") ?: "Title"
         poster = intent.getStringExtra("poster") ?: ""
         year = intent.getStringExtra("year") ?: ""
+        isSeries = intent.getBooleanExtra("isSeries", false)
         val cmd = intent.getStringExtra("cmd") ?: ""
         val genre = intent.getStringExtra("genre") ?: ""
         val imdb = intent.getStringExtra("imdb") ?: ""
@@ -51,42 +58,54 @@ class MovieDetailActivity : AppCompatActivity() {
             .filter { it.isNotBlank() }.joinToString("   ·   ")
 
         b.playBtn.setOnClickListener { play() }
-        b.dlBtn.setOnClickListener { download() }
         b.laterBtn.setOnClickListener {
-            val added = WatchLater.add(applicationContext, "movie", resumeId, title, poster, source)
+            val kind = if (isSeries) "series" else "movie"
+            val added = WatchLater.add(applicationContext, kind, favId(), title, poster, favSource())
             toast(if (added) "Added to Watch Later" else "Already in Watch Later")
         }
         b.favBtn.setOnClickListener {
-            val added = Favorites.toggle(this, Favorites.Entry("movie", resumeId, title, poster, source))
+            val added = Favorites.toggle(this, Favorites.Entry(if (isSeries) "series" else "movie", favId(), title, poster, favSource()))
             refreshFav(added)
         }
         b.moreBtn.setOnClickListener {
             b.overview.maxLines = if (b.overview.maxLines > 100) 5 else 1000
             b.moreBtn.text = if (b.overview.maxLines > 100) "Less" else "More"
         }
-        refreshFav(Favorites.all(this).any { it.id == resumeId })
-        b.playBtn.requestFocus()
+        refreshFav(Favorites.all(this).any { it.id == favId() })
 
+        if (isSeries) {
+            b.dlBtn.visibility = View.GONE // downloads are per-episode
+            setupSeries()
+        } else {
+            b.dlBtn.setOnClickListener { download() }
+        }
+        b.playBtn.requestFocus()
         loadTmdb(genre)
     }
 
+    private fun favId() = if (isSeries) "series_$vodId" else resumeId
+    private fun favSource() = if (isSeries) "series|$vodId" else source
     private fun toast(m: String) = android.widget.Toast.makeText(this, m, android.widget.Toast.LENGTH_SHORT).show()
-
     private fun refreshFav(isFav: Boolean) { b.favBtn.text = if (isFav) "★" else "☆" }
 
-    // ---- actions ----
+    // ---- play ----
     private fun play() {
+        if (isSeries) { firstEp?.let { e -> curSeason?.let { s -> playEpisode(s, e) } } ?: toast("Loading episodes…"); return }
         Taste.record(applicationContext, intent.getStringExtra("genre") ?: "")
         val r = Resume.get(this, resumeId)
         if (Resume.resumable(r)) {
             AlertDialog.Builder(this).setTitle(title)
                 .setItems(arrayOf("▶  Resume from ${fmtTime(r!!.position)}", "↻  Start from beginning")) { _, w ->
-                    startPlayer(if (w == 0) r.position else 0L)
+                    startPlayerWith(title, resumeId, source, if (w == 0) r.position else 0L)
                 }.show()
-        } else startPlayer(0L)
+        } else startPlayerWith(title, resumeId, source, 0L)
     }
 
-    private fun startPlayer(startPos: Long) {
+    private fun playEpisode(s: Portal.Season, e: Portal.Episode) {
+        startPlayerWith("$title — ${e.name}", "ep_${vodId}_${s.id}_${e.id}", "ep|$vodId|${s.id}|${e.id}", 0L)
+    }
+
+    private fun startPlayerWith(title: String, resumeId: String, source: String, startPos: Long) {
         toast("Opening…")
         io.execute {
             val url = Downloads.resolveSource(source)
@@ -111,22 +130,87 @@ class MovieDetailActivity : AppCompatActivity() {
         return if (h > 0) "%d:%02d:%02d".format(h, m, sec) else "%d:%02d".format(m, sec)
     }
 
+    // ---- series: seasons + episodes ----
+    private fun setupSeries() {
+        b.seasonBtn.setOnClickListener { pickSeason() }
+        io.execute {
+            val ss = Portal.seriesSeasons(vodId)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                seasons = ss
+                if (ss.isEmpty()) return@runOnUiThread
+                b.seasonBtn.visibility = View.VISIBLE
+                b.episodesScroll.visibility = View.VISIBLE
+                selectSeason(ss.first())
+            }
+        }
+    }
+
+    private fun pickSeason() {
+        if (seasons.isEmpty()) return
+        AlertDialog.Builder(this).setTitle("Select season")
+            .setItems(seasons.map { it.name }.toTypedArray()) { _, w -> selectSeason(seasons[w]) }
+            .setNegativeButton("Cancel", null).show()
+    }
+
+    private fun selectSeason(s: Portal.Season) {
+        curSeason = s
+        b.seasonBtn.text = "${s.name}  ▾"
+        b.episodesRow.removeAllViews()
+        io.execute {
+            val eps = Portal.seriesEpisodes(vodId, s.id).reversed() // portal is newest-first → E1..En
+            runOnUiThread {
+                if (isFinishing || curSeason?.id != s.id) return@runOnUiThread
+                firstEp = eps.firstOrNull()
+                buildEpisodes(eps, s)
+            }
+        }
+    }
+
+    private fun buildEpisodes(eps: List<Portal.Episode>, s: Portal.Season) {
+        val dp = resources.displayMetrics.density
+        for (e in eps) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                isFocusable = true; isClickable = true
+                setPadding((4 * dp).toInt(), (4 * dp).toInt(), (4 * dp).toInt(), (4 * dp).toInt())
+                background = androidx.core.content.ContextCompat.getDrawable(this@MovieDetailActivity, R.drawable.item_bg)
+                val lp = LinearLayout.LayoutParams((200 * dp).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.marginEnd = (10 * dp).toInt(); layoutParams = lp
+                setOnFocusChangeListener { v, f -> val sc = if (f) 1.06f else 1f; v.animate().scaleX(sc).scaleY(sc).setDuration(120).start() }
+            }
+            val thumb = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams((192 * dp).toInt(), (108 * dp).toInt())
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setBackgroundColor(0x22FFFFFF)
+                if (poster.isNotBlank()) load(poster)
+            }
+            val label = TextView(this).apply {
+                text = "▶  ${e.name}"; setTextColor(0xFFE6EDF3.toInt()); textSize = 12f
+                maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+                setPadding(0, (4 * dp).toInt(), 0, 0)
+            }
+            card.addView(thumb); card.addView(label)
+            card.setOnClickListener { playEpisode(s, e) }
+            b.episodesRow.addView(card)
+        }
+    }
+
     // ---- TMDb enrichment ----
     private fun loadTmdb(portalGenre: String) {
         val key = BuildConfig.TMDB_KEY
         if (key.isBlank()) return
         io.execute {
-            val d = Tmdb.details(key, title, year) ?: return@execute
+            val d = Tmdb.details(key, title, year, isSeries) ?: return@execute
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
-                if (d.title.isNotBlank()) b.title.text = d.title // clean TMDb title (drops portal junk)
-                // Backdrop: TMDb backdrop, else fall back to the poster (blurred behind) so it's never blank.
+                if (d.title.isNotBlank()) b.title.text = d.title
                 (d.backdropUrl ?: d.posterUrl ?: poster.ifBlank { null })?.let { b.backdrop.load(it) }
                 if (poster.isBlank()) d.posterUrl?.let { b.poster.load(it) }
                 if (d.tagline.isNotBlank()) { b.tagline.text = d.tagline; b.tagline.visibility = View.VISIBLE }
                 if (d.overview.isNotBlank()) {
                     b.overview.text = d.overview
-                    b.overview.post { if (b.overview.lineCount > 5) b.moreBtn.visibility = View.VISIBLE }
+                    b.overview.post { if (b.overview.lineCount > b.overview.maxLines) b.moreBtn.visibility = View.VISIBLE }
                 }
                 val genres = if (d.genres.isNotEmpty()) d.genres.joinToString(", ") else portalGenre
                 val rating = if (d.rating > 0) "★ %.1f".format(d.rating) else ""
@@ -140,8 +224,8 @@ class MovieDetailActivity : AppCompatActivity() {
     }
 
     private fun prettyDate(ymd: String): String = try {
-        val out = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
-        out.format(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(ymd)!!)
+        java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
+            .format(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(ymd)!!)
     } catch (_: Exception) { ymd.take(4) }
 
     private fun buildTrailers(trailers: List<Tmdb.Trailer>) {
@@ -151,8 +235,7 @@ class MovieDetailActivity : AppCompatActivity() {
         b.trailersRow.removeAllViews()
         for (t in trailers) {
             val card = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                isFocusable = true; isClickable = true
+                orientation = LinearLayout.VERTICAL; isFocusable = true; isClickable = true
                 setPadding((4 * dp).toInt(), (4 * dp).toInt(), (4 * dp).toInt(), (4 * dp).toInt())
                 background = androidx.core.content.ContextCompat.getDrawable(this@MovieDetailActivity, R.drawable.item_bg)
                 val lp = LinearLayout.LayoutParams((200 * dp).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT)
@@ -161,18 +244,14 @@ class MovieDetailActivity : AppCompatActivity() {
             }
             val thumb = ImageView(this).apply {
                 layoutParams = LinearLayout.LayoutParams((192 * dp).toInt(), (108 * dp).toInt())
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                load(t.thumbUrl)
+                scaleType = ImageView.ScaleType.CENTER_CROP; load(t.thumbUrl)
             }
             val label = TextView(this).apply {
                 text = "▶  ${t.name}"; setTextColor(0xFFE6EDF3.toInt()); textSize = 12f
-                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
-                setPadding(0, (4 * dp).toInt(), 0, 0)
+                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, (4 * dp).toInt(), 0, 0)
             }
             card.addView(thumb); card.addView(label)
-            card.setOnClickListener {
-                startActivity(Intent(this, TrailerActivity::class.java).putExtra("videoId", t.youtubeKey))
-            }
+            card.setOnClickListener { startActivity(Intent(this, TrailerActivity::class.java).putExtra("videoId", t.youtubeKey)) }
             b.trailersRow.addView(card)
         }
     }
@@ -190,26 +269,23 @@ class MovieDetailActivity : AppCompatActivity() {
             }
             val pic = ImageView(this).apply {
                 layoutParams = LinearLayout.LayoutParams((76 * dp).toInt(), (76 * dp).toInt())
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                setBackgroundColor(0x22FFFFFF)
+                scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(0x22FFFFFF)
                 if (c.profileUrl != null) load(c.profileUrl) { transformations(CircleCropTransformation()) }
             }
             val name = TextView(this).apply {
                 text = c.name; setTextColor(0xFFE6EDF3.toInt()); textSize = 12f
                 gravity = android.view.Gravity.CENTER; maxLines = 2
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                setPadding(0, (4 * dp).toInt(), 0, 0)
+                ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, (4 * dp).toInt(), 0, 0)
             }
             val role = TextView(this).apply {
                 text = c.character; setTextColor(0xFF8b97a5.toInt()); textSize = 10f
-                gravity = android.view.Gravity.CENTER; maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
+                gravity = android.view.Gravity.CENTER; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
             }
             col.addView(pic); col.addView(name); if (c.character.isNotBlank()) col.addView(role)
             b.castRow.addView(col)
         }
     }
 
-    override fun onResume() { super.onResume(); refreshFav(Favorites.all(this).any { it.id == resumeId }) }
+    override fun onResume() { super.onResume(); refreshFav(Favorites.all(this).any { it.id == favId() }) }
     override fun onDestroy() { super.onDestroy(); io.shutdownNow() }
 }
