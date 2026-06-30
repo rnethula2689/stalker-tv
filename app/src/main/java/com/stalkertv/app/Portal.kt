@@ -373,7 +373,9 @@ object Portal {
                 ss.startsWith("/") -> host + ss
                 else -> "$host/$ss"
             }
-            val genre = o.optString("genres_str").ifBlank { o.optString("category_name") }.ifBlank { o.optString("genre") }
+            // Real genre only (genres_str/genre). Do NOT fall back to category_name — that's the folder
+            // the item is in, which would pollute the Genre filter with the current folder's own name.
+            val genre = o.optString("genres_str").ifBlank { o.optString("genre") }
             // The portal returns 0 for ratings even on well-known titles, so treat 0 as "no rating".
             val imdb = clean(o.optString("rating_imdb")).let { if (it == "0" || it == "0.0") "" else it }
             out.add(VodItem(
