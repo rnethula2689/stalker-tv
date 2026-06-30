@@ -775,6 +775,15 @@ class ChannelsActivity : AppCompatActivity() {
             .putExtra("genre", v.genre).putExtra("imdb", v.imdb))
     }
 
+    /** Open the movie details screen from a stored source ("vod|<id>|<cmd>") — search & favourites. */
+    private fun openMovieDetailSrc(title: String, poster: String?, source: String) {
+        val parts = source.split("|")
+        startActivity(Intent(this, MovieDetailActivity::class.java)
+            .putExtra("vodId", parts.getOrNull(1) ?: "")
+            .putExtra("cmd", parts.drop(2).joinToString("|"))
+            .putExtra("title", title).putExtra("poster", poster ?: ""))
+    }
+
     private fun mediaActions(
         title: String, poster: String?, id: String, source: String,
         playlist: List<PlayerActivity.PlaylistItem> = emptyList(), plIndex: Int = -1,
@@ -1495,7 +1504,7 @@ class ChannelsActivity : AppCompatActivity() {
         val rows = ArrayList<Row>()
         for (m in all.filter { it.kind == "movie" })
             rows.add(Row("🎬  ${m.title}", m.poster.ifBlank { null }, sortKey = m.title, fav = vodFav("movie", m)) {
-                mediaActions(m.title, m.poster, "movie_${m.id}", m.source)
+                openMovieDetailSrc(m.title, m.poster, m.source)
             })
         for (s in all.filter { it.kind == "series" })
             rows.add(Row("📁  ${s.title}", s.poster.ifBlank { null }, sortKey = s.title, fav = vodFav("series", s)) { openFavSeries(s) })
@@ -1565,7 +1574,7 @@ class ChannelsActivity : AppCompatActivity() {
         for (m in all.filter { it.kind == "movie" }) {
             val fav = vodFav("movie", m)
             rows.add(Row("🎬  ${m.title}", m.poster.ifBlank { null }, sortKey = m.title, fav = fav) {
-                mediaActions(m.title, m.poster, "movie_${m.id}", m.source)
+                openMovieDetailSrc(m.title, m.poster, m.source)
             })
         }
         // Whole-series favourites (open all seasons; long-press to un-favourite)
