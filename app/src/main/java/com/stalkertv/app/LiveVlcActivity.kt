@@ -840,15 +840,10 @@ class LiveVlcActivity : AppCompatActivity() {
                     KeyEvent.KEYCODE_MENU -> { showMenu(); return true }
                     KeyEvent.KEYCODE_CHANNEL_UP -> { switchChannel(-1); return true }   // dedicated keys always switch
                     KeyEvent.KEYCODE_CHANNEL_DOWN -> { switchChannel(1); return true }
-                    KeyEvent.KEYCODE_DPAD_UP -> {
-                        if (!barShown) { switchChannel(-1); return true }
-                        if (b.topBar.findFocus() == null) { b.topBar.requestFocus(); return true } // jump into options
-                        // else let focus move (super)
-                    }
-                    KeyEvent.KEYCODE_DPAD_DOWN -> {
-                        if (!barShown) { switchChannel(1); return true }
-                        // bar shown: stay on the options row (let super)
-                    }
+                    // Up/Down ALWAYS change channel (the options bar is horizontal — navigate it with
+                    // ◀ ▶ and open/activate with OK), so fast surfing works even while the bar is showing.
+                    KeyEvent.KEYCODE_DPAD_UP -> { switchChannel(-1); return true }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> { switchChannel(1); return true }
                     KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
                         if (!barShown && currentArchiveSec() > 0) { enterTimeshift(); return true }
                         // bar shown: let super move focus left among the options
@@ -856,7 +851,8 @@ class LiveVlcActivity : AppCompatActivity() {
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                         if (playFailed) { retryNow(); return true }
                         if (!barShown) { showBar(); b.topBar.requestFocus(); return true } // show + land on options
-                        // bar shown: let super activate the focused option
+                        if (b.topBar.findFocus() == null) { b.topBar.requestFocus(); return true } // bar up but not in it → enter options
+                        // an option is focused → let super activate it
                     }
                 }
             }
