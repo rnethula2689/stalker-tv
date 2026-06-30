@@ -790,6 +790,20 @@ class LiveVlcActivity : AppCompatActivity() {
         startActivity(Intent(this, MultiViewActivity::class.java))
     }
 
+    /** Run a user-mapped remote action (Settings ▸ Remote control). */
+    private fun performMapped(action: String) {
+        when (action) {
+            "channel_up" -> switchChannel(-1)
+            "channel_down" -> switchChannel(1)
+            "play_pause" -> togglePlay()
+            "rewind" -> { if (timeshifting) seekBy(-60_000) else if (!isArchive && currentArchiveSec() > 0) enterTimeshift() else seekBy(-15_000); showBar() }
+            "forward" -> { seekBy(if (timeshifting) 60_000 else 15_000); showBar() }
+            "aspect" -> { cycleAspect(); showBar() }
+            "menu" -> showMenu()
+            "info" -> showBar()
+        }
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
             // Panel open: the focused slider handles ◀▶, focus nav moves to the Mute/Night button.
@@ -798,6 +812,8 @@ class LiveVlcActivity : AppCompatActivity() {
                 if (event.keyCode == KeyEvent.KEYCODE_BACK) { closePanels(); return true }
                 return super.dispatchKeyEvent(event)
             }
+            // User-defined remote key mapping takes priority (Settings ▸ Remote control). Back/Home never hijacked.
+            RemoteMap.actionFor(this, event.keyCode)?.let { performMapped(it); return true }
             if (isArchive) {
                 when (event.keyCode) {
                     KeyEvent.KEYCODE_MENU -> { showMenu(); return true }

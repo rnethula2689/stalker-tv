@@ -35,6 +35,11 @@
             android:text="✨   Personalization" />
 
         <TextView
+            android:id="@+id/rowRemote"
+            style="@style/SettingsRow"
+            android:text="🎮   Remote control (key mapping)" />
+
+        <TextView
             android:id="@+id/rowPin"
             style="@style/SettingsRow"
             android:text="🔒   Parental PIN" />
