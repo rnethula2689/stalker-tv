@@ -104,10 +104,12 @@ grid. Select a pane to make it the active audio/full screen.
 ------------------------
   1. From Home, select "Movies".
   2. Browse categories, or use Search (top-right) to find a title.
-  3. Posters show ratings where available.
-  4. Select a movie for options: Play, Watch trailer, Info & ratings,
-     Watch later, Download.
-  5. For a series, select it, then choose Season > Episode.
+  3. Select a title to open its DETAILS screen — backdrop, poster, rating,
+     genre, runtime, full overview, a Trailers rail and a Cast rail, with
+     Play plus icon buttons for Favourite (★), Watch later (🕒) and Download (⬇).
+  4. For a SERIES, the details screen shows a Season selector and an episode
+     list — pick an episode to play it.
+  The screen adapts to portrait or landscape automatically.
 
 
 10. FAVOURITES
