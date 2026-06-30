@@ -120,7 +120,8 @@ class MovieDetailActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 if (d.title.isNotBlank()) b.title.text = d.title // clean TMDb title (drops portal junk)
-                d.backdropUrl?.let { b.backdrop.load(it) }
+                // Backdrop: TMDb backdrop, else fall back to the poster (blurred behind) so it's never blank.
+                (d.backdropUrl ?: d.posterUrl ?: poster.ifBlank { null })?.let { b.backdrop.load(it) }
                 if (poster.isBlank()) d.posterUrl?.let { b.poster.load(it) }
                 if (d.tagline.isNotBlank()) { b.tagline.text = d.tagline; b.tagline.visibility = View.VISIBLE }
                 if (d.overview.isNotBlank()) {
