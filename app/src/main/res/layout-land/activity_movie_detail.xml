@@ -108,14 +108,14 @@
                         <TextView android:id="@+id/laterBtn"
                             android:layout_width="50dp" android:layout_height="50dp"
                             android:layout_marginStart="10dp"
-                            android:gravity="center" android:text="🕒" android:textSize="18sp"
+                            android:gravity="center" android:text="＋" android:textSize="24sp"
                             android:textColor="#ffffff" android:background="@drawable/icon_circle"
                             android:focusable="true" android:clickable="true" />
 
                         <TextView android:id="@+id/dlBtn"
                             android:layout_width="50dp" android:layout_height="50dp"
                             android:layout_marginStart="10dp"
-                            android:gravity="center" android:text="⬇" android:textSize="18sp"
+                            android:gravity="center" android:text="📥" android:textSize="18sp"
                             android:textColor="#ffffff" android:background="@drawable/icon_circle"
                             android:focusable="true" android:clickable="true" />
                     </LinearLayout>

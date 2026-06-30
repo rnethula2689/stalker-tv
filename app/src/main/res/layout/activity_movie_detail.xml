@@ -93,14 +93,14 @@
                 <TextView android:id="@+id/laterBtn"
                     android:layout_width="54dp" android:layout_height="54dp"
                     android:layout_marginHorizontal="8dp"
-                    android:gravity="center" android:text="🕒" android:textSize="20sp"
+                    android:gravity="center" android:text="＋" android:textSize="26sp"
                     android:textColor="#ffffff" android:background="@drawable/icon_circle"
                     android:focusable="true" android:clickable="true" />
 
                 <TextView android:id="@+id/dlBtn"
                     android:layout_width="54dp" android:layout_height="54dp"
                     android:layout_marginHorizontal="8dp"
-                    android:gravity="center" android:text="⬇" android:textSize="20sp"
+                    android:gravity="center" android:text="📥" android:textSize="20sp"
                     android:textColor="#ffffff" android:background="@drawable/icon_circle"
                     android:focusable="true" android:clickable="true" />
             </LinearLayout>

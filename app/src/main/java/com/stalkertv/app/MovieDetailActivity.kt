@@ -86,7 +86,10 @@ class MovieDetailActivity : AppCompatActivity() {
     private fun favId() = if (isSeries) "series_$vodId" else resumeId
     private fun favSource() = if (isSeries) "series|$vodId" else source
     private fun toast(m: String) = android.widget.Toast.makeText(this, m, android.widget.Toast.LENGTH_SHORT).show()
-    private fun refreshFav(isFav: Boolean) { b.favBtn.text = if (isFav) "★" else "☆" }
+    private fun refreshFav(isFav: Boolean) {
+        b.favBtn.text = if (isFav) "★" else "☆"
+        b.favBtn.setTextColor(if (isFav) 0xFFFFC107.toInt() else 0xFFFFFFFF.toInt()) // gold when favourited
+    }
 
     // ---- play ----
     private fun play() {
@@ -179,21 +182,48 @@ class MovieDetailActivity : AppCompatActivity() {
                 lp.marginEnd = (10 * dp).toInt(); layoutParams = lp
                 setOnFocusChangeListener { v, f -> val sc = if (f) 1.06f else 1f; v.animate().scaleX(sc).scaleY(sc).setDuration(120).start() }
             }
-            val thumb = ImageView(this).apply {
+            val frame = android.widget.FrameLayout(this).apply {
                 layoutParams = LinearLayout.LayoutParams((192 * dp).toInt(), (108 * dp).toInt())
+            }
+            val thumb = ImageView(this).apply {
+                layoutParams = android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT)
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 setBackgroundColor(0x22FFFFFF)
                 if (poster.isNotBlank()) load(poster)
             }
+            val badge = TextView(this).apply {
+                text = "📥"; textSize = 13f
+                setPadding((6 * dp).toInt(), (2 * dp).toInt(), (6 * dp).toInt(), (2 * dp).toInt())
+                setBackgroundColor(0xAA000000.toInt())
+                layoutParams = android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { gravity = android.view.Gravity.TOP or android.view.Gravity.START }
+            }
+            frame.addView(thumb); frame.addView(badge)
             val label = TextView(this).apply {
                 text = "▶  ${e.name}"; setTextColor(0xFFE6EDF3.toInt()); textSize = 12f
                 maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
                 setPadding(0, (4 * dp).toInt(), 0, 0)
             }
-            card.addView(thumb); card.addView(label)
+            card.addView(frame); card.addView(label)
             card.setOnClickListener { playEpisode(s, e) }
+            card.setOnLongClickListener { episodeMenu(s, e); true } // OK-hold on TV → Play / Download
             b.episodesRow.addView(card)
         }
+    }
+
+    private fun episodeMenu(s: Portal.Season, e: Portal.Episode) {
+        AlertDialog.Builder(this).setTitle(e.name)
+            .setItems(arrayOf("▶  Play", "📥  Download")) { _, w -> if (w == 0) playEpisode(s, e) else downloadEpisode(s, e) }
+            .show()
+    }
+
+    private fun downloadEpisode(s: Portal.Season, e: Portal.Episode) {
+        val id = "ep_${vodId}_${s.id}_${e.id}"
+        if (Downloads.has(applicationContext, id)) { toast("Already saved (or downloading). See Downloads."); return }
+        Downloads.enqueue(applicationContext, id, "$title — ${e.name}", poster, "ep|$vodId|${s.id}|${e.id}")
+        toast("Download started — see Downloads.")
     }
 
     // ---- TMDb enrichment ----
