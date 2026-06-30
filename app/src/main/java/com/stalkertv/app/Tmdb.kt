@@ -18,9 +18,17 @@ object Tmdb {
      *  e.g. "The Magnificent Mendez (English-Amazon Prime) (4K)" -> "The Magnificent Mendez". */
     fun cleanTitle(raw: String): String {
         var t = raw
+        // Drop an appended category suffix the portal adds to search results, e.g.
+        // " - ENGLISH | LATEST MOVIES 4K UHD" or " | LATEST MOVIES".
+        t = t.replace(Regex("\\s-\\s[^-]*\\|.*$"), " ")
+        t = t.replace(Regex("\\s\\|.*$"), " ")
+        // Drop bracketed decorations: (English-Amazon Prime), (4K), [tags]
         t = t.replace(Regex("\\([^)]*\\)"), " ").replace(Regex("\\[[^\\]]*\\]"), " ")
+        // Drop loose quality/format tags
         t = t.replace(Regex("(?i)\\b(4k|uhd|fhd|hd|sd|hq|1080p?|720p?|480p|web-?dl|blu-?ray|x26[45]|hevc|hdr|dolby|atmos|imax|remastered|extended|uncut|multi|dual|dubbed|sub(bed)?)\\b"), " ")
-        t = t.replace(Regex("[|/_.:]+"), " ").replace(Regex("\\s{2,}"), " ").trim()
+        t = t.replace(Regex("[/_.:]+"), " ").replace(Regex("\\s{2,}"), " ").trim()
+        // Strip a dangling trailing " -"
+        t = t.replace(Regex("\\s-\\s*$"), "").trim()
         return t.ifBlank { raw.trim() }
     }
 
