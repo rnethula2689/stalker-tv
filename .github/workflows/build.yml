@@ -38,7 +38,7 @@ jobs:
           cat latest_version.json
 
       - name: Build debug APK
-        run: gradle assembleDebug -PtmdbKey="${{ secrets.TMDB_KEY }}" --no-daemon --stacktrace
+        run: gradle assembleDebug -PtmdbKey="${{ secrets.TMDB_KEY }}" -PomdbKey="${{ secrets.OMDB_KEY }}" --no-daemon --stacktrace
 
       # (No per-run upload-artifact step: the APK is published to the apk-latest release below, which
       # is what downloads / share-links / the in-app updater use. Skipping the artifact keeps Actions

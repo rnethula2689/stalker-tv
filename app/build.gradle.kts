@@ -23,6 +23,8 @@ android {
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
         // TMDb v3 API key, injected from the CI secret (gradle -PtmdbKey=...); empty in local builds.
         buildConfigField("String", "TMDB_KEY", "\"${project.findProperty("tmdbKey") ?: ""}\"")
+        // OMDb key (omdbapi.com) for IMDb / Rotten Tomatoes / Metacritic ratings; CI secret OMDB_KEY.
+        buildConfigField("String", "OMDB_KEY", "\"${project.findProperty("omdbKey") ?: ""}\"")
         // libVLC ships native libs per ABI; Fire/Android devices are ARM. Drop x86 to keep the APK small.
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a")

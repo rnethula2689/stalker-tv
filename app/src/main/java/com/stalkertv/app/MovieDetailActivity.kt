@@ -232,6 +232,7 @@ class MovieDetailActivity : AppCompatActivity() {
         if (key.isBlank()) return
         io.execute {
             val d = Tmdb.details(key, title, year, isSeries) ?: return@execute
+            val om = if (BuildConfig.OMDB_KEY.isNotBlank()) Omdb.ratings(BuildConfig.OMDB_KEY, title, year) else null
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 if (d.title.isNotBlank()) b.title.text = d.title
@@ -243,10 +244,13 @@ class MovieDetailActivity : AppCompatActivity() {
                     b.overview.post { if (b.overview.lineCount > b.overview.maxLines) b.moreBtn.visibility = View.VISIBLE }
                 }
                 val genres = if (d.genres.isNotEmpty()) d.genres.joinToString(", ") else portalGenre
-                val rating = if (d.rating > 0) "★ %.1f".format(d.rating) else ""
                 val runtime = if (d.runtimeMin > 0) "${d.runtimeMin / 60}h ${d.runtimeMin % 60}m" else ""
                 val date = d.releaseDate.takeIf { it.length >= 4 }?.let { prettyDate(it) } ?: year
-                b.meta.text = listOf(genres, rating, date, runtime).filter { it.isNotBlank() }.joinToString("   ·   ")
+                val rateParts = ArrayList<String>()
+                if (om?.imdb != null) rateParts.add("IMDb ${om.imdb}") else if (d.rating > 0) rateParts.add("★ %.1f".format(d.rating))
+                om?.rottenTomatoes?.let { rateParts.add("🍅 $it") }
+                om?.metacritic?.let { rateParts.add("Ⓜ ${it.substringBefore("/")}") }
+                b.meta.text = (listOf(genres) + rateParts + listOf(date, runtime)).filter { it.isNotBlank() }.joinToString("   ·   ")
                 buildTrailers(d.trailers)
                 buildCast(d.cast)
             }
