@@ -25,7 +25,7 @@ class DiagnosticsActivity : AppCompatActivity() {
         b = ActivityDiagnosticsBinding.inflate(layoutInflater)
         setContentView(b.root)
         b.testBtn.setOnClickListener { testConnection() }
-        b.clearReportsBtn.setOnClickListener { Reports.clear(this); refresh() }
+        b.clearReportsBtn.setOnClickListener { Reports.clear(this); CrashLog.clear(this); refresh() }
         refresh()
     }
 
@@ -73,6 +73,15 @@ class DiagnosticsActivity : AppCompatActivity() {
         sb.append(line("Movie/series categories", ChannelsActivity.catVodCats().size.toString()))
         // EPG
         sb.append(line("External XMLTV", if (Configs.epgXmltvUrl(this).isBlank()) "off (portal EPG)" else "on"))
+        // Last crash (if any) — captured by CrashLog; helps diagnose field crashes on remote devices.
+        val friendly = CrashLog.lastFriendly(this)
+        if (friendly != null) {
+            sb.append("\n\n⚠  Last crash  (tap “Clear” below to dismiss)\n")
+            sb.append(friendly)
+            val raw = CrashLog.last(this) ?: ""
+            sb.append("\n\nTechnical details:\n")
+            sb.append(if (raw.length > 1500) raw.substring(0, 1500) + "\n…(truncated)" else raw)
+        }
         return sb.toString().trimEnd()
     }
 

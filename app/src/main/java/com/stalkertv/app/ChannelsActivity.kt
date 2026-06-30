@@ -63,6 +63,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashLog.install(this) // record uncaught crashes so they show in Settings ▸ Troubleshooting
         PosterLoader.install(this) // auth poster requests to the portal so thumbnails load reliably
         b = ActivityChannelsBinding.inflate(layoutInflater)
         setContentView(b.root)

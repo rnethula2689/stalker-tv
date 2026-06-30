@@ -135,6 +135,7 @@ class LiveVlcActivity : AppCompatActivity() {
     @android.annotation.SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashLog.install(this)
         b = ActivityLivevlcBinding.inflate(layoutInflater)
         setContentView(b.root)
         PipService.stop(this) // opening fullscreen playback closes any existing pop-up
@@ -497,29 +498,43 @@ class LiveVlcActivity : AppCompatActivity() {
     }
 
     /** Live only: Up = previous channel, Down = next. */
+    private var pendingSwitch: Runnable? = null
+
+    /** Channel up/down. Rapid presses (BLE remote repeats / surfing) only update the selection + title
+     *  immediately; the actual stream load is debounced ~350ms so we don't churn libVLC (a native-crash
+     *  trigger on some TVs) by stopping/starting a media for every intermediate channel. */
     private fun switchChannel(delta: Int) {
         if (isArchive || channels.isEmpty() || chIndex < 0) return
         var idx = chIndex + delta
         if (idx < 0) idx = 0
         if (idx > channels.size - 1) idx = channels.size - 1
-        if (idx == chIndex) return
-        stopRecordingIfActive() // switching channel ends the current recording
-        retryCount = 0; playFailed = false
+        if (idx == chIndex && pendingSwitch == null) return
         chIndex = idx
         val ch = channels[idx]
         titleText = ch.name
         b.title.text = ch.name
-        saveLastChannel()
         showBar()
         b.status.visibility = View.VISIBLE
         b.status.text = "▶  ${ch.name}…"
+        pendingSwitch?.let { ui.removeCallbacks(it) }
+        val r = Runnable { commitSwitch(ch) }
+        pendingSwitch = r
+        ui.postDelayed(r, 350)
+    }
+
+    /** Actually load the (settled) channel's stream — runs once the surfing stops. */
+    private fun commitSwitch(ch: Portal.Channel) {
+        pendingSwitch = null
+        stopRecordingIfActive() // switching channel ends the current recording
+        retryCount = 0; playFailed = false
+        saveLastChannel()
         io.execute {
             val u = Portal.createLink(ch.cmd)
             runOnUiThread {
-                if (isFinishing) return@runOnUiThread
+                if (isFinishing || channels.getOrNull(chIndex)?.id != ch.id) return@runOnUiThread
                 if (u.isNullOrEmpty()) { b.status.text = "No stream for ${ch.name}"; return@runOnUiThread }
                 liveUrl = u
-                play(u)
+                try { play(u) } catch (e: Exception) { showPlayFailed() }
                 loadNowNext(ch)
             }
         }
@@ -838,7 +853,7 @@ class LiveVlcActivity : AppCompatActivity() {
         super.onResume()
         // onStop() stops playback to free the stream; when we come back (e.g. from Settings/Diagnostics)
         // re-start the current stream so the player isn't left on a blank screen.
-        if (resumedOnce && !playFailed && currentUrl.isNotEmpty()) play(currentUrl)
+        if (resumedOnce && !playFailed && currentUrl.isNotEmpty()) try { play(currentUrl) } catch (_: Exception) {}
         resumedOnce = true
     }
 
@@ -851,6 +866,8 @@ class LiveVlcActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         hideBarRunnable?.let { ui.removeCallbacks(it) }
+        pendingSwitch?.let { ui.removeCallbacks(it) }
+        ui.removeCallbacks(nowProgressTick)
         ui.removeCallbacks(poller)
         ui.removeCallbacks(applySeek)
         mp?.let { it.stop(); it.detachViews(); it.release() }
