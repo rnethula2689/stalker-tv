@@ -35,6 +35,7 @@ class SettingsActivity : AppCompatActivity() {
         b.rowUpdates.setOnClickListener { startActivity(Intent(this, AppUpdatesActivity::class.java)) }
         b.rowBackup.setOnClickListener { showBackupDialog() }
         b.rowDiag.setOnClickListener { startActivity(Intent(this, DiagnosticsActivity::class.java)) }
+        b.rowHelp.setOnClickListener { startActivity(Intent(this, HelpActivity::class.java)) }
         b.rowAbout.setOnClickListener { About.show(this) }
         b.rowExit.setOnClickListener { finishAffinity() }
 

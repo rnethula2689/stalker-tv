@@ -1,0 +1,229 @@
+package com.stalkertv.app
+
+/** The complete Vibe TV user guide — one plain-text source shown in HelpActivity and exported to PDF. */
+object UserGuide {
+    const val TITLE = "Vibe TV — User Guide"
+
+    val TEXT = """
+Vibe TV — USER GUIDE
+====================
+Your complete step-by-step guide to every feature. Use this any time from
+Settings > User guide. Tap "Save as PDF" to keep an offline copy.
+
+
+1. GETTING STARTED — ADD YOUR PROVIDER
+--------------------------------------
+Vibe TV plays channels and movies from your own IPTV provider (a Stalker /
+Ministra portal). You enter the details once.
+  1. Open Settings (gear icon, top-right of Home — or the MENU button on a
+     TV remote).
+  2. Choose "IPTV configuration".
+  3. Tap "Add provider" and enter:
+       - Portal URL  (from your provider, e.g. http://example.com/c/)
+       - MAC address (the one registered with your provider)
+       - Serial Number (if your provider uses one)
+  4. Tap Submit. Channels and movies load automatically.
+  5. To change or add another provider later, return to the same screen.
+Tip: if nothing loads, see section 20 (Troubleshooting).
+
+
+2. GETTING AROUND (REMOTE & TOUCH)
+----------------------------------
+On a TV remote:
+  - D-pad arrows move the highlight; OK/Center selects.
+  - BACK goes up one level or closes a screen.
+  - The MENU button opens Settings from Home.
+  - While watching live, UP/DOWN change channel.
+On a touch tablet: just tap. Long-press a poster for more options.
+You can re-assign remote buttons — see section 19 (Remote control).
+
+
+3. THE HOME SCREEN
+------------------
+Home shows rows ("rails") built from what you watch:
+  - Continue Watching — resume movies/episodes where you left off.
+  - Favourites — channels and titles you starred.
+  - Watch Later — your saved list.
+  - For You — movie picks based on what you play.
+  - Recently Added — the newest movies from your provider.
+Along the bottom is the navigation bar:
+  Live TV  -  Movies  -  Favourites  -  Watch Later  -  Recordings  -  Downloads
+Top-right icons: profile, search, refresh, and Settings (gear).
+You can hide the "For You" and "Recently Added" rows — see section 18.
+
+
+4. LIVE TV
+----------
+  1. From Home, select "Live TV".
+  2. Pick a category (e.g. News, Sports) or "All Channels".
+  3. Select a channel to start watching; select the video to go full screen.
+  4. Full screen:
+       - UP / DOWN  = previous / next channel.
+       - Tap (or OK) = show/hide the on-screen controls.
+       - A slim "Now Playing" bar shows the current programme, a progress
+         bar, and what's next. It hides itself after a few seconds.
+  5. The top bar has aspect ratio, volume, brightness, and a menu (the three
+     dots) for Retry, Report, Cast, Sleep timer, and Settings.
+
+
+5. TV GUIDE (EPG)
+-----------------
+  1. Live TV > "TV Guide - what's on now".
+  2. Each channel shows its Now / Next programme.
+  3. Select the schedule (calendar) on a row to see the full day.
+  4. In the full-day list you can:
+       - Watch a programme that is on now.
+       - Set a reminder for an upcoming programme (you'll get a notification
+         about a minute before it starts).
+       - Watch a past programme if your provider offers catch-up (see 6).
+Optional: use your own guide source — Settings > TV Guide (EPG), section 18.
+
+
+6. CATCH-UP & TIMESHIFT (REWIND LIVE TV)
+----------------------------------------
+If your provider supports archive/catch-up:
+  - In the TV Guide's full-day list, select a past programme to play it.
+  - While watching live, press LEFT (or use the on-screen rewind) to pause/
+    rewind the live stream (timeshift). Use the slider to scrub; "Go Live"
+    returns to the live edge.
+
+
+7. RECORDING
+------------
+While watching a live channel, open the player menu (three dots) and use the
+record option (where supported). Saved recordings appear under Home > Recordings.
+
+
+8. MULTI-VIEW (WATCH SEVERAL AT ONCE)
+-------------------------------------
+From the live player menu, open Multi-view to watch multiple channels in a
+grid. Select a pane to make it the active audio/full screen.
+
+
+9. MOVIES & SERIES (VOD)
+------------------------
+  1. From Home, select "Movies".
+  2. Browse categories, or use Search (top-right) to find a title.
+  3. Posters show ratings where available.
+  4. Select a movie for options: Play, Watch trailer, Info & ratings,
+     Watch later, Download.
+  5. For a series, select it, then choose Season > Episode.
+
+
+10. FAVOURITES
+--------------
+  - Star a channel or title to add it to Favourites (long-press a poster, or
+    use the heart/star where shown).
+  - Find them on Home > Favourites, or the Favourites tab.
+
+
+11. WATCH LATER
+---------------
+  - Add movies/episodes to Watch Later from their options menu.
+  - Open the Watch Later tab to search, sort (Newest / A-Z / Z-A), or export
+    your list.
+
+
+12. CONTINUE WATCHING
+---------------------
+Anything you start is saved automatically. Resume it from the Continue
+Watching row on Home. Long-press an item to remove it.
+
+
+13. DOWNLOADS (WATCH OFFLINE)
+-----------------------------
+  - From a movie/episode's options, choose Download.
+  - Track progress and play finished downloads from Home > Downloads.
+  - Downloaded items play without internet.
+
+
+14. RECORDINGS
+--------------
+Your live recordings are listed under Home > Recordings — select to play,
+or remove to free up space.
+
+
+15. CASTING TO ANOTHER SCREEN
+-----------------------------
+From the player menu choose "Cast to TV" to send the stream to a DLNA or
+Chromecast device on your network. (Casting is not available on Fire OS
+devices, which have no Google services.)
+
+
+16. SUBTITLES
+-------------
+  - In the movie player menu, choose Subtitles to search for and load
+    subtitles for the current title.
+  - To use OpenSubtitles, add your free API key in Settings > Subtitles.
+
+
+17. PLAYER CONTROLS
+-------------------
+  - Aspect ratio: cycle Fit / Fill / 16:9 etc. from the top bar.
+  - Volume & brightness: the side panels (tablet); on TV use the remote's
+    volume keys.
+  - Sleep timer: player menu > Sleep timer (see 18).
+
+
+18. SETTINGS — EVERY SECTION
+----------------------------
+Open Settings from Home (gear icon, or MENU on a remote).
+  - IPTV configuration: add/edit your provider(s).
+  - Profiles: create separate content profiles (e.g. "Telugu", "Kids") and
+    choose which channels/movie categories each one shows. Switch any time.
+  - Personalization: hide the "Recently Added" and/or "For You" rows on Home.
+  - Remote control (key mapping): re-assign remote buttons to actions — see 19.
+  - Parental PIN: set a PIN that locks restricted channels.
+  - Playback settings: buffering size and hardware decoding. If you see
+    stutter, try a higher buffer; if video fails, turn hardware decoding off.
+  - Sleep timer: auto-stop after a chosen time; the menu shows time remaining,
+    and it can close the app when it fires.
+  - Storage: clear Cache, Favourites, Watch Later, Continue Watching,
+    Downloads, or Recordings — selectively or all at once.
+  - Subtitles: your OpenSubtitles API key.
+  - TV Guide (EPG): optionally point to an external XMLTV guide URL (.xml or
+    .xml.gz). Leave blank to use the provider's own guide.
+  - App updates: check for and install the latest version.
+  - Sync & Backup: back up your Favourites / Watch Later / Continue Watching
+    to a file, restore from one, or delete the backup file.
+  - Troubleshooting: a diagnostics screen (see 20).
+  - About / Exit.
+
+
+19. REMOTE CONTROL — MAP YOUR KEYS
+----------------------------------
+Make any remote work the way you like (like STB Emulator).
+  1. Settings > Remote control (key mapping).
+  2. Select an action (Channel up, Channel down, Play/Pause, Rewind,
+     Fast-forward, Change aspect ratio, Open menu, Show info).
+  3. Press the remote button you want for it. Done.
+  4. "Reset all to default" restores standard behaviour.
+Note: Back and Home can never be re-mapped, so you can always exit. Mappings
+apply in the live player.
+
+
+20. TROUBLESHOOTING
+-------------------
+  - Channels/movies won't load: check internet; Settings > Troubleshooting >
+    "Test portal connection". Re-check your Portal URL / MAC / Serial.
+  - "Couldn't open ... provider returned an unexpected response": the provider
+    hiccupped — try again, or another channel.
+  - A channel buffers or fails: it auto-retries; you can also pick Retry from
+    the player menu, or raise the buffer in Playback settings.
+  - No guide: your provider's EPG may be down — set an external XMLTV source
+    in Settings > TV Guide (EPG).
+  - The app closed unexpectedly: Settings > Troubleshooting shows the last
+    crash details (handy to send to support). "Clear" dismisses it.
+  - Remote buttons not doing what you expect: remap them (section 19).
+
+
+21. TIPS
+--------
+  - Use Profiles to keep different content sets tidy and switch fast.
+  - Set reminders for shows you don't want to miss.
+  - Back up your Favourites before reinstalling.
+  - Keep the app updated via Settings > App updates.
+
+— End of guide —
+""".trimIndent()
+}

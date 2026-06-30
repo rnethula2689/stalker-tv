@@ -85,6 +85,11 @@
             android:text="🩺   Troubleshooting" />
 
         <TextView
+            android:id="@+id/rowHelp"
+            style="@style/SettingsRow"
+            android:text="❓   User guide" />
+
+        <TextView
             android:id="@+id/rowAbout"
             style="@style/SettingsRow"
             android:text="ℹ️   About" />
