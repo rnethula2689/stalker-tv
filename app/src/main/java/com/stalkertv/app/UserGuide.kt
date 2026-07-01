@@ -104,9 +104,10 @@ grid. Select a pane to make it the active audio/full screen.
 ------------------------
   1. From Home, select "Movies".
   2. Browse categories, or use Search (top-right) to find a title.
-  3. Select a title to open its DETAILS screen — backdrop, poster, rating,
-     genre, runtime, full overview, a Trailers rail and a Cast rail, with
-     Play plus icon buttons for Favourite (★), Watch later (🕒) and Download (⬇).
+  3. Select a title to open its DETAILS screen — backdrop, poster, genre,
+     ratings (IMDb plus Rotten Tomatoes 🍅 where available), runtime, full
+     overview, a Trailers rail and a Cast rail, with Play plus icon buttons
+     for Favourite (★, turns gold when on), Watch later (＋) and Download (⬇).
   4. For a SERIES, the details screen shows a Season selector and an episode
      list — pick an episode to play it.
   The screen adapts to portrait or landscape automatically.
