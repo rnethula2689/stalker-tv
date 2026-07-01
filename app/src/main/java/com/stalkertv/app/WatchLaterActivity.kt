@@ -115,9 +115,9 @@ class WatchLaterActivity : AppCompatActivity() {
     }
 
     private fun buildRoot() {
-        b.title.text = "🕒  Watch Later"
         selected.clear()
         val all = WatchLater.all(this)
+        b.title.text = if (all.isEmpty()) "🕒  Watch Later" else "🕒  Watch Later  (${all.size})"
         val q = wlQuery.lowercase()
         fun sortNames(l: List<String>) = when (wlSort) {
             1 -> l.sortedBy { it.lowercase() }; 2 -> l.sortedByDescending { it.lowercase() }; else -> l
