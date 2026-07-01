@@ -220,6 +220,9 @@ apply in the live player.
     Buffer to HIGH. This pre-loads much more before playing and usually removes
     the stutter. Also keep Hardware decoding ON, and prefer your home Wi-Fi over
     a public hotspot for 4K.
+  - A movie's audio is too QUIET (some titles are mastered at a low level): open
+    the player menu and pick "Audio boost" to cycle Off > +4 > +8 > +12 dB. It
+    lifts the volume above the normal 100% and is remembered for next time.
   - No guide: your provider's EPG may be down — set an external XMLTV source
     in Settings > TV Guide (EPG).
   - The app closed unexpectedly: Settings > Troubleshooting shows the last

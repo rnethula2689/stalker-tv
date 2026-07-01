@@ -121,6 +121,19 @@ object Configs {
     fun hwDecode(ctx: Context): Boolean = prefs(ctx).getBoolean("hwDecode", true)
     fun setHwDecode(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("hwDecode", on).apply() }
 
+    /** Audio boost (gain in millibels; 100 mB = 1 dB) for titles the provider mastered too quietly.
+     *  Applied via a LoudnessEnhancer on the player's audio session. 0 = off. */
+    private val BOOST_STEPS = intArrayOf(0, 400, 800, 1200)   // Off, +4, +8, +12 dB
+    fun audioBoostMb(ctx: Context): Int = prefs(ctx).getInt("audioBoostMb", 0)
+    fun cycleAudioBoost(ctx: Context): Int {
+        val idx = BOOST_STEPS.indexOf(audioBoostMb(ctx)).let { if (it < 0) 0 else it }
+        val next = BOOST_STEPS[(idx + 1) % BOOST_STEPS.size]
+        prefs(ctx).edit().putInt("audioBoostMb", next).apply(); return next
+    }
+    fun audioBoostLabel(ctx: Context): String = when (audioBoostMb(ctx)) {
+        0 -> "Off"; 400 -> "+4 dB"; 800 -> "+8 dB"; else -> "+12 dB"
+    }
+
     // ---- Favourite channels (per active provider) ----
     private fun favKey(ctx: Context) = "fav:" + (active(ctx)?.sig() ?: "default") + ContentProfiles.scopeSuffix(ctx)
 

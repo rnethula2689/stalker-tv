@@ -241,7 +241,33 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         })
+        applyAudioBoost(p)
         return p
+    }
+
+    private var loudness: android.media.audiofx.LoudnessEnhancer? = null
+
+    /** Boost quiet titles beyond 100% via a LoudnessEnhancer on the player's own audio session (gain
+     *  from Configs). Safe no-op on devices that don't support the effect. */
+    private fun applyAudioBoost(p: ExoPlayer) {
+        try { loudness?.release() } catch (_: Exception) {}
+        loudness = null
+        try {
+            val sid = ScreenControls.audio(this).generateAudioSessionId()
+            p.setAudioSessionId(sid)
+            val mb = Configs.audioBoostMb(this)
+            loudness = android.media.audiofx.LoudnessEnhancer(sid).apply { setTargetGain(mb); enabled = mb > 0 }
+        } catch (_: Exception) { loudness = null }
+    }
+
+    /** Cycle the boost level (Off → +4 → +8 → +12 dB) and apply it live. */
+    private fun cycleAudioBoost() {
+        Configs.cycleAudioBoost(this)
+        val mb = Configs.audioBoostMb(this)
+        val l = loudness
+        if (l == null) { Toast.makeText(this, "Audio boost isn't supported on this device.", Toast.LENGTH_SHORT).show(); return }
+        try { l.setTargetGain(mb); l.enabled = mb > 0 } catch (_: Exception) {}
+        Toast.makeText(this, "Audio boost: ${Configs.audioBoostLabel(this)}", Toast.LENGTH_SHORT).show()
     }
 
     /** Re-resolve a fresh stream link (expired token / dead source) and replay from the same spot. */
@@ -313,26 +339,28 @@ class PlayerActivity : AppCompatActivity() {
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
         val autoLabel = if (Configs.autoplay(this)) "🔁   Autoplay next: ON" else "🔁   Autoplay next: OFF"
-        val items = arrayOf(SleepTimer.menuLabel(), "🎚   Playback settings", "⚠   Report not working", "📡   Cast to TV", "💬   Subtitles", autoLabel, "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val boostLabel = "🔊   Audio boost: ${Configs.audioBoostLabel(this)}"
+        val items = arrayOf(SleepTimer.menuLabel(), "🎚   Playback settings", boostLabel, "⚠   Report not working", "📡   Cast to TV", "💬   Subtitles", autoLabel, "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> SleepTimer.showDialog(this)
                     1 -> PlaybackSettings.show(this)
-                    2 -> {
+                    2 -> cycleAudioBoost()
+                    3 -> {
                         Reports.add(this, titleText, resumeSource.ifBlank { "vod" })
                         Toast.makeText(this, "Reported — logged in Settings ▸ Diagnostics.", Toast.LENGTH_SHORT).show()
                     }
-                    3 -> if (videoUrl.isNotEmpty()) CastHelper.show(this, videoUrl, titleText, isLive)
-                    4 -> searchSubtitles()
-                    5 -> {
+                    4 -> if (videoUrl.isNotEmpty()) CastHelper.show(this, videoUrl, titleText, isLive)
+                    5 -> searchSubtitles()
+                    6 -> {
                         Configs.setAutoplay(this, !Configs.autoplay(this))
                         Toast.makeText(this, if (Configs.autoplay(this)) "Autoplay next: ON" else "Autoplay next: OFF", Toast.LENGTH_SHORT).show()
                     }
-                    6 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
-                    7 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
-                    8 -> About.show(this)
-                    9 -> finishAffinity()
+                    7 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
+                    8 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
+                    9 -> About.show(this)
+                    10 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }
@@ -728,5 +756,7 @@ class PlayerActivity : AppCompatActivity() {
         saveResume()
         player?.release()
         player = null
+        try { loudness?.release() } catch (_: Exception) {}
+        loudness = null
     }
 }
