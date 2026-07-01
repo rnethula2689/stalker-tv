@@ -215,6 +215,11 @@ apply in the live player.
     hiccupped — try again, or another channel.
   - A channel buffers or fails: it auto-retries; you can also pick Retry from
     the player menu, or raise the buffer in Playback settings.
+  - A movie STUTTERS at the start or after seeking (most common with 4K/UHD
+    titles or on a slower/public Wi-Fi): set Settings > Playback settings >
+    Buffer to HIGH. This pre-loads much more before playing and usually removes
+    the stutter. Also keep Hardware decoding ON, and prefer your home Wi-Fi over
+    a public hotspot for 4K.
   - No guide: your provider's EPG may be down — set an external XMLTV source
     in Settings > TV Guide (EPG).
   - The app closed unexpectedly: Settings > Troubleshooting shows the last
