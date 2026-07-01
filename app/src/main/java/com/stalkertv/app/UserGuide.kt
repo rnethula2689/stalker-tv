@@ -225,7 +225,8 @@ apply in the live player.
     lifts the volume above the normal 100% and is remembered for next time.
   - A movie won't play smoothly in the default player: open the player menu and
     pick "Switch player (VLC)" to play it through the VLC engine instead (it
-    handles some codecs/containers better). Your position, Continue Watching and
+    handles some codecs/containers better). The VLC player has all the same menu
+    options, and your position, subtitles, playback speed, Continue Watching and
     autoplay-next all carry over; pick "Switch player (Default)" to switch back.
   - No guide: your provider's EPG may be down — set an external XMLTV source
     in Settings > TV Guide (EPG).

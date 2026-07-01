@@ -53,6 +53,9 @@ class LiveVlcActivity : AppCompatActivity() {
     private var vodEpIndex = -1
     private var vodAdvancing = false
     private var vodLastPos = 0L      // position captured in onStop so onResume can seek back to it
+    private var vodSpeed = 1f        // playback speed, carried across engine switches
+    private var vodSubPath = ""      // applied subtitle file (cacheDir/subtitle.srt), carried across switches
+    private var vodSubAttached = false // guard so we attach the subtitle once per media
     private val resumeSaver = object : Runnable {
         override fun run() { saveVodResume(); ui.postDelayed(this, 10_000) }
     }
@@ -168,6 +171,8 @@ class LiveVlcActivity : AppCompatActivity() {
             resumeId = intent.getStringExtra("resumeId") ?: ""
             resumeSource = intent.getStringExtra("resumeSource") ?: ""
             resumePoster = intent.getStringExtra("resumePoster") ?: ""
+            vodSpeed = intent.getFloatExtra("speed", 1f)
+            vodSubPath = intent.getStringExtra("subPath") ?: ""
             vodEpList = vodPlaylist; vodEpIndex = vodPlaylistIndex
             vodPlaylist = emptyList(); vodPlaylistIndex = -1
         }
@@ -190,7 +195,9 @@ class LiveVlcActivity : AppCompatActivity() {
                 MediaPlayer.Event.Playing -> {
                     b.status.visibility = View.GONE; retryCount = 0; playFailed = false; applyAspect()
                     if (onTv && (mp?.volume ?: 0) <= 0) mp?.volume = 100 // TV: seed a real volume so the icon isn't stuck on 🔇
+                    applyVlcBoost() // amplify quiet VOD titles per the shared Audio-boost setting
                     refreshVol() // reflect the true volume/mute state now that audio output exists
+                    if (isVod) applyVodPlaybackState() // re-apply carried speed + subtitle
                     if (isArchive || timeshifting) b.playBtn.text = "⏸"
                 }
                 MediaPlayer.Event.Paused -> { if (isArchive || timeshifting) b.playBtn.text = "▶" }
@@ -471,6 +478,7 @@ class LiveVlcActivity : AppCompatActivity() {
         val vlc = libVlc ?: return
         val player = mp ?: return
         currentUrl = url
+        vodSubAttached = false   // new media → re-attach the carried subtitle on next Playing
         b.status.visibility = View.VISIBLE
         b.status.text = "Loading…"
         player.stop()
@@ -540,6 +548,7 @@ class LiveVlcActivity : AppCompatActivity() {
         resumeId = item.resumeId; resumeSource = item.source; resumePoster = item.poster
         knownDurationMs = 0            // new episode: unknown length → fall back to VLC's own timeline
         seekTarget = -1L; startSeekTo = 0
+        vodSubPath = ""               // a new episode has its own (or no) subtitle; speed persists
         android.widget.Toast.makeText(this, "▶  Next: ${item.title}", android.widget.Toast.LENGTH_SHORT).show()
         io.execute {
             val url = Downloads.resolveSource(item.source)
@@ -590,7 +599,8 @@ class LiveVlcActivity : AppCompatActivity() {
         }
     }
 
-    /** Hand this title back to the ExoPlayer engine, carrying position + resume identity + playlist. */
+    /** Hand this title back to the ExoPlayer engine, carrying position + resume identity + playlist
+     *  + the playback state (speed, applied subtitle) so nothing resets across the switch. */
     private fun switchToExo() {
         val p = mp ?: return
         val pos = p.time
@@ -604,8 +614,109 @@ class LiveVlcActivity : AppCompatActivity() {
             .putExtra("resumeSource", resumeSource)
             .putExtra("resumePoster", resumePoster)
             .putExtra("resumeStart", pos)
+            .putExtra("speed", vodSpeed)
+            .putExtra("subPath", vodSubPath)
         startActivity(i)
         finish()
+    }
+
+    /** Re-apply the carried playback state once the media is playing (idempotent per media). */
+    private fun applyVodPlaybackState() {
+        try { mp?.rate = vodSpeed } catch (_: Exception) {}
+        if (vodSubPath.isNotEmpty() && !vodSubAttached) {
+            val f = java.io.File(vodSubPath)
+            if (f.exists()) {
+                try { mp?.addSlave(Media.Slave.Type.Subtitle, Uri.fromFile(f), true); vodSubAttached = true } catch (_: Exception) {}
+            }
+        }
+    }
+
+    // ---- VOD menu parity: audio boost, subtitles, speed, report ----
+
+    /** libVLC amplifies up to 200%, so map the shared Audio-boost setting (Off/+4/+8/+12 dB) to a
+     *  volume % (capped at 200) — the VLC-native equivalent of the ExoPlayer LoudnessEnhancer. */
+    private fun mbToVlcVol(mb: Int): Int =
+        if (mb <= 0) 100 else (100.0 * Math.pow(10.0, mb / 2000.0)).toInt().coerceIn(100, 200)
+
+    private fun applyVlcBoost() {
+        if (!isVod) return
+        val mb = Configs.audioBoostMb(this)
+        if (mb > 0) mp?.volume = mbToVlcVol(mb)
+    }
+
+    private fun cycleVlcAudioBoost() {
+        Configs.cycleAudioBoost(this)
+        val mb = Configs.audioBoostMb(this)
+        mp?.volume = if (mb > 0) mbToVlcVol(mb) else 100
+        refreshVol()
+        val extra = if (mb >= 800) "  (VLC max ~200%)" else ""
+        android.widget.Toast.makeText(this, "Audio boost: ${Configs.audioBoostLabel(this)}$extra", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    private fun reportVod() {
+        Reports.add(this, titleText, resumeSource.ifBlank { "vod" })
+        android.widget.Toast.makeText(this, "Reported — logged in Settings ▸ Diagnostics.", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    private val vodSpeeds = floatArrayOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
+    private fun showVodSpeedDialog() {
+        val labels = vodSpeeds.map { if (it == 1f) "Normal (1×)" else "${it}×" }.toTypedArray()
+        val cur = vodSpeeds.indexOfFirst { it == vodSpeed }.let { if (it < 0) 2 else it }
+        AlertDialog.Builder(this)
+            .setTitle("Playback speed")
+            .setSingleChoiceItems(labels, cur) { d, w ->
+                vodSpeed = vodSpeeds[w]
+                try { mp?.rate = vodSpeed } catch (_: Exception) {}
+                d.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun searchQuery(): String =
+        titleText.substringBefore(" / ").substringBefore(" - ").substringBefore(" (").trim()
+
+    private fun searchSubtitles() {
+        Configs.ossKey(this).let { if (it.isNotBlank()) Subtitles.apiKey = it }
+        val q = searchQuery()
+        if (q.isEmpty()) return
+        android.widget.Toast.makeText(this, "Searching English subtitles for “$q”…", android.widget.Toast.LENGTH_SHORT).show()
+        io.execute {
+            val results = Subtitles.search(q)
+            runOnUiThread {
+                if (results.isEmpty()) {
+                    android.widget.Toast.makeText(this, "No subtitles found for “$q”.", android.widget.Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+                val names = results.map { it.name }.toTypedArray()
+                AlertDialog.Builder(this)
+                    .setTitle("English subtitles (${results.size})")
+                    .setItems(names) { _, which -> applySubtitle(results[which]) }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        }
+    }
+
+    private fun applySubtitle(sub: Subtitles.Sub) {
+        android.widget.Toast.makeText(this, "Downloading subtitle…", android.widget.Toast.LENGTH_SHORT).show()
+        io.execute {
+            val file = java.io.File(cacheDir, "subtitle.srt")
+            val ok = Subtitles.download(sub, file)
+            runOnUiThread {
+                if (!ok) {
+                    android.widget.Toast.makeText(this, "Couldn't download that subtitle.", android.widget.Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+                try {
+                    mp?.addSlave(Media.Slave.Type.Subtitle, Uri.fromFile(file), true)
+                    vodSubPath = file.absolutePath; vodSubAttached = true
+                    android.widget.Toast.makeText(this, "Subtitle applied ✓", android.widget.Toast.LENGTH_SHORT).show()
+                } catch (_: Exception) {
+                    android.widget.Toast.makeText(this, "Couldn't attach that subtitle.", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     /** Candidate stream sources for a channel: primary cmd first, then any alternates (for failover). */
@@ -940,25 +1051,45 @@ class LiveVlcActivity : AppCompatActivity() {
         dlg.show()
     }
 
-    /** Movie/episode-in-VLC menu: engine switch-back + the VOD-relevant options. */
+    /** Movie/episode-in-VLC menu — full parity with the ExoPlayer VOD menu (plus a Speed item, since
+     *  VLC has no on-screen speed button) so switching engines loses no option. */
     private fun showVodMenu() {
         val autoLabel = if (Configs.autoplay(this)) "🔁   Autoplay next: ON" else "🔁   Autoplay next: OFF"
-        val items = arrayOf("🔀   Switch player (Default)", "🎚   Playback settings", autoLabel, "📡   Cast to TV", SleepTimer.menuLabel(), "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val boostLabel = "🔊   Audio boost: ${Configs.audioBoostLabel(this)}"
+        val items = arrayOf(
+            SleepTimer.menuLabel(),
+            "🎚   Playback settings",
+            "🔀   Switch player (Default)",
+            boostLabel,
+            "⏩   Playback speed",
+            "💬   Subtitles",
+            "⚠   Report not working",
+            "📡   Cast to TV",
+            autoLabel,
+            "⚙   Settings",
+            "📥   App updates",
+            "ℹ️   About",
+            "✖   Exit"
+        )
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> switchToExo()
+                    0 -> SleepTimer.showDialog(this)
                     1 -> PlaybackSettings.show(this)
-                    2 -> {
+                    2 -> switchToExo()
+                    3 -> cycleVlcAudioBoost()
+                    4 -> showVodSpeedDialog()
+                    5 -> searchSubtitles()
+                    6 -> reportVod()
+                    7 -> if (currentUrl.isNotEmpty()) CastHelper.show(this, currentUrl, titleText, isLive = false)
+                    8 -> {
                         Configs.setAutoplay(this, !Configs.autoplay(this))
                         android.widget.Toast.makeText(this, if (Configs.autoplay(this)) "Autoplay next: ON" else "Autoplay next: OFF", android.widget.Toast.LENGTH_SHORT).show()
                     }
-                    3 -> if (currentUrl.isNotEmpty()) CastHelper.show(this, currentUrl, titleText, isLive = false)
-                    4 -> SleepTimer.showDialog(this)
-                    5 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    6 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
-                    7 -> About.show(this)
-                    8 -> finishAffinity()
+                    9 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    10 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
+                    11 -> About.show(this)
+                    12 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }

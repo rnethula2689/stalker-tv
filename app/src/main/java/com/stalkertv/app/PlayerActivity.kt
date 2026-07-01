@@ -38,6 +38,7 @@ class PlayerActivity : AppCompatActivity() {
     private var resumeId = ""
     private var resumeSource = ""
     private var resumePoster = ""
+    private var currentSubPath = ""   // applied subtitle file, carried across engine switches
     private val resumeHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val resumeSaver = object : Runnable {
         override fun run() { saveResume(); resumeHandler.postDelayed(this, 10_000) }
@@ -162,6 +163,18 @@ class PlayerActivity : AppCompatActivity() {
         b.playerView.requestFocus()
         goImmersive()
         b.playerView.post { hideDefaultGear() }
+
+        // Carried-over playback state when arriving from the VLC engine (Switch player).
+        val carrySpeed = intent.getFloatExtra("speed", 1f)
+        if (carrySpeed != 1f) {
+            speedIdx = speeds.indexOfFirst { it == carrySpeed }.let { if (it < 0) 2 else it }
+            p.setPlaybackSpeed(speeds[speedIdx]); updateSpeedBtn()
+        }
+        val carrySub = intent.getStringExtra("subPath") ?: ""
+        if (carrySub.isNotEmpty()) {
+            val f = File(carrySub)
+            if (f.exists()) b.playerView.postDelayed({ applySubtitleFile(f, toast = false) }, 800)
+        }
     }
 
     /** The default ExoPlayer settings gear (playback speed / track menu) is redundant now that Speed
@@ -409,6 +422,8 @@ class PlayerActivity : AppCompatActivity() {
             .putExtra("resumePoster", resumePoster)
             .putExtra("resumeStart", pos)
             .putExtra("durationSec", if (dur > 0) dur / 1000 else 0L)
+            .putExtra("speed", speeds[speedIdx])
+            .putExtra("subPath", currentSubPath)
         startActivity(i)
         finish()
     }
@@ -480,25 +495,33 @@ class PlayerActivity : AppCompatActivity() {
                     Toast.makeText(this, "Couldn't download that subtitle.", Toast.LENGTH_SHORT).show()
                     return@runOnUiThread
                 }
-                val pl = player ?: return@runOnUiThread
-                val pos = pl.currentPosition
-                val subConfig = MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(file))
-                    .setMimeType(MimeTypes.APPLICATION_SUBRIP)
-                    .setLanguage("en")
-                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
-                    .build()
-                val item = MediaItem.Builder()
-                    .setUri(videoUrl)
-                    .setSubtitleConfigurations(listOf(subConfig))
-                    .build()
-                pl.setMediaItem(item, pos)
-                pl.prepare()
-                pl.playWhenReady = true
-                pl.trackSelectionParameters = pl.trackSelectionParameters.buildUpon()
-                    .setPreferredTextLanguage("en").build()
-                Toast.makeText(this, "Subtitle applied ✓", Toast.LENGTH_SHORT).show()
+                applySubtitleFile(file, toast = true)
             }
         }
+    }
+
+    /** Attach a local subtitle .srt to the current stream at the current position (reused when a
+     *  subtitle is carried over from the VLC engine). */
+    private fun applySubtitleFile(file: File, toast: Boolean) {
+        if (!file.exists()) return
+        val pl = player ?: return
+        val pos = pl.currentPosition
+        val subConfig = MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(file))
+            .setMimeType(MimeTypes.APPLICATION_SUBRIP)
+            .setLanguage("en")
+            .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+            .build()
+        val item = MediaItem.Builder()
+            .setUri(videoUrl)
+            .setSubtitleConfigurations(listOf(subConfig))
+            .build()
+        pl.setMediaItem(item, pos)
+        pl.prepare()
+        pl.playWhenReady = true
+        pl.trackSelectionParameters = pl.trackSelectionParameters.buildUpon()
+            .setPreferredTextLanguage("en").build()
+        currentSubPath = file.absolutePath
+        if (toast) Toast.makeText(this, "Subtitle applied ✓", Toast.LENGTH_SHORT).show()
     }
 
     private var advancing = false
