@@ -626,7 +626,7 @@ class LiveVlcActivity : AppCompatActivity() {
         if (vodSubPath.isNotEmpty() && !vodSubAttached) {
             val f = java.io.File(vodSubPath)
             if (f.exists()) {
-                try { mp?.addSlave(Media.Slave.Type.Subtitle, Uri.fromFile(f), true); vodSubAttached = true } catch (_: Exception) {}
+                try { mp?.addSlave(0 /* IMedia.Slave.Type.Subtitle */, Uri.fromFile(f), true); vodSubAttached = true } catch (_: Exception) {}
             }
         }
     }
@@ -709,7 +709,7 @@ class LiveVlcActivity : AppCompatActivity() {
                     return@runOnUiThread
                 }
                 try {
-                    mp?.addSlave(Media.Slave.Type.Subtitle, Uri.fromFile(file), true)
+                    mp?.addSlave(0 /* IMedia.Slave.Type.Subtitle */, Uri.fromFile(file), true)
                     vodSubPath = file.absolutePath; vodSubAttached = true
                     android.widget.Toast.makeText(this, "Subtitle applied ✓", android.widget.Toast.LENGTH_SHORT).show()
                 } catch (_: Exception) {
