@@ -101,9 +101,15 @@ class PlayerActivity : AppCompatActivity() {
                 b.topBar.visibility = visibility
                 if (visibility == View.VISIBLE) {
                     hideDefaultGear()
-                    // On TV, focus the top option bar (not the centre transport) so the icons are
-                    // reachable with the remote and nothing in the middle of the screen is highlighted.
-                    if (Tv.isTv(this)) b.topBar.post { b.topBar.requestFocus() }
+                    // On TV, focus the SEEK BAR for movies so the D-pad rewinds/fast-forwards
+                    // immediately (Play/Pause otherwise swallows LEFT/RIGHT). Live has no seek bar,
+                    // so there we keep focus on the top option bar.
+                    if (Tv.isTv(this)) {
+                        if (isLive) b.topBar.post { b.topBar.requestFocus() }
+                        else b.playerView.post {
+                            b.playerView.findViewById<View>(androidx.media3.ui.R.id.exo_progress)?.requestFocus()
+                        }
+                    }
                 } else {
                     b.volumePanel.visibility = View.GONE
                     b.brightnessPanel.visibility = View.GONE
