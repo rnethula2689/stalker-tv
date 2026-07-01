@@ -143,9 +143,11 @@ class PlayerActivity : AppCompatActivity() {
         val p = buildPlayer()
         player = p
         b.playerView.player = p
-        p.setMediaItem(MediaItem.fromUri(videoUrl))
+        // Start buffering DIRECTLY at the resume position — prepare()+seekTo() double-buffers
+        // (loads at 0, discards it, re-buffers at the resume point) which stutters on open.
+        if (resumeStart > 0 && !isLive) p.setMediaItem(MediaItem.fromUri(videoUrl), resumeStart)
+        else p.setMediaItem(MediaItem.fromUri(videoUrl))
         p.prepare()
-        if (resumeStart > 0 && !isLive) p.seekTo(resumeStart)
         p.playWhenReady = true
 
         if (resumeId.isNotBlank() && !isLive) resumeHandler.postDelayed(resumeSaver, 10_000)
@@ -184,8 +186,11 @@ class PlayerActivity : AppCompatActivity() {
         // Wrap so the factory can open both the http stream AND the local subtitle file://.
         val dataSource = androidx.media3.datasource.DefaultDataSource.Factory(this, http)
         val (minBuf, maxBuf) = Configs.exoBufferMs(this)
+        // Give playback a healthier head-start before it begins / resumes after a seek, so a weak
+        // box (Fire Stick) on high-bitrate VOD doesn't start early and stutter while the buffer fills.
+        // (VOD only — live uses the separate libVLC player, so channel-zap speed is unaffected.)
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(minBuf, maxBuf, 1500, 3000)
+            .setBufferDurationsMs(minBuf, maxBuf, 2500, 5000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
         // Honour the user's hardware-decoding pref, plus the auto software-fallback flag.
@@ -247,9 +252,8 @@ class PlayerActivity : AppCompatActivity() {
                 val np = buildPlayer()
                 player = np
                 b.playerView.player = np
-                np.setMediaItem(MediaItem.fromUri(u))
+                if (!isLive && pos > 0) np.setMediaItem(MediaItem.fromUri(u), pos) else np.setMediaItem(MediaItem.fromUri(u))
                 np.prepare()
-                if (!isLive && pos > 0) np.seekTo(pos)
                 np.playWhenReady = true
             }
         }
@@ -263,9 +267,8 @@ class PlayerActivity : AppCompatActivity() {
         val np = buildPlayer()
         player = np
         b.playerView.player = np
-        np.setMediaItem(MediaItem.fromUri(videoUrl))
+        if (!isLive && pos > 0) np.setMediaItem(MediaItem.fromUri(videoUrl), pos) else np.setMediaItem(MediaItem.fromUri(videoUrl))
         np.prepare()
-        if (!isLive && pos > 0) np.seekTo(pos)
         np.playWhenReady = true
     }
 
