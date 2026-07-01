@@ -100,20 +100,27 @@ object Portal {
     fun imgCookie(): String = cookie()
 
     private fun get(url: String, auth: Boolean): String {
-        val rb = Request.Builder().url(url)
-            .header("User-Agent", UA)
-            .header("Cookie", cookie())
-            .header("X-User-Agent", "Model: MAG250; Link: WiFi")
-        if (auth && token.isNotEmpty()) rb.header("Authorization", "Bearer $token")
-        client.newCall(rb.build()).execute().use { r ->
-            for (h in r.headers("Set-Cookie")) {
-                val pair = h.substringBefore(";")
-                val k = pair.substringBefore("=").trim()
-                val v = pair.substringAfter("=", "").trim()
-                if (k.isNotEmpty() && k != "mac" && v.isNotEmpty()) extraCookies[k] = v
+        // Portal URL not set yet (opened before connect, or blank config) → don't build an invalid
+        // request (OkHttp would throw "no scheme" on a background thread and crash the app). Also
+        // never let a network error propagate uncaught from a pool thread — return empty and let the
+        // caller degrade gracefully (empty result / "couldn't connect").
+        if (!url.startsWith("http", ignoreCase = true)) return ""
+        return try {
+            val rb = Request.Builder().url(url)
+                .header("User-Agent", UA)
+                .header("Cookie", cookie())
+                .header("X-User-Agent", "Model: MAG250; Link: WiFi")
+            if (auth && token.isNotEmpty()) rb.header("Authorization", "Bearer $token")
+            client.newCall(rb.build()).execute().use { r ->
+                for (h in r.headers("Set-Cookie")) {
+                    val pair = h.substringBefore(";")
+                    val k = pair.substringBefore("=").trim()
+                    val v = pair.substringAfter("=", "").trim()
+                    if (k.isNotEmpty() && k != "mac" && v.isNotEmpty()) extraCookies[k] = v
+                }
+                r.body?.string() ?: ""
             }
-            return r.body?.string() ?: ""
-        }
+        } catch (_: Exception) { "" }
     }
 
     /** js can be a plain array, or an object with a "data" array. */
