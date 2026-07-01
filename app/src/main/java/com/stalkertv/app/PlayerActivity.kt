@@ -338,29 +338,45 @@ class PlayerActivity : AppCompatActivity() {
     private var menuDialog: AlertDialog? = null
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
+        val sleepLabel = SleepTimer.menuLabel()
         val autoLabel = if (Configs.autoplay(this)) "🔁   Autoplay next: ON" else "🔁   Autoplay next: OFF"
         val boostLabel = "🔊   Audio boost: ${Configs.audioBoostLabel(this)}"
-        val items = arrayOf(SleepTimer.menuLabel(), "🎚   Playback settings", boostLabel, "⚠   Report not working", "📡   Cast to TV", "💬   Subtitles", autoLabel, "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = ArrayList<String>()
+        items.add(sleepLabel)
+        items.add("🎚   Playback settings")
+        if (!isLive) items.add("🔀   Switch player (VLC)")   // hand this title to the libVLC engine
+        items.add(boostLabel)
+        items.add("⚠   Report not working")
+        items.add("📡   Cast to TV")
+        items.add("💬   Subtitles")
+        items.add(autoLabel)
+        items.add("⚙   Settings")
+        items.add("📥   App updates")
+        items.add("ℹ️   About")
+        items.add("✖   Exit")
+        val arr = items.toTypedArray()
         val dlg = AlertDialog.Builder(this)
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> SleepTimer.showDialog(this)
-                    1 -> PlaybackSettings.show(this)
-                    2 -> cycleAudioBoost()
-                    3 -> {
+            .setItems(arr) { _, which ->
+                val a = arr[which]
+                when {
+                    a == sleepLabel -> SleepTimer.showDialog(this)
+                    a.contains("Playback settings") -> PlaybackSettings.show(this)
+                    a.contains("Switch player") -> switchToVlc()
+                    a.contains("Audio boost") -> cycleAudioBoost()
+                    a.contains("Report") -> {
                         Reports.add(this, titleText, resumeSource.ifBlank { "vod" })
                         Toast.makeText(this, "Reported — logged in Settings ▸ Diagnostics.", Toast.LENGTH_SHORT).show()
                     }
-                    4 -> if (videoUrl.isNotEmpty()) CastHelper.show(this, videoUrl, titleText, isLive)
-                    5 -> searchSubtitles()
-                    6 -> {
+                    a.contains("Cast") -> if (videoUrl.isNotEmpty()) CastHelper.show(this, videoUrl, titleText, isLive)
+                    a.contains("Subtitles") -> searchSubtitles()
+                    a.contains("Autoplay") -> {
                         Configs.setAutoplay(this, !Configs.autoplay(this))
                         Toast.makeText(this, if (Configs.autoplay(this)) "Autoplay next: ON" else "Autoplay next: OFF", Toast.LENGTH_SHORT).show()
                     }
-                    7 -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
-                    8 -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
-                    9 -> About.show(this)
-                    10 -> finishAffinity()
+                    a.contains("App updates") -> startActivity(android.content.Intent(this, AppUpdatesActivity::class.java))
+                    a.contains("About") -> About.show(this)
+                    a.contains("Exit") -> finishAffinity()
+                    a.contains("Settings") -> startActivity(android.content.Intent(this, SettingsActivity::class.java))
                 }
             }
             .setOnDismissListener { menuDialog = null }
@@ -372,6 +388,29 @@ class PlayerActivity : AppCompatActivity() {
         }
         menuDialog = dlg
         dlg.show()
+    }
+
+    /** Hand the current title to the libVLC engine (some containers/codecs play cleaner there),
+     *  carrying the position, Continue-Watching identity and the episode playlist so resume,
+     *  Continue Watching and autoplay-next keep working in VLC exactly as they do here. */
+    private fun switchToVlc() {
+        val p = player ?: return
+        val pos = p.currentPosition
+        val dur = p.duration
+        saveResume()
+        LiveVlcActivity.vodPlaylist = epList
+        LiveVlcActivity.vodPlaylistIndex = epIndex
+        val i = android.content.Intent(this, LiveVlcActivity::class.java)
+            .putExtra("url", videoUrl)
+            .putExtra("title", titleText)
+            .putExtra("vod", true)
+            .putExtra("resumeId", resumeId)
+            .putExtra("resumeSource", resumeSource)
+            .putExtra("resumePoster", resumePoster)
+            .putExtra("resumeStart", pos)
+            .putExtra("durationSec", if (dur > 0) dur / 1000 else 0L)
+        startActivity(i)
+        finish()
     }
 
     /** Menu key opens the overlay menu; any other key (except Back/volume) re-shows the controls. */
