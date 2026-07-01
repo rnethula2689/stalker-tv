@@ -54,6 +54,7 @@ class ChannelsActivity : AppCompatActivity() {
     private var vodSortKey = "default"                // default | za | az | year_desc | year_asc | run_asc | run_desc
     private var vodLoadSeq = 0                         // cancels a stale all-pages load when the list changes
     private val pageIo = Executors.newFixedThreadPool(8) // parallel page fetches (fast "load all")
+    private var genreProbed = false                    // TEMP: one-shot genre survey (GENREPROBE)
     private val vodSortLabels = linkedMapOf(
         "default" to "Newest", "az" to "A–Z", "za" to "Z–A",
         "year_desc" to "Year ↓", "year_asc" to "Year ↑", "run_asc" to "Shortest", "run_desc" to "Longest"
@@ -1452,6 +1453,27 @@ class ChannelsActivity : AppCompatActivity() {
         val rows = vodCats.filter { ContentProfiles.vodCatVisible(this, it.id) }
             .map { c -> Row(c.title, null, sortKey = c.title, chip = true) { showVodList(c) } }
         push(Page("Movies", rows, kind = SearchKind.VOD_ALL, rebuild = { showVodCategories() }))
+        if (!genreProbed) { genreProbed = true; probeGenres() }
+    }
+
+    /** TEMP diagnostic: for every movie folder, fetch page 1 and log whether it has a genre value
+     *  that differs from the folder name. Logs to logcat tag GENREPROBE. */
+    private fun probeGenres() {
+        val cats = vodCats
+        io.execute {
+            var withReal = 0; var done = 0
+            for (c in cats) {
+                val items = try { Portal.vodList(c.id, 1).first } catch (_: Exception) { emptyList() }
+                val real = items.map { it.genre.trim() }
+                    .filter { it.isNotBlank() && !it.equals(c.title.trim(), ignoreCase = true) }.distinct()
+                if (real.isNotEmpty()) withReal++
+                done++
+                val sample = items.firstOrNull()?.genre?.trim().orEmpty()
+                android.util.Log.i("GENREPROBE", "[$done/${cats.size}] ${c.title} :: " +
+                    (if (real.isEmpty()) "NO real genre (sample genre='${sample}')" else "REAL=${real.joinToString(", ")}"))
+            }
+            android.util.Log.i("GENREPROBE", "SUMMARY: $withReal of ${cats.size} movie folders have a genre different from the folder name")
+        }
     }
 
     /** Title for episodes/seasons is "Series  /  Season  /  Episode" → split for nesting. */
