@@ -1728,7 +1728,7 @@ class ChannelsActivity : AppCompatActivity() {
         val attr = vodFilterAttr ?: return true
         val value = vodFilterVal ?: return true
         return when (attr) {
-            "Genre" -> v.genre == value
+            "Genre" -> v.genre.trim() == value
             "Year" -> v.year == value
             "Decade" -> vodDecade(v.year) == value
             "Age" -> v.age == value
@@ -1768,9 +1768,14 @@ class ChannelsActivity : AppCompatActivity() {
             .show()
     }
 
-    /** Filter: pick an attribute, then one of its values present in the loaded set (single-select). */
+    /** Filter: pick an attribute (only those that actually apply to this folder), then a value. */
     private fun showFilterDialog() {
         val attrs = listOf("Genre", "Year", "Decade", "Age", "Country", "HD", "Type")
+            .filter { filterValues(it).isNotEmpty() }
+        if (attrs.isEmpty()) {
+            android.widget.Toast.makeText(this, "No filters available for these titles.", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         val items = (if (vodFilterAttr != null) listOf("✖  Clear filter") else emptyList()) + attrs
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Filter by")
@@ -1782,17 +1787,27 @@ class ChannelsActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun showFilterValues(attr: String) {
-        val values: List<String> = when (attr) {
-            "Genre" -> vodBase.map { it.genre }.filter { it.isNotBlank() }.distinct().sorted()
+    /** Distinct values for a filter attribute that actually apply to the current folder's items.
+     *  Genre drops any value equal to the folder name: some portals copy the category name into the
+     *  genre field, which would otherwise show the folder name itself as a bogus "genre". */
+    private fun filterValues(attr: String): List<String> {
+        val folder = backStack.lastOrNull()?.title?.trim()
+        return when (attr) {
+            "Genre" -> vodBase.map { it.genre.trim() }.filter { it.isNotBlank() }
+                .filter { folder == null || !it.equals(folder, ignoreCase = true) }
+                .distinct().sorted()
             "Year" -> vodBase.map { it.year }.filter { it.isNotBlank() }.distinct().sortedByDescending { it.toIntOrNull() ?: 0 }
             "Decade" -> vodBase.map { vodDecade(it.year) }.filter { it.isNotBlank() }.distinct().sortedDescending()
             "Age" -> vodBase.map { it.age }.filter { it.isNotBlank() }.distinct().sorted()
             "Country" -> vodBase.flatMap { it.country.split(",") }.map { it.trim() }.filter { it.isNotBlank() }.distinct().sorted()
-            "HD" -> listOf("HD", "SD")
-            "Type" -> listOf("Movies", "Series")
+            "HD" -> listOfNotNull(if (vodBase.any { it.hd }) "HD" else null, if (vodBase.any { !it.hd }) "SD" else null)
+            "Type" -> listOfNotNull(if (vodBase.any { !it.isSeries }) "Movies" else null, if (vodBase.any { it.isSeries }) "Series" else null)
             else -> emptyList()
         }
+    }
+
+    private fun showFilterValues(attr: String) {
+        val values = filterValues(attr)
         if (values.isEmpty()) {
             android.widget.Toast.makeText(this, "No “$attr” info available for these titles.", android.widget.Toast.LENGTH_SHORT).show()
             return
