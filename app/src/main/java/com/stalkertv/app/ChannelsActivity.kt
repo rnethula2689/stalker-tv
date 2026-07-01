@@ -1711,10 +1711,14 @@ class ChannelsActivity : AppCompatActivity() {
         val rows = ArrayList<Row>()
         sorted.forEach { rows.add(vodItemRow(it, poster = true)) }
         adapter.submit(rows)
-        // Header count: total titles in the folder, or "shown / total" when a filter/search is active.
-        val total = vodBase.size
+        // Header count: show ONLY once every page is loaded — a page-1 count (e.g. "(14)") mid-load is
+        // misleading; the "Loading… N titles" status shows progress meanwhile. "shown / total" if filtered.
         val base = (vodCatRef?.title ?: backStack.lastOrNull()?.title ?: "Movies").substringBefore("  (")
-        b.title.text = if (rows.size != total) "$base  (${rows.size} / $total)" else "$base  ($total)"
+        b.title.text = when {
+            vodLoaded < vodTotal -> base
+            rows.size != vodBase.size -> "$base  (${rows.size} / ${vodBase.size})"
+            else -> "$base  (${vodBase.size})"
+        }
         val pos = focusPos.coerceIn(0, (rows.size - 1).coerceAtLeast(0))
         b.list.scrollToPosition(pos)
         b.list.post {
