@@ -484,10 +484,7 @@ class LiveVlcActivity : AppCompatActivity() {
                 applyPlayPrefsAudio() // restore session mute/volume (survives channel changes & re-entry)
                 applyVlcBoost() // amplify quiet VOD titles per the shared Audio-boost setting
                 refreshVol() // reflect the true volume/mute state now that audio output exists
-                if (isVod) {
-                    applyVodPlaybackState() // re-apply carried speed + subtitle
-                    ui.postDelayed({ try { android.util.Log.i("VLCSUB", "spuCount=${mp?.spuTracksCount} cur=${mp?.spuTrack}") } catch (_: Exception) {} }, 2500)
-                }
+                if (isVod) applyVodPlaybackState() // re-apply carried speed + subtitle
                 if (isArchive || timeshifting) b.playBtn.text = "⏸"
             }
             MediaPlayer.Event.Paused -> { if (isArchive || timeshifting) b.playBtn.text = "▶" }
@@ -550,17 +547,12 @@ class LiveVlcActivity : AppCompatActivity() {
         media.addOption(":network-caching=${Configs.netCachingMs(this)}")
         media.addOption(":http-user-agent=" + Portal.UA)
         media.addOption(":http-reconnect")
-        // Attach the subtitle as a Media slave — the reliable libVLC 3.x way (runtime MediaPlayer.addSlave
-        // and the plain :sub-file option both silently fail on Fire's libVLC).
-        if (isVod && vodSubPath.isNotEmpty()) {
-            val subF = java.io.File(vodSubPath)
-            if (subF.exists()) {
-                val subUri = Uri.fromFile(subF).toString()
-                try { media.addSlave(0 /* IMedia.Slave.Type.Subtitle */, 4, subUri) } catch (_: Exception) {}
-                media.addOption(":sub-autodetect-file")
-                media.addOption(":sub-file=$vodSubPath")
-                android.util.Log.i("VLCSUB", "attach $subUri")
-            }
+        // Attach the carried subtitle two ways (each has silently failed alone on Fire's libVLC): the
+        // media option now, and a runtime addSlave once it's Playing (see applyVodPlaybackState).
+        vodSubAttached = false
+        if (isVod && vodSubPath.isNotEmpty() && java.io.File(vodSubPath).exists()) {
+            media.addOption(":sub-file=$vodSubPath")
+            media.addOption(":sub-autodetect-file")
         }
         player.media = media
         media.release()
@@ -702,6 +694,17 @@ class LiveVlcActivity : AppCompatActivity() {
         speedIdx = speeds.indexOfFirst { it == vodSpeed }.let { if (it < 0) 2 else it }
         try { mp?.rate = speeds[speedIdx] } catch (_: Exception) {}
         updateSpeedBtn()
+        // Attach the subtitle at runtime now that audio/video output exists (once per media).
+        if (vodSubPath.isNotEmpty() && !vodSubAttached) {
+            val f = java.io.File(vodSubPath)
+            if (f.exists()) {
+                try {
+                    mp?.addSlave(0 /* IMedia.Slave.Type.Subtitle */, Uri.fromFile(f), true)
+                    vodSubAttached = true
+                    android.util.Log.i("VLCSUB", "addSlave ok ${f.absolutePath}")
+                } catch (e: Exception) { android.util.Log.i("VLCSUB", "addSlave fail $e") }
+            }
+        }
     }
 
     // ---- VOD menu parity: audio boost, subtitles, speed, report ----
