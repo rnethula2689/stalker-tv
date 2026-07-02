@@ -82,10 +82,15 @@ class PlayerActivity : AppCompatActivity() {
         // Set just before launching an episode so the player can auto-advance to the next one.
         var playlist: List<PlaylistItem> = emptyList()
         var playlistIndex = -1
+        // Session engine preference: once the user switches a movie to VLC, new movies open in VLC
+        // until they switch back to Default (or restart the app).
+        var preferVlc = false
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Honour the session engine choice: route movies straight to VLC without building ExoPlayer.
+        if (routeToPreferredEngine()) return
         b = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(b.root)
         PipService.stop(this) // opening fullscreen playback closes any existing pop-up
@@ -175,6 +180,12 @@ class PlayerActivity : AppCompatActivity() {
             val f = File(carrySub)
             if (f.exists()) b.playerView.postDelayed({ applySubtitleFile(f, toast = false) }, 800)
         }
+
+        // TV: land focus on the seek bar (not Play/Pause) on open so D-pad rewind/forward work at once.
+        // (A delayed re-request wins the race against media3 auto-focusing the Play button.)
+        if (onTv && !isLive) b.playerView.postDelayed({
+            b.playerView.findViewById<View>(androidx.media3.ui.R.id.exo_progress)?.requestFocus()
+        }, 600)
     }
 
     /** The default ExoPlayer settings gear (playback speed / track menu) is redundant now that Speed
@@ -406,11 +417,32 @@ class PlayerActivity : AppCompatActivity() {
     /** Hand the current title to the libVLC engine (some containers/codecs play cleaner there),
      *  carrying the position, Continue-Watching identity and the episode playlist so resume,
      *  Continue Watching and autoplay-next keep working in VLC exactly as they do here. */
+    /** If the user's session engine choice is VLC, forward this movie to the VLC player and finish
+     *  (before ExoPlayer/UI is built). Returns true if it routed. */
+    private fun routeToPreferredEngine(): Boolean {
+        val url = intent.getStringExtra("url") ?: ""
+        if (!preferVlc || url.isEmpty() || intent.getBooleanExtra("live", false)) return false
+        LiveVlcActivity.vodPlaylist = playlist
+        LiveVlcActivity.vodPlaylistIndex = playlistIndex
+        playlist = emptyList(); playlistIndex = -1
+        startActivity(android.content.Intent(this, LiveVlcActivity::class.java)
+            .putExtra("url", url)
+            .putExtra("title", intent.getStringExtra("title") ?: "")
+            .putExtra("vod", true)
+            .putExtra("resumeId", intent.getStringExtra("resumeId") ?: "")
+            .putExtra("resumeSource", intent.getStringExtra("resumeSource") ?: "")
+            .putExtra("resumePoster", intent.getStringExtra("resumePoster") ?: "")
+            .putExtra("resumeStart", intent.getLongExtra("resumeStart", 0L)))
+        finish()
+        return true
+    }
+
     private fun switchToVlc() {
         val p = player ?: return
         val pos = p.currentPosition
         val dur = p.duration
         saveResume()
+        preferVlc = true   // remember VLC for the session → new titles open in VLC too
         LiveVlcActivity.vodPlaylist = epList
         LiveVlcActivity.vodPlaylistIndex = epIndex
         val i = android.content.Intent(this, LiveVlcActivity::class.java)
