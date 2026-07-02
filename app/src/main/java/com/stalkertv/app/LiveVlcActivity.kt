@@ -702,9 +702,25 @@ class LiveVlcActivity : AppCompatActivity() {
                     mp?.addSlave(0 /* IMedia.Slave.Type.Subtitle */, Uri.fromFile(f), true)
                     vodSubAttached = true
                     android.util.Log.i("VLCSUB", "addSlave ok ${f.absolutePath}")
+                    // select=true above doesn't actually display on Fire libVLC — pick the track explicitly.
+                    ui.postDelayed({ selectSubtitleTrack() }, 1200)
+                    ui.postDelayed({ selectSubtitleTrack() }, 2500)
                 } catch (e: Exception) { android.util.Log.i("VLCSUB", "addSlave fail $e") }
             }
         }
+    }
+
+    /** Turn ON the (last-added) subtitle track. libVLC's addSlave(select=true) doesn't reliably show
+     *  the sub on Fire, so we enumerate the SPU tracks and select the first real one. */
+    private fun selectSubtitleTrack() {
+        val p = mp ?: return
+        try {
+            val tracks = p.spuTracks
+            val n = tracks?.size ?: 0
+            var chosen = -99
+            if (tracks != null) for (t in tracks) { if (t.id >= 0) { p.setSpuTrack(t.id); chosen = t.id; break } }
+            android.util.Log.i("VLCSUB", "spu tracks=$n chosen=$chosen cur=${p.spuTrack}")
+        } catch (e: Exception) { android.util.Log.i("VLCSUB", "spu select err $e") }
     }
 
     // ---- VOD menu parity: audio boost, subtitles, speed, report ----
