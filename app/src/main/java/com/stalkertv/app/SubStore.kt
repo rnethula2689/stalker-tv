@@ -22,6 +22,20 @@ object SubStore {
         return if (f.exists()) f else null
     }
 
+    /** (count, total bytes) of saved subtitles — for the Settings label. */
+    fun stats(ctx: Context): Pair<Int, Long> {
+        val files = dir(ctx).listFiles()?.filter { it.isFile } ?: emptyList()
+        return files.size to files.sumOf { it.length() }
+    }
+
+    /** Delete every saved subtitle + its mapping. @return number of files removed. */
+    fun clearAll(ctx: Context): Int {
+        var n = 0
+        dir(ctx).listFiles()?.forEach { if (it.isFile && it.delete()) n++ }
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit().clear().apply()
+        return n
+    }
+
     /** Copy a just-downloaded subtitle into permanent per-title storage and remember it. Returns the
      *  stored file (falls back to the source if the copy fails). */
     fun remember(ctx: Context, id: String, src: File): File {

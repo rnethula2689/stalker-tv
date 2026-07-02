@@ -157,6 +157,10 @@ devices, which have no Google services.)
 -------------
   - In the movie player menu, choose Subtitles to search for and load
     subtitles for the current title.
+  - Once you pick a subtitle it is REMEMBERED for that movie: resuming it later
+    (or switching player) re-loads the same subtitle automatically, with no new
+    search or download. Clear them anytime via Settings > Subtitles > Clear
+    saved subtitles.
   - To use OpenSubtitles, add your free API key in Settings > Subtitles.
 
 

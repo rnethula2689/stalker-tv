@@ -222,15 +222,30 @@ class SettingsActivity : AppCompatActivity() {
             hint = "OpenSubtitles API key"
             setSingleLine()
         }
+        val (savedN, savedBytes) = SubStore.stats(this)
+        val clearLabel = if (savedN > 0) "🗑  Clear saved subtitles ($savedN · ${savedBytes / 1024} KB)" else "🗑  Clear saved subtitles"
         AlertDialog.Builder(this)
             .setTitle("Subtitles (OpenSubtitles API key)")
             .setView(padded(input))
+            .setNeutralButton(clearLabel) { _, _ -> confirmClearSubs() }
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Save") { _, _ ->
                 val key = input.text.toString().trim()
                 Configs.setOssKey(this, key); Subtitles.apiKey = key
                 toast(if (key.isEmpty()) "Subtitle key cleared." else "Subtitle key saved ✓")
             }
+            .show()
+    }
+
+    /** Wipe the per-movie saved subtitles (they auto-download again on next play). */
+    private fun confirmClearSubs() {
+        val (n, bytes) = SubStore.stats(this)
+        if (n == 0) { toast("No saved subtitles to clear."); return }
+        AlertDialog.Builder(this)
+            .setTitle("Clear saved subtitles?")
+            .setMessage("Remove $n saved subtitle${if (n == 1) "" else "s"} (${bytes / 1024} KB)? Movies will search & download again next time you turn subtitles on.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Clear") { _, _ -> toast("Cleared ${SubStore.clearAll(this)} saved subtitle(s).") }
             .show()
     }
 
