@@ -516,7 +516,14 @@ class LiveVlcActivity : AppCompatActivity() {
         val ch = channels.getOrNull(chIndex)
         if (ch == null) { try { play(currentUrl) } catch (_: Exception) { showPlayFailed() }; return }
         io.execute {
-            val u = Portal.createLink(ch.cmd)
+            // Coming back from 4-pane multi-view the portal is still freeing those stream slots, so the
+            // first fresh link often comes back empty — retry a few times before giving up.
+            var u: String? = null
+            for (attempt in 0 until 4) {
+                u = Portal.createLink(ch.cmd)
+                if (!u.isNullOrEmpty()) break
+                try { Thread.sleep(700) } catch (_: Exception) {}
+            }
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 val url = if (!u.isNullOrEmpty()) u else currentUrl
