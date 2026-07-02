@@ -1312,12 +1312,7 @@ class LiveVlcActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         if (isVod) saveVodResume()
-        ui.removeCallbacks(resumeSaver)
-        hideBarRunnable?.let { ui.removeCallbacks(it) }
-        pendingSwitch?.let { ui.removeCallbacks(it) }
-        ui.removeCallbacks(nowProgressTick)
-        ui.removeCallbacks(poller)
-        ui.removeCallbacks(applySeek)
+        ui.removeCallbacksAndMessages(null) // drops every posted runnable incl. the async subtitle-select retries, so nothing holds this activity past teardown
         mp?.let { it.stop(); if (vlcAttached) try { it.detachViews() } catch (_: Exception) {}; it.release() }
         vlcAttached = false
         mp = null

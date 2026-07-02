@@ -207,7 +207,7 @@ class PlayerActivity : AppCompatActivity() {
         val bar = b.playerView.findViewById<View>(androidx.media3.ui.R.id.exo_progress) ?: return
         bar.isFocusable = true
         bar.isFocusableInTouchMode = true
-        for (d in longArrayOf(150, 400, 800, 1400)) b.playerView.postDelayed({
+        for (d in longArrayOf(150, 400, 800, 1400)) resumeHandler.postDelayed({
             if (!isLive && bar.isShown) bar.requestFocus()
         }, d)
     }
@@ -873,8 +873,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        resumeHandler.removeCallbacks(resumeSaver)
-        resumeHandler.removeCallbacks(endWatcher)
+        resumeHandler.removeCallbacksAndMessages(null) // drop resumeSaver/endWatcher + any pending focus retries so nothing holds this activity past teardown
         saveResume()
         player?.release()
         player = null
