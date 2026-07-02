@@ -520,17 +520,25 @@ class LiveGridActivity : AppCompatActivity() {
         return false
     }
 
-    /** HOLD Up in the channel list → jump straight to the top instead of crawling row by row. */
+    /** Hold Up ~4s → jump to the top of the channel list; hold Down ~4s → jump to the bottom. */
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
-        if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+        val kc = event.keyCode
+        if (kc == android.view.KeyEvent.KEYCODE_DPAD_UP || kc == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
             if (event.action == android.view.KeyEvent.ACTION_UP) fastScrolled = false
-            else if (event.action == android.view.KeyEvent.ACTION_DOWN) {
-                android.util.Log.i("FASTSCROLL", "grid up rc=${event.repeatCount} inList=${focusInList(currentFocus)} canUp=${b.list.canScrollVertically(-1)}")
-                if (event.repeatCount >= 6 && !fastScrolled && focusInList(currentFocus) && b.list.canScrollVertically(-1)) {
+            else if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount > 0 && !fastScrolled &&
+                (event.eventTime - event.downTime) >= 4000L && focusInList(currentFocus)
+            ) {
+                if (kc == android.view.KeyEvent.KEYCODE_DPAD_UP && b.list.canScrollVertically(-1)) {
                     fastScrolled = true
                     b.list.scrollToPosition(0)
                     b.list.post { b.list.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
-                    android.util.Log.i("FASTSCROLL", "grid JUMP-to-top")
+                    return true
+                }
+                if (kc == android.view.KeyEvent.KEYCODE_DPAD_DOWN && b.list.canScrollVertically(1)) {
+                    fastScrolled = true
+                    val last = (b.list.adapter?.itemCount ?: 1) - 1
+                    b.list.scrollToPosition(last)
+                    b.list.post { b.list.findViewHolderForAdapterPosition(last)?.itemView?.requestFocus() }
                     return true
                 }
             }

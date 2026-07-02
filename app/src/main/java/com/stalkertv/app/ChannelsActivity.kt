@@ -303,18 +303,26 @@ class ChannelsActivity : AppCompatActivity() {
             grabInitialFocus()
             return true
         }
-        // Fast-scroll: HOLDING Up snaps a long list straight to the top instead of crawling row-by-row.
-        if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+        // Fast-scroll: hold Up ~4s → jump to the top (+ A–Z rail); hold Down ~4s → jump to the bottom.
+        val fsKc = event.keyCode
+        if (fsKc == android.view.KeyEvent.KEYCODE_DPAD_UP || fsKc == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
             if (event.action == android.view.KeyEvent.ACTION_UP) fastScrolled = false
-            else if (event.action == android.view.KeyEvent.ACTION_DOWN) {
-                android.util.Log.i("FASTSCROLL", "chan up rc=${event.repeatCount} inList=${isInList(currentFocus)} canUp=${b.list.canScrollVertically(-1)}")
-                if (event.repeatCount >= 6 && !fastScrolled && isInList(currentFocus) && b.list.canScrollVertically(-1)) {
+            else if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount > 0 && !fastScrolled &&
+                (event.eventTime - event.downTime) >= 4000L && isInList(currentFocus)
+            ) {
+                if (fsKc == android.view.KeyEvent.KEYCODE_DPAD_UP && b.list.canScrollVertically(-1)) {
                     fastScrolled = true
                     b.list.scrollToPosition(0)
                     val az = b.azBar
                     if (az.visibility == View.VISIBLE && az.childCount > 0) az.getChildAt(0).requestFocus()
                     else b.searchBtn.requestFocus()
-                    android.util.Log.i("FASTSCROLL", "chan JUMP-to-top")
+                    return true
+                }
+                if (fsKc == android.view.KeyEvent.KEYCODE_DPAD_DOWN && b.list.canScrollVertically(1)) {
+                    fastScrolled = true
+                    val last = (b.list.adapter?.itemCount ?: 1) - 1
+                    b.list.scrollToPosition(last)
+                    b.list.post { b.list.findViewHolderForAdapterPosition(last)?.itemView?.requestFocus() }
                     return true
                 }
             }
