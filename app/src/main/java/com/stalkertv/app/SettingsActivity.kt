@@ -100,12 +100,21 @@ class SettingsActivity : AppCompatActivity() {
         val actions = RemoteMap.ACTIONS.entries.toList()
         val labels = actions.map { "${it.value}\n     [ ${RemoteMap.keyName(RemoteMap.keyFor(this, it.key))} ]" }.toMutableList()
         labels.add("↺  Reset all to default")
+        labels.add("ℹ️  Which buttons can't be mapped?")
         AlertDialog.Builder(this)
             .setTitle("Remote control — map keys")
             .setItems(labels.toTypedArray()) { _, w ->
-                if (w >= actions.size) {
-                    RemoteMap.clearAll(this); toast("All remote keys reset to default.")
-                } else captureKey(actions[w].key, actions[w].value)
+                when {
+                    w == actions.size -> { RemoteMap.clearAll(this); toast("All remote keys reset to default.") }
+                    w > actions.size -> AlertDialog.Builder(this)
+                        .setTitle("Buttons Fire TV keeps for itself")
+                        .setMessage("Volume, Mute, Home, the ⊡ (mirror) button and the app-shortcut buttons " +
+                            "(Netflix, Prime Video, Disney+, Hulu) are handled by Fire TV / your TV itself and are " +
+                            "never sent to apps — so they can't be remapped here.\n\nMappable keys: D-pad, OK, Menu, " +
+                            "media Play/Pause & Rewind/Fast-forward, and Channel +/- on remotes that have them.")
+                        .setPositiveButton("OK", null).show()
+                    else -> captureKey(actions[w].key, actions[w].value)
+                }
             }
             .setNegativeButton("Close", null)
             .show()
@@ -273,16 +282,28 @@ class SettingsActivity : AppCompatActivity() {
         // Note: an AlertDialog shows EITHER a message OR a list — setting a message hides setItems().
         AlertDialog.Builder(this)
             .setTitle("Sync & Backup")
-            .setItems(arrayOf("⬆  Back up my data", "⬇  Restore from file", "🗑  Delete backup file")) { _, w ->
+            .setItems(arrayOf("⬆  Back up my data", "⬇  Restore last backup (this device)", "📂  Restore from a file…", "🗑  Delete backup file")) { _, w ->
                 when (w) {
                     0 -> doBackup()
-                    1 -> try { openBackup.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) }
+                    1 -> doRestoreLocal()
+                    2 -> try { openBackup.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) }
                         catch (e: Exception) { toast("Couldn't open the file picker: ${e.message}") }
-                    2 -> toast(if (Backup.deleteFile(this)) "Backup file deleted." else "No backup file to delete.")
+                    3 -> toast(if (Backup.deleteFile(this)) "Backup file deleted." else "No backup file to delete.")
                 }
             }
             .setNegativeButton("Close", null)
             .show()
+    }
+
+    /** Restore directly from the backup this device made (no file picker — the app reads its own file).
+     *  The picker often shows "empty" because the backup lives in the app's private folder. */
+    private fun doRestoreLocal() {
+        val f = Backup.backupFile(this)
+        if (!f.exists()) { toast("No backup on this device yet. Use “Back up my data” first, or “Restore from a file”."); return }
+        try {
+            val r = Backup.importJson(this, f.readText())
+            toast("Restored ✓  +${r.favorites} favourites, +${r.watchLater} watch-later, +${r.resume} continue-watching")
+        } catch (e: Exception) { toast("Restore failed: ${e.message}") }
     }
 
     private fun doBackup() {

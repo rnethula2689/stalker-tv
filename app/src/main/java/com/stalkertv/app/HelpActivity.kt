@@ -24,9 +24,27 @@ class HelpActivity : AppCompatActivity() {
         b.title.text = UserGuide.TITLE
         b.guide.text = UserGuide.TEXT
         b.guide.movementMethod = ScrollingMovementMethod() // d-pad / touch scroll
+        b.guide.isFocusable = true
         b.savePdfBtn.setOnClickListener { exportPdf(share = false) }
         b.sharePdfBtn.setOnClickListener { exportPdf(share = true) }
         b.savePdfBtn.requestFocus()
+    }
+
+    /** D-pad up/down PAGE-scrolls the guide (line-by-line was painfully slow on a remote); at the very
+     *  top/bottom the key falls through so focus can still leave the guide to the buttons. */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_DOWN && b.guide.hasFocus()) {
+            val page = (b.guide.height * 0.85f).toInt().coerceAtLeast(120)
+            when (event.keyCode) {
+                android.view.KeyEvent.KEYCODE_DPAD_UP ->
+                    if (b.guide.canScrollVertically(-1)) { b.guide.scrollBy(0, -page); return true }
+                android.view.KeyEvent.KEYCODE_DPAD_DOWN ->
+                    if (b.guide.canScrollVertically(1)) { b.guide.scrollBy(0, page); return true }
+                android.view.KeyEvent.KEYCODE_MEDIA_REWIND ->
+                    { b.guide.scrollTo(0, 0); return true }   // jump to top
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     private fun toast(m: String) = android.widget.Toast.makeText(this, m, android.widget.Toast.LENGTH_LONG).show()
