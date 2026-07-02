@@ -1195,13 +1195,24 @@ class LiveVlcActivity : AppCompatActivity() {
                 if (event.keyCode == KeyEvent.KEYCODE_MENU) { showMenu(); return true }
                 // VOD, ExoPlayer-style: when controls are hidden, the first press just reveals them
                 // (and the top ⋮ menu) instead of acting. Catch-up keeps its immediate seek.
-                val revealFirst = isVod && b.topBar.visibility != View.VISIBLE
+                // VOD with controls hidden: the first press just reveals them (ExoPlayer-style).
+                if (isVod && b.topBar.visibility != View.VISIBLE) {
+                    when (event.keyCode) {
+                        KeyEvent.KEYCODE_DPAD_UP -> { showBar(); b.topBar.post { b.topBar.requestFocus() }; return true }
+                        KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_DOWN,
+                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                        KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { showBar(); return true }
+                    }
+                }
+                // When the top icon bar has focus, ◀ ▶ / OK navigate & activate those icons instead of
+                // seeking; ▲ reaches the bar, ▼ leaves it to seek again. Media keys always seek.
+                val onTopBar = b.topBar.hasFocus()
                 when (event.keyCode) {
-                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> { if (revealFirst) showBar() else { seekBy(-15_000); showBar() }; return true }
-                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { if (revealFirst) showBar() else { seekBy(15_000); showBar() }; return true }
-                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { if (revealFirst) showBar() else { togglePlay(); showBar() }; return true }
+                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> { if (onTopBar && event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) return super.dispatchKeyEvent(event); seekBy(-15_000); showBar(); return true }
+                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { if (onTopBar && event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) return super.dispatchKeyEvent(event); seekBy(15_000); showBar(); return true }
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { if (onTopBar) return super.dispatchKeyEvent(event); togglePlay(); showBar(); return true }
                     KeyEvent.KEYCODE_DPAD_UP -> { showBar(); b.topBar.post { b.topBar.requestFocus() }; return true }   // reach the ⋮ menu
-                    KeyEvent.KEYCODE_DPAD_DOWN -> { showBar(); return true }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> { showBar(); if (onTopBar) b.playBtn.requestFocus(); return true }   // leave the icon bar → seek again
                 }
             } else if (timeshifting) {
                 when (event.keyCode) {
