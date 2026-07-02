@@ -700,11 +700,10 @@ class LiveVlcActivity : AppCompatActivity() {
                 try {
                     mp?.addSlave(0 /* IMedia.Slave.Type.Subtitle */, Uri.fromFile(f), true)
                     vodSubAttached = true
-                    android.util.Log.i("VLCSUB", "addSlave ok len=${f.length()} ${f.absolutePath}")
                     // The slave track can take a moment to register (longer on the carry path where a fresh
                     // portal link is still loading), so keep trying to select it until it sticks.
                     for (d in longArrayOf(400, 1000, 2000, 3500, 5500)) ui.postDelayed({ selectSubtitleTrack() }, d)
-                } catch (e: Exception) { android.util.Log.i("VLCSUB", "addSlave fail $e") }
+                } catch (_: Exception) {}
             }
         }
     }
@@ -716,13 +715,10 @@ class LiveVlcActivity : AppCompatActivity() {
         val p = mp ?: return
         try {
             val tracks = p.spuTracks
-            val n = tracks?.size ?: 0
             // Pick the LAST real (id>=0) track — that's the freshly-added external slave, not an embedded one.
-            val target = tracks?.lastOrNull { it.id >= 0 }?.id ?: -99
-            if (target >= 0 && p.spuTrack != target) p.setSpuTrack(target)
-            val list = tracks?.joinToString { "${it.id}:${it.name}" } ?: ""
-            android.util.Log.i("VLCSUB", "spu tracks=$n target=$target cur=${p.spuTrack} [$list]")
-        } catch (e: Exception) { android.util.Log.i("VLCSUB", "spu select err $e") }
+            val target = tracks?.lastOrNull { it.id >= 0 }?.id ?: return
+            if (p.spuTrack != target) p.setSpuTrack(target)
+        } catch (_: Exception) {}
     }
 
     // ---- VOD menu parity: audio boost, subtitles, speed, report ----
