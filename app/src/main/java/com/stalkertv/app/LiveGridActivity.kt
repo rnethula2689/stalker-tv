@@ -61,7 +61,10 @@ class LiveGridActivity : AppCompatActivity() {
 
         val vlc = LibVLC(this, arrayListOf("--network-caching=${Configs.netCachingMs(this)}", "--http-reconnect", "--no-drop-late-frames", "--no-skip-frames"))
         libVlc = vlc
-        mp = MediaPlayer(vlc) // attached to the surface in onStart (and re-attached on return from fullscreen)
+        mp = MediaPlayer(vlc).apply { // attached to the surface in onStart (re-attached on return from fullscreen)
+            // Re-apply mute/volume once audio output exists (libVLC ignores setVolume before then).
+            setEventListener { ev -> if (ev.type == MediaPlayer.Event.Playing) runOnUiThread { applyPreviewMute() } }
+        }
 
         adapter = ChannelGridAdapter(
             all, { ch -> activate(ch) }, { ch -> select(ch) }, { ch -> favToast(ch) }, { ch -> openCatchup(ch) },
@@ -154,11 +157,12 @@ class LiveGridActivity : AppCompatActivity() {
         applyPreviewMute()
     }
 
-    /** Only one audio source: while the pop-up (PiP) is running AND playing, mute this preview.
-     *  When the pop-up is paused/closed, the preview's audio comes back. */
+    /** Only one audio source: mute the preview while the pop-up (PiP) is running AND playing. Also
+     *  honour the session mute/volume (PlayPrefs) so a mute set in the fullscreen player carries here. */
     private fun applyPreviewMute() {
-        val muted = PipService.running && PipService.playing
-        try { mp?.setVolume(if (muted) 0 else 100) } catch (_: Exception) {}
+        val muted = PlayPrefs.muted || (PipService.running && PipService.playing)
+        val lvl = if (PlayPrefs.volPct in 0..100) PlayPrefs.volPct else 100
+        try { mp?.setVolume(if (muted) 0 else lvl) } catch (_: Exception) {}
     }
 
     /** Transient one-line message in the EPG panel (loading / opening / no channels). */
