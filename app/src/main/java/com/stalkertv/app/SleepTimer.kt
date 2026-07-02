@@ -46,9 +46,48 @@ object SleepTimer {
     fun remainingMin(): Int =
         if (!isArmed()) 0 else (((fireAtUptime - SystemClock.uptimeMillis()) + 59_999L) / 60_000L).toInt()
 
+    fun remainingMs(): Long = if (!isArmed()) 0L else (fireAtUptime - SystemClock.uptimeMillis()).coerceAtLeast(0L)
+
+    /** Live m:ss for the running-clock popup / top-bar chip. */
+    fun remainingClock(): String {
+        val s = (remainingMs() / 1000L).toInt()
+        return String.format("%d:%02d", s / 60, s % 60)
+    }
+
     /** Label for the player menu — shows time left when a timer is running. */
     fun menuLabel(): String =
         if (isArmed()) "⏲   Sleep timer · ${remainingMin()} min left" else "⏲   Sleep timer"
+
+    /**
+     * Tapped from the global top-bar chip: a small popup with a LIVE m:ss countdown and quick options
+     * to change/extend or turn the timer off (like a volume/brightness pop-up, but for the timer).
+     */
+    fun showCountdown(a: Activity) {
+        if (!isArmed()) { showDialog(a, closeWholeApp); return }
+        val keepCloseApp = closeWholeApp
+        val msg = android.widget.TextView(a).apply {
+            textSize = 30f; setTextColor(0xFFE6EDF3.toInt())
+            gravity = android.view.Gravity.CENTER
+            setPadding(48, 48, 48, 24)
+        }
+        val dlg = AlertDialog.Builder(a)
+            .setTitle("⏲  Sleep timer")
+            .setView(msg)
+            .setPositiveButton("Change / extend") { _, _ -> showDialog(a, keepCloseApp) }
+            .setNegativeButton("Turn off") { _, _ -> arm(a, 0, keepCloseApp) }
+            .setNeutralButton("Close", null)
+            .create()
+        val tick = object : Runnable {
+            override fun run() {
+                if (!isArmed()) { msg.text = "Off"; return }
+                msg.text = "${remainingClock()}  left"
+                ui.postDelayed(this, 1000)
+            }
+        }
+        dlg.setOnShowListener { tick.run() }
+        dlg.setOnDismissListener { ui.removeCallbacks(tick) }
+        dlg.show()
+    }
 
     fun showDialog(a: Activity, closeApp: Boolean = false) {
         ensureTracking(a)

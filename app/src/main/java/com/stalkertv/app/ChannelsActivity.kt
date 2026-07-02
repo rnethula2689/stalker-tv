@@ -111,6 +111,8 @@ class ChannelsActivity : AppCompatActivity() {
         b.sortBtn.setOnClickListener { showSortDialog() }
         b.filterBtn.setOnClickListener { showFilterDialog() }
         b.settingsBtn.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
+        b.sleepBtn.setOnClickListener { SleepTimer.showCountdown(this) }
+        searchHandler.post(sleepTick) // show the ⏲ chip + live countdown whenever a timer is armed
         b.profileBtn.setOnClickListener { showProfilePicker() }
         b.profileBtn.setOnFocusChangeListener { v, f -> val s = if (f) 1.18f else 1f; v.animate().scaleX(s).scaleY(s).setDuration(120).start() }
 
@@ -166,8 +168,20 @@ class ChannelsActivity : AppCompatActivity() {
         application.registerActivityLifecycleCallbacks(cb)
     }
 
+    /** Keeps the top-bar ⏲ sleep-timer chip visible + counting down whenever a timer is armed. */
+    private val sleepTick = object : Runnable {
+        override fun run() {
+            if (SleepTimer.isArmed()) {
+                b.sleepBtn.visibility = View.VISIBLE
+                b.sleepBtn.text = "⏲ ${SleepTimer.remainingClock()}"
+            } else b.sleepBtn.visibility = View.GONE
+            searchHandler.postDelayed(this, 1000)
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        searchHandler.removeCallbacks(sleepTick)
         lifecycleCb?.let { application.unregisterActivityLifecycleCallbacks(it) }
     }
 
@@ -286,6 +300,18 @@ class ChannelsActivity : AppCompatActivity() {
         // so the remote always controls the UI.
         if (event.action == android.view.KeyEvent.ACTION_DOWN && currentFocus == null && isNavKey(event.keyCode)) {
             grabInitialFocus()
+            return true
+        }
+        // Fast-scroll: HOLDING Up snaps a long list straight to the top (+ A–Z rail / top bar) instead
+        // of crawling row-by-row. Fires once, when the key has auto-repeated a few times.
+        if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+            event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP && event.repeatCount == 8 &&
+            isInList(currentFocus) && b.list.canScrollVertically(-1)
+        ) {
+            b.list.scrollToPosition(0)
+            val az = b.azBar
+            if (az.visibility == View.VISIBLE && az.childCount > 0) az.getChildAt(0).requestFocus()
+            else b.searchBtn.requestFocus()
             return true
         }
         // TV: pressing UP from the top of the content list jumps to the top-bar icons (the nested

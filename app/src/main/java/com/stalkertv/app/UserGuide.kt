@@ -182,7 +182,12 @@ Open Settings from Home (gear icon, or MENU on a remote).
   - Playback settings: buffering size and hardware decoding. If you see
     stutter, try a higher buffer; if video fails, turn hardware decoding off.
   - Sleep timer: auto-stop after a chosen time; the menu shows time remaining,
-    and it can close the app when it fires.
+    and it can close the app when it fires. While a timer is running, a ⏲ chip
+    with the live m:ss countdown appears in the top bar on the browse screens —
+    select it to see the countdown and change/extend or turn the timer off.
+  - Fast-scroll: in a long list, HOLD the Up button to jump straight to the top
+    (and the A-Z bar) instead of scrolling row by row. In the User Guide, Up/Down
+    page-scroll.
   - Storage: clear Cache, Favourites, Watch Later, Continue Watching,
     Downloads, or Recordings — selectively or all at once.
   - Subtitles: your OpenSubtitles API key.

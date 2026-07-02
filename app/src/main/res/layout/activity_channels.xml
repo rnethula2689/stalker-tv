@@ -92,6 +92,20 @@
                 android:background="@drawable/item_bg" />
 
             <TextView
+                android:id="@+id/sleepBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="⏲"
+                android:textSize="15sp"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="12dp"
+                android:focusable="true"
+                android:clickable="true"
+                android:visibility="gone"
+                android:background="@drawable/item_bg" />
+
+            <TextView
                 android:id="@+id/settingsBtn"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
