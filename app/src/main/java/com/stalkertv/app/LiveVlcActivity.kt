@@ -30,9 +30,6 @@ class LiveVlcActivity : AppCompatActivity() {
         // can autoplay-next just like ExoPlayer. Consumed once in onCreate.
         var vodPlaylist: List<PlayerActivity.PlaylistItem> = emptyList()
         var vodPlaylistIndex = -1
-        // Volume/mute chosen by the user, kept for the whole session (survives channel changes and
-        // leaving/re-entering the live player). -1 = not set yet → seed a sensible default.
-        var sessionVol = -1
     }
 
     private val io = Executors.newSingleThreadExecutor()
@@ -85,13 +82,28 @@ class LiveVlcActivity : AppCompatActivity() {
     private fun volGet() = if (onTv) (mp?.volume ?: 100) else ScreenControls.volume(am)
     private fun volSet(v: Int) {
         val c = v.coerceIn(0, volMax())
-        if (onTv) { mp?.volume = c; sessionVol = c } else ScreenControls.setVolume(am, c)
+        if (onTv) mp?.volume = c else ScreenControls.setVolume(am, c)
+        PlayPrefs.noteVolume(if (volMax() > 0) c * 100 / volMax() else 0)
+    }
+
+    /** Apply the session mute/volume to the current player (audio output must already exist). */
+    private fun applyPlayPrefsAudio() {
+        if (!onTv) return   // tablets use the system volume, which persists on its own
+        val lvl = if (PlayPrefs.volPct >= 0) PlayPrefs.volPct * volMax() / 100 else volMax()
+        mp?.volume = if (PlayPrefs.muted) 0 else lvl
+    }
+
+    /** Apply the session brightness + night mode (screen overlays; safe to call any time). */
+    private fun applyPlayPrefsScreen() {
+        if (PlayPrefs.brightPct in 0..100) brightSetPct(PlayPrefs.brightPct)
+        if (PlayPrefs.night) { nightOn = true; b.nightOverlay.visibility = View.VISIBLE; b.nightBtn.text = "🌙  Night mode: ON" }
     }
     private fun brightGetPct() = if (onTv) ((1f - tvDim) * 100).toInt() else (ScreenControls.brightness(window) * 100).toInt()
     private fun brightSetPct(pct: Int) {
         val f = pct.coerceIn(0, 100) / 100f
         if (onTv) { tvDim = (1f - f).coerceIn(0f, 0.92f); b.dimOverlay.alpha = tvDim }
         else ScreenControls.setBrightness(window, f)
+        PlayPrefs.brightPct = pct.coerceIn(0, 100)
     }
     private val aspectModes = listOf("Fit", "16:9", "4:3", "Stretch")
     private var aspectIdx = 0
@@ -191,40 +203,14 @@ class LiveVlcActivity : AppCompatActivity() {
         )
         val vlc = LibVLC(this, options)
         libVlc = vlc
-        val player = MediaPlayer(vlc)
-        mp = player
-        player.attachViews(b.vlc, null, false, false)
-        vlcAttached = true
-        player.setEventListener { ev ->
-            when (ev.type) {
-                MediaPlayer.Event.Playing -> {
-                    b.status.visibility = View.GONE; retryCount = 0; playFailed = false; applyAspect()
-                    // Restore the session's volume/mute (survives channel changes); seed 100 first time.
-                    if (onTv) mp?.volume = if (sessionVol >= 0) sessionVol else 100
-                    applyVlcBoost() // amplify quiet VOD titles per the shared Audio-boost setting
-                    refreshVol() // reflect the true volume/mute state now that audio output exists
-                    if (isVod) applyVodPlaybackState() // re-apply carried speed + subtitle
-                    if (isArchive || timeshifting) b.playBtn.text = "⏸"
-                }
-                MediaPlayer.Event.Paused -> { if (isArchive || timeshifting) b.playBtn.text = "▶" }
-                MediaPlayer.Event.EndReached -> {
-                    if (isVod) ui.post { onVodEnded() }
-                    else if (isArchive) b.playBtn.text = "▶"
-                    else if (timeshifting) ui.post { returnToLive() }
-                }
-                MediaPlayer.Event.EncounteredError ->
-                    if (!isArchive && !timeshifting) autoRetry()
-                    else b.status.apply { visibility = View.VISIBLE; text = "Couldn't play this." }
-                MediaPlayer.Event.RecordChanged -> { if (!ev.recording) ui.post { onRecordingStopped() } }
-                else -> {}
-            }
-        }
+        buildVlcPlayer(vlc)
 
         b.menuBtn.setOnClickListener { showMenu() }
         b.multiBtn.setOnClickListener { openMultiView() }
         b.multiBtn.visibility = if (!isArchive) View.VISIBLE else View.GONE
         b.root.setOnTouchListener { _, ev -> gestureDetector.onTouchEvent(ev) }
         wireQuickControls()
+        applyPlayPrefsScreen()   // restore session brightness + night mode
         val tv = Tv.isTv(this)
         b.pipBtn.setOnClickListener { enterPipFlow() }
         b.pipBtn.visibility = if (!isArchive && !tv) View.VISIBLE else View.GONE
@@ -478,6 +464,66 @@ class LiveVlcActivity : AppCompatActivity() {
     private fun saveLastChannel() {
         val ch = channels.getOrNull(chIndex) ?: return
         Resume.save(applicationContext, Resume.LIVE_ID, "live", ch.name, ch.logoUrl, "live|${ch.id}|${ch.cmd}", 0, 0)
+    }
+
+    /** Create a fresh MediaPlayer bound to the video surface + event listener. */
+    private fun buildVlcPlayer(vlc: LibVLC) {
+        val player = MediaPlayer(vlc)
+        mp = player
+        player.attachViews(b.vlc, null, false, false)
+        vlcAttached = true
+        player.setEventListener { ev -> onVlcEvent(ev) }
+    }
+
+    private fun onVlcEvent(ev: MediaPlayer.Event) {
+        when (ev.type) {
+            MediaPlayer.Event.Playing -> {
+                b.status.visibility = View.GONE; retryCount = 0; playFailed = false; applyAspect()
+                applyPlayPrefsAudio() // restore session mute/volume (survives channel changes & re-entry)
+                applyVlcBoost() // amplify quiet VOD titles per the shared Audio-boost setting
+                refreshVol() // reflect the true volume/mute state now that audio output exists
+                if (isVod) applyVodPlaybackState() // re-apply carried speed + subtitle
+                if (isArchive || timeshifting) b.playBtn.text = "⏸"
+            }
+            MediaPlayer.Event.Paused -> { if (isArchive || timeshifting) b.playBtn.text = "▶" }
+            MediaPlayer.Event.EndReached -> {
+                if (isVod) ui.post { onVodEnded() }
+                else if (isArchive) b.playBtn.text = "▶"
+                else if (timeshifting) ui.post { returnToLive() }
+            }
+            MediaPlayer.Event.EncounteredError ->
+                if (!isArchive && !timeshifting) autoRetry()
+                else b.status.apply { visibility = View.VISIBLE; text = "Couldn't play this." }
+            MediaPlayer.Event.RecordChanged -> { if (!ev.recording) ui.post { onRecordingStopped() } }
+            else -> {}
+        }
+    }
+
+    /** Returning to the foreground: the surface was torn down and (for live) the stream token is often
+     *  dead, so rebuild the player from scratch and re-resolve a fresh link — replaying the stale URL
+     *  just hangs on "Loading" with no video/audio. */
+    private fun rebuildAndResume() {
+        val vlc = libVlc ?: return
+        try { mp?.let { it.stop(); if (vlcAttached) it.detachViews(); it.release() } } catch (_: Exception) {}
+        vlcAttached = false
+        buildVlcPlayer(vlc)
+        b.status.visibility = View.VISIBLE; b.status.text = "Loading…"
+        if (isVod || timeshifting) {
+            if (isVod && vodLastPos > 0) startSeekTo = vodLastPos
+            try { play(currentUrl) } catch (_: Exception) { showPlayFailed() }
+            return
+        }
+        val ch = channels.getOrNull(chIndex)
+        if (ch == null) { try { play(currentUrl) } catch (_: Exception) { showPlayFailed() }; return }
+        io.execute {
+            val u = Portal.createLink(ch.cmd)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                val url = if (!u.isNullOrEmpty()) u else currentUrl
+                if (!u.isNullOrEmpty()) liveUrl = u
+                try { play(url) } catch (_: Exception) { showPlayFailed() }
+            }
+        }
     }
 
     private fun play(url: String) {
@@ -973,6 +1019,7 @@ class LiveVlcActivity : AppCompatActivity() {
         nightOn = !nightOn
         b.nightOverlay.visibility = if (nightOn) View.VISIBLE else View.GONE
         b.nightBtn.text = if (nightOn) "🌙  Night mode: ON" else "🌙  Night mode"
+        PlayPrefs.night = nightOn
     }
 
     /** Start/stop recording the current stream (video + audio) to local storage → Recordings. */
@@ -1193,13 +1240,7 @@ class LiveVlcActivity : AppCompatActivity() {
         super.onResume()
         // onStop() stops playback to free the stream; when we come back (e.g. from Settings/Diagnostics)
         // re-start the current stream so the player isn't left on a blank screen.
-        if (resumedOnce && !playFailed && currentUrl.isNotEmpty()) {
-            // Re-attach the video surface (destroyed while stopped) BEFORE replaying, else the stream
-            // resumes with audio only and a black screen.
-            if (!vlcAttached) { try { mp?.attachViews(b.vlc, null, false, false); vlcAttached = true } catch (_: Exception) {} }
-            if (isVod && vodLastPos > 0) startSeekTo = vodLastPos   // return from Settings → resume where we were
-            try { play(currentUrl) } catch (_: Exception) {}
-        }
+        if (resumedOnce && !playFailed && currentUrl.isNotEmpty()) rebuildAndResume()
         resumedOnce = true
     }
 

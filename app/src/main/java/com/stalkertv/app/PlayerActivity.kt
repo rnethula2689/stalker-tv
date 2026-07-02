@@ -61,12 +61,27 @@ class PlayerActivity : AppCompatActivity() {
     private fun volSet(v: Int) {
         val c = v.coerceIn(0, volMax())
         if (onTv) player?.volume = c / 100f else ScreenControls.setVolume(am, c)
+        PlayPrefs.noteVolume(if (volMax() > 0) c * 100 / volMax() else 0)
     }
     private fun brightGetPct() = if (onTv) ((1f - tvDim) * 100).toInt() else (ScreenControls.brightness(window) * 100).toInt()
     private fun brightSetPct(pct: Int) {
         val f = pct.coerceIn(0, 100) / 100f
         if (onTv) { tvDim = (1f - f).coerceIn(0f, 0.92f); b.dimOverlay.alpha = tvDim }
         else ScreenControls.setBrightness(window, f)
+        PlayPrefs.brightPct = pct.coerceIn(0, 100)
+    }
+
+    /** Apply the session mute/volume (TV drives the player's own volume; tablets use system volume). */
+    private fun applyPlayPrefsAudio() {
+        if (!onTv) return
+        val lvl = if (PlayPrefs.volPct >= 0) PlayPrefs.volPct / 100f else 1f
+        player?.volume = if (PlayPrefs.muted) 0f else lvl
+    }
+
+    /** Apply the session brightness + night mode overlays. */
+    private fun applyPlayPrefsScreen() {
+        if (PlayPrefs.brightPct in 0..100) brightSetPct(PlayPrefs.brightPct)
+        if (PlayPrefs.night) { nightOn = true; b.nightOverlay.visibility = View.VISIBLE; b.nightBtn.text = "🌙  Night mode: ON" }
     }
     private val aspectModes = listOf("Fit", "Zoom", "Stretch")
     private var aspectIdx = 0
@@ -125,6 +140,7 @@ class PlayerActivity : AppCompatActivity() {
         b.subBtn.setOnClickListener { searchSubtitles() }
         b.menuBtn.setOnClickListener { showMenu() }
         wireQuickControls()
+        applyPlayPrefsScreen()   // restore session brightness + night mode
 
         // Episode playlist (for autoplay-next), handed over via the companion then consumed once.
         epList = playlist
@@ -161,6 +177,7 @@ class PlayerActivity : AppCompatActivity() {
         else p.setMediaItem(MediaItem.fromUri(videoUrl))
         p.prepare()
         p.playWhenReady = true
+        applyPlayPrefsAudio()   // restore session mute/volume
 
         if (resumeId.isNotBlank() && !isLive) resumeHandler.postDelayed(resumeSaver, 10_000)
 
@@ -802,6 +819,7 @@ class PlayerActivity : AppCompatActivity() {
         nightOn = !nightOn
         b.nightOverlay.visibility = if (nightOn) View.VISIBLE else View.GONE
         b.nightBtn.text = if (nightOn) "🌙  Night mode: ON" else "🌙  Night mode"
+        PlayPrefs.night = nightOn
     }
 
     /** A finished movie: ask whether to drop it from Continue Watching (TV + tablet). */
