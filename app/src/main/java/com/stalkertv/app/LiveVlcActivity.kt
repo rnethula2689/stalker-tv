@@ -189,6 +189,8 @@ class LiveVlcActivity : AppCompatActivity() {
             resumePoster = intent.getStringExtra("resumePoster") ?: ""
             vodSpeed = intent.getFloatExtra("speed", 1f)
             vodSubPath = intent.getStringExtra("subPath") ?: ""
+            // No carried subtitle? Auto-load the one saved for this title (resume without a new search).
+            if (vodSubPath.isBlank()) SubStore.saved(this, resumeId.ifBlank { resumeSource })?.let { vodSubPath = it.absolutePath }
             vodEpList = vodPlaylist; vodEpIndex = vodPlaylistIndex
             vodPlaylist = emptyList(); vodPlaylistIndex = -1
         }
@@ -747,6 +749,9 @@ class LiveVlcActivity : AppCompatActivity() {
     private fun searchQuery(): String =
         titleText.substringBefore(" / ").substringBefore(" - ").substringBefore(" (").trim()
 
+    /** Stable key for remembering a title's chosen subtitle across sessions. */
+    private fun subKey() = resumeId.ifBlank { resumeSource }
+
     private fun searchSubtitles() {
         Configs.ossKey(this).let { if (it.isNotBlank()) Subtitles.apiKey = it }
         val q = searchQuery()
@@ -779,9 +784,9 @@ class LiveVlcActivity : AppCompatActivity() {
                     android.widget.Toast.makeText(this, "Couldn't download that subtitle.", android.widget.Toast.LENGTH_SHORT).show()
                     return@runOnUiThread
                 }
-                // Reload the stream at the current spot with the subtitle as a media option (reliable
-                // where runtime addSlave silently fails on Fire libVLC).
-                vodSubPath = file.absolutePath
+                // Save it per-title (so resume / engine-switch re-loads it without another API call),
+                // then reload the stream at the current spot with the subtitle attached.
+                vodSubPath = SubStore.remember(this, subKey(), file).absolutePath
                 startSeekTo = mp?.time ?: 0L
                 play(currentUrl)
                 android.widget.Toast.makeText(this, "Subtitle applied ✓", android.widget.Toast.LENGTH_SHORT).show()

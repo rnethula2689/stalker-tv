@@ -192,11 +192,10 @@ class PlayerActivity : AppCompatActivity() {
             speedIdx = speeds.indexOfFirst { it == carrySpeed }.let { if (it < 0) 2 else it }
             p.setPlaybackSpeed(speeds[speedIdx]); updateSpeedBtn()
         }
+        // Auto-load the subtitle carried from the other engine, or the one saved for this title.
         val carrySub = intent.getStringExtra("subPath") ?: ""
-        if (carrySub.isNotEmpty()) {
-            val f = File(carrySub)
-            if (f.exists()) b.playerView.postDelayed({ applySubtitleFile(f, toast = false) }, 800)
-        }
+        val autoSub = if (carrySub.isNotEmpty()) File(carrySub) else SubStore.saved(this, subKey())
+        if (autoSub != null && autoSub.exists()) b.playerView.postDelayed({ applySubtitleFile(autoSub, toast = false) }, 800)
 
         // TV: land focus on the seek bar (not Play/Pause) on open so D-pad rewind/forward work at once.
         // (A delayed re-request wins the race against media3 auto-focusing the Play button.)
@@ -544,10 +543,13 @@ class PlayerActivity : AppCompatActivity() {
                     Toast.makeText(this, "Couldn't download that subtitle.", Toast.LENGTH_SHORT).show()
                     return@runOnUiThread
                 }
-                applySubtitleFile(file, toast = true)
+                applySubtitleFile(SubStore.remember(this, subKey(), file), toast = true)
             }
         }
     }
+
+    /** Stable key for remembering a title's chosen subtitle across sessions. */
+    private fun subKey() = resumeId.ifBlank { resumeSource }
 
     /** Attach a local subtitle .srt to the current stream at the current position (reused when a
      *  subtitle is carried over from the VLC engine). */
