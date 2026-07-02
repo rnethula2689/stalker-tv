@@ -472,7 +472,9 @@ class LiveVlcActivity : AppCompatActivity() {
     private fun buildVlcPlayer(vlc: LibVLC) {
         val player = MediaPlayer(vlc)
         mp = player
-        player.attachViews(b.vlc, null, false, false)
+        // 3rd arg = enableSubtitles: MUST be true or libVLC selects the SPU track but never PAINTS it
+        // (the movie plays with no visible subtitle text, which is exactly what we hit for weeks).
+        player.attachViews(b.vlc, null, true, false)
         vlcAttached = true
         player.setEventListener { ev -> onVlcEvent(ev) }
     }
@@ -547,13 +549,10 @@ class LiveVlcActivity : AppCompatActivity() {
         media.addOption(":network-caching=${Configs.netCachingMs(this)}")
         media.addOption(":http-user-agent=" + Portal.UA)
         media.addOption(":http-reconnect")
-        // Attach the carried subtitle two ways (each has silently failed alone on Fire's libVLC): the
-        // media option now, and a runtime addSlave once it's Playing (see applyVodPlaybackState).
+        // Subtitle is attached at runtime via addSlave once Playing (see applyVodPlaybackState) — a single
+        // path, so we don't end up with duplicate/competing SPU tracks. Surface subtitles are enabled in
+        // buildVlcPlayer (attachViews enableSubtitles=true), which is what actually makes them render.
         vodSubAttached = false
-        if (isVod && vodSubPath.isNotEmpty() && java.io.File(vodSubPath).exists()) {
-            media.addOption(":sub-file=$vodSubPath")
-            media.addOption(":sub-autodetect-file")
-        }
         player.media = media
         media.release()
         player.play()
@@ -701,25 +700,28 @@ class LiveVlcActivity : AppCompatActivity() {
                 try {
                     mp?.addSlave(0 /* IMedia.Slave.Type.Subtitle */, Uri.fromFile(f), true)
                     vodSubAttached = true
-                    android.util.Log.i("VLCSUB", "addSlave ok ${f.absolutePath}")
-                    // select=true above doesn't actually display on Fire libVLC — pick the track explicitly.
-                    ui.postDelayed({ selectSubtitleTrack() }, 1200)
-                    ui.postDelayed({ selectSubtitleTrack() }, 2500)
+                    android.util.Log.i("VLCSUB", "addSlave ok len=${f.length()} ${f.absolutePath}")
+                    // The slave track can take a moment to register (longer on the carry path where a fresh
+                    // portal link is still loading), so keep trying to select it until it sticks.
+                    for (d in longArrayOf(400, 1000, 2000, 3500, 5500)) ui.postDelayed({ selectSubtitleTrack() }, d)
                 } catch (e: Exception) { android.util.Log.i("VLCSUB", "addSlave fail $e") }
             }
         }
     }
 
-    /** Turn ON the (last-added) subtitle track. libVLC's addSlave(select=true) doesn't reliably show
-     *  the sub on Fire, so we enumerate the SPU tracks and select the first real one. */
+    /** Turn ON the external subtitle track. libVLC's addSlave(select=true) doesn't reliably show the sub
+     *  on Fire, so we enumerate the SPU tracks and select the last real one (the slave we just added).
+     *  Idempotent + retried, because the track appears asynchronously after addSlave. */
     private fun selectSubtitleTrack() {
         val p = mp ?: return
         try {
             val tracks = p.spuTracks
             val n = tracks?.size ?: 0
-            var chosen = -99
-            if (tracks != null) for (t in tracks) { if (t.id >= 0) { p.setSpuTrack(t.id); chosen = t.id; break } }
-            android.util.Log.i("VLCSUB", "spu tracks=$n chosen=$chosen cur=${p.spuTrack}")
+            // Pick the LAST real (id>=0) track — that's the freshly-added external slave, not an embedded one.
+            val target = tracks?.lastOrNull { it.id >= 0 }?.id ?: -99
+            if (target >= 0 && p.spuTrack != target) p.setSpuTrack(target)
+            val list = tracks?.joinToString { "${it.id}:${it.name}" } ?: ""
+            android.util.Log.i("VLCSUB", "spu tracks=$n target=$target cur=${p.spuTrack} [$list]")
         } catch (e: Exception) { android.util.Log.i("VLCSUB", "spu select err $e") }
     }
 

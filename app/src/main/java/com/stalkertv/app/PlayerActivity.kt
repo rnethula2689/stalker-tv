@@ -127,9 +127,7 @@ class PlayerActivity : AppCompatActivity() {
                     // so there we keep focus on the top option bar.
                     if (Tv.isTv(this)) {
                         if (isLive) b.topBar.post { b.topBar.requestFocus() }
-                        else b.playerView.post {
-                            b.playerView.findViewById<View>(androidx.media3.ui.R.id.exo_progress)?.requestFocus()
-                        }
+                        else focusSeekBar()
                     }
                 } else {
                     b.volumePanel.visibility = View.GONE
@@ -198,10 +196,20 @@ class PlayerActivity : AppCompatActivity() {
         if (autoSub != null && autoSub.exists()) b.playerView.postDelayed({ applySubtitleFile(autoSub, toast = false) }, 800)
 
         // TV: land focus on the seek bar (not Play/Pause) on open so D-pad rewind/forward work at once.
-        // (A delayed re-request wins the race against media3 auto-focusing the Play button.)
-        if (onTv && !isLive) b.playerView.postDelayed({
-            b.playerView.findViewById<View>(androidx.media3.ui.R.id.exo_progress)?.requestFocus()
-        }, 600)
+        if (onTv && !isLive) focusSeekBar()
+    }
+
+    /** Force focus onto the seek bar (media3's exo_progress). media3 re-focuses the Play button each time
+     *  it lays out the controller, so a single request loses the race — retry across a short window and
+     *  make the bar explicitly focusable first. */
+    private fun focusSeekBar() {
+        if (isLive) return
+        val bar = b.playerView.findViewById<View>(androidx.media3.ui.R.id.exo_progress) ?: return
+        bar.isFocusable = true
+        bar.isFocusableInTouchMode = true
+        for (d in longArrayOf(150, 400, 800, 1400)) b.playerView.postDelayed({
+            if (!isLive && bar.isShown) bar.requestFocus()
+        }, d)
     }
 
     /** The default ExoPlayer settings gear (playback speed / track menu) is redundant now that Speed
