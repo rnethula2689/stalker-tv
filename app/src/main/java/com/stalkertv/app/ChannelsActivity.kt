@@ -60,6 +60,7 @@ class ChannelsActivity : AppCompatActivity() {
     )
     private var welcomeShown = false
     private var updateChecked = false
+    private var fastScrolled = false // guards the hold-Up jump so it fires once per hold
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -302,17 +303,21 @@ class ChannelsActivity : AppCompatActivity() {
             grabInitialFocus()
             return true
         }
-        // Fast-scroll: HOLDING Up snaps a long list straight to the top (+ A–Z rail / top bar) instead
-        // of crawling row-by-row. Fires once, when the key has auto-repeated a few times.
-        if (event.action == android.view.KeyEvent.ACTION_DOWN &&
-            event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP && event.repeatCount == 8 &&
-            isInList(currentFocus) && b.list.canScrollVertically(-1)
-        ) {
-            b.list.scrollToPosition(0)
-            val az = b.azBar
-            if (az.visibility == View.VISIBLE && az.childCount > 0) az.getChildAt(0).requestFocus()
-            else b.searchBtn.requestFocus()
-            return true
+        // Fast-scroll: HOLDING Up snaps a long list straight to the top instead of crawling row-by-row.
+        if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+            if (event.action == android.view.KeyEvent.ACTION_UP) fastScrolled = false
+            else if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                android.util.Log.i("FASTSCROLL", "chan up rc=${event.repeatCount} inList=${isInList(currentFocus)} canUp=${b.list.canScrollVertically(-1)}")
+                if (event.repeatCount >= 6 && !fastScrolled && isInList(currentFocus) && b.list.canScrollVertically(-1)) {
+                    fastScrolled = true
+                    b.list.scrollToPosition(0)
+                    val az = b.azBar
+                    if (az.visibility == View.VISIBLE && az.childCount > 0) az.getChildAt(0).requestFocus()
+                    else b.searchBtn.requestFocus()
+                    android.util.Log.i("FASTSCROLL", "chan JUMP-to-top")
+                    return true
+                }
+            }
         }
         // TV: pressing UP from the top of the content list jumps to the top-bar icons (the nested
         // horizontal rails otherwise trap focus and never reach search/refresh/etc.).

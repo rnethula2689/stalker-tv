@@ -513,6 +513,31 @@ class LiveGridActivity : AppCompatActivity() {
             .show()
     }
 
+    private var fastScrolled = false
+    private fun focusInList(v: android.view.View?): Boolean {
+        var p = v?.parent
+        while (p != null) { if (p === b.list) return true; p = (p as? android.view.View)?.parent }
+        return false
+    }
+
+    /** HOLD Up in the channel list → jump straight to the top instead of crawling row by row. */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+            if (event.action == android.view.KeyEvent.ACTION_UP) fastScrolled = false
+            else if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                android.util.Log.i("FASTSCROLL", "grid up rc=${event.repeatCount} inList=${focusInList(currentFocus)} canUp=${b.list.canScrollVertically(-1)}")
+                if (event.repeatCount >= 6 && !fastScrolled && focusInList(currentFocus) && b.list.canScrollVertically(-1)) {
+                    fastScrolled = true
+                    b.list.scrollToPosition(0)
+                    b.list.post { b.list.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
+                    android.util.Log.i("FASTSCROLL", "grid JUMP-to-top")
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
         when (keyCode) {
             android.view.KeyEvent.KEYCODE_MENU -> return true // handled on key-up (avoids flash)
