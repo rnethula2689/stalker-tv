@@ -1767,7 +1767,7 @@ class ChannelsActivity : AppCompatActivity() {
                 b.status.visibility = View.GONE
                 renderVodItems(0)
                 // Index this fully-loaded folder for instant/offline search (data's already fetched → no extra network).
-                val idxList = ArrayList(vodBase); val ps = cachedSig
+                val idxList = ArrayList(vodBase); val ps = cachedSig ?: ""
                 io.execute { VodIndex.add(applicationContext, ps, idxList, cat.id) }
             }
         }

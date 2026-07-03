@@ -35,7 +35,7 @@ object VodIndex {
     @Volatile var ready: Boolean = false; private set
     /** True only if the whole catalogue is known to be indexed. Browse-feeding never sets this, so search
      *  always also consults the portal to stay complete; kept for the search-integration contract. */
-    @Volatile val complete: Boolean = false
+    const val complete: Boolean = false
 
     fun count(): Int = items.size
 
