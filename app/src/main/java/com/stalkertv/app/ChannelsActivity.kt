@@ -574,6 +574,7 @@ class ChannelsActivity : AppCompatActivity() {
                 genres = g
                 byGenre = ch.groupBy { it.genreId }
                 cachedSig = acct.sig(); cachedChannels = ch; cachedGenres = g // cache for next launch
+                SearchCache.clear() // fresh provider/session → drop any cached search results
                 if (ch.isEmpty()) {
                     hideLoading()
                     b.status.visibility = View.VISIBLE
@@ -979,7 +980,7 @@ class ChannelsActivity : AppCompatActivity() {
         adapter.submit(rows)
     }
 
-    /** Global search: channels (instant) + all movies/series (portal). */
+    /** Global search: channels (instant) + all movies/series (portal, cached + prefix-reused + progressive). */
     private fun globalSearch(q: String, page: Page) {
         val query = q.trim()
         pendingSearch?.let { searchHandler.removeCallbacks(it) }
@@ -989,24 +990,30 @@ class ChannelsActivity : AppCompatActivity() {
             .take(150).map { channelRow(it) }.toList()
         adapter.submit(chRows)
         if (query.length < 2) { b.status.visibility = View.GONE; return }
-        b.status.visibility = View.VISIBLE
-        b.status.text = "Searching movies & shows…"
         val seq = searchSeq
+        val scope = "g"
+        fun show(vod: List<Portal.VodItem>) {
+            if (seq != searchSeq) return
+            b.status.visibility = View.GONE
+            adapter.submit(chRows + vod.map { vodItemRow(it) })
+        }
+        // Instant: exact repeat needs no network.
+        SearchCache.get(scope, query)?.let { show(it); return }
+        // Instant interim: reuse the nearest cached prefix's hits while the fresh result loads.
+        val interim = SearchCache.prefixFilter(scope, query)
+        if (interim != null) show(interim) else { b.status.visibility = View.VISIBLE; b.status.text = "Searching movies & shows…" }
         val task = Runnable {
             io.execute {
-                val vod = Portal.vodSearch(query)
-                runOnUiThread {
-                    if (seq != searchSeq) return@runOnUiThread
-                    b.status.visibility = View.GONE
-                    adapter.submit(chRows + vod.map { vodItemRow(it) })
-                }
+                val vod = Portal.vodSearch(query) { partial -> runOnUiThread { show(partial) } } // render each page as it lands
+                SearchCache.put(scope, query, vod)
+                runOnUiThread { show(vod) }
             }
         }
         pendingSearch = task
-        searchHandler.postDelayed(task, 450)
+        searchHandler.postDelayed(task, 300)
     }
 
-    /** VOD search — all categories if catId is null, else scoped to that folder. */
+    /** VOD search — all categories if catId is null, else scoped to that folder (cached + prefix-reused + progressive). */
     private fun vodSearchUi(q: String, catId: String?, page: Page) {
         val query = q.trim()
         val inCategory = page.kind == SearchKind.VOD_CATEGORY
@@ -1019,29 +1026,36 @@ class ChannelsActivity : AppCompatActivity() {
             return
         }
         if (query.length < 2) return
-        b.status.visibility = View.VISIBLE
-        b.status.text = "Searching…"
         val seq = searchSeq
+        val scope = if (catId == null) "va" else "c:$catId"
+        fun show(vod: List<Portal.VodItem>, done: Boolean) {
+            if (seq != searchSeq) return
+            if (done && vod.isEmpty()) { b.status.visibility = View.VISIBLE; b.status.text = "No results for “$query”." }
+            else b.status.visibility = View.GONE
+            if (inCategory) {
+                // Search results become the working set so Filter/Sort apply on top of them.
+                vodLoadSeq++ // cancel any in-flight "load all" so it can't overwrite results
+                vodBase = vod; vodCat = null; vodLoaded = 0; vodTotal = 0
+                renderVodItems(0)
+            } else {
+                adapter.submit(vod.map { vodItemRow(it) })
+            }
+        }
+        // Instant: exact repeat needs no network.
+        SearchCache.get(scope, query)?.let { show(it, true); return }
+        // Instant interim: reuse the nearest cached prefix's hits while the fresh result loads.
+        val interim = SearchCache.prefixFilter(scope, query)
+        if (interim != null) show(interim, false) else { b.status.visibility = View.VISIBLE; b.status.text = "Searching…" }
         val task = Runnable {
             io.execute {
-                val vod = if (catId == null) Portal.vodSearch(query) else Portal.vodSearchInCategory(catId, query)
-                runOnUiThread {
-                    if (seq != searchSeq) return@runOnUiThread
-                    if (vod.isEmpty()) { b.status.visibility = View.VISIBLE; b.status.text = "No results for “$query”." }
-                    else b.status.visibility = View.GONE
-                    if (inCategory) {
-                        // Search results become the working set so Filter/Sort apply on top of them.
-                        vodLoadSeq++ // cancel any in-flight "load all" so it can't overwrite results
-                        vodBase = vod; vodCat = null; vodLoaded = 0; vodTotal = 0
-                        renderVodItems(0)
-                    } else {
-                        adapter.submit(vod.map { vodItemRow(it) })
-                    }
-                }
+                val vod = if (catId == null) Portal.vodSearch(query) { p -> runOnUiThread { show(p, false) } }
+                          else Portal.vodSearchInCategory(catId, query) { p -> runOnUiThread { show(p, false) } }
+                SearchCache.put(scope, query, vod)
+                runOnUiThread { show(vod, true) }
             }
         }
         pendingSearch = task
-        searchHandler.postDelayed(task, 450)
+        searchHandler.postDelayed(task, 300)
     }
 
     // ---- screens ----

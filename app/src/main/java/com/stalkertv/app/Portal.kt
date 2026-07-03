@@ -404,7 +404,9 @@ object Portal {
     }
 
     /** Global VOD search across all categories (returns both movies and series). */
-    fun vodSearch(query: String): List<VodItem> {
+    /** [onPage], if given, is called with the cumulative results after each page arrives, so the UI can
+     *  render the first (best-ranked) hits immediately instead of blocking on all pages. */
+    fun vodSearch(query: String, onPage: ((List<VodItem>) -> Unit)? = null): List<VodItem> {
         val out = ArrayList<VodItem>()
         try {
             val enc = URLEncoder.encode(query, "UTF-8")
@@ -418,6 +420,7 @@ object Portal {
                 parseVodItems(arr, pageItems)
                 val matches = pageItems.filter { it.name.contains(query, ignoreCase = true) }
                 out.addAll(matches)
+                if (matches.isNotEmpty()) onPage?.invoke(ArrayList(out))
                 // Portal ranks title matches first — once a page yields none, later pages won't either.
                 if (matches.isEmpty() && out.isNotEmpty()) break
                 val total = js.optInt("total_items", out.size)
@@ -430,7 +433,7 @@ object Portal {
     }
 
     /** VOD search scoped to a single category (movies + series within that folder). */
-    fun vodSearchInCategory(catId: String, query: String): List<VodItem> {
+    fun vodSearchInCategory(catId: String, query: String, onPage: ((List<VodItem>) -> Unit)? = null): List<VodItem> {
         val out = ArrayList<VodItem>()
         try {
             val enc = URLEncoder.encode(query, "UTF-8")
@@ -444,6 +447,7 @@ object Portal {
                 parseVodItems(arr, pageItems)
                 val matches = pageItems.filter { it.name.contains(query, ignoreCase = true) }
                 out.addAll(matches)
+                if (matches.isNotEmpty()) onPage?.invoke(ArrayList(out))
                 if (matches.isEmpty() && out.isNotEmpty()) break
                 val total = js.optInt("total_items", out.size)
                 val per = js.optInt("max_page_items", 14).coerceAtLeast(1)
