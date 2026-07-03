@@ -575,6 +575,9 @@ class ChannelsActivity : AppCompatActivity() {
                 byGenre = ch.groupBy { it.genreId }
                 cachedSig = acct.sig(); cachedChannels = ch; cachedGenres = g // cache for next launch
                 SearchCache.clear() // fresh provider/session → drop any cached search results
+                // Build the local title index in the background (once per provider, cached) → instant search.
+                val provSig = acct.sig()
+                searchHandler.postDelayed({ VodIndex.ensure(applicationContext, provSig) }, 5000)
                 if (ch.isEmpty()) {
                     hideLoading()
                     b.status.visibility = View.VISIBLE
@@ -997,16 +1000,23 @@ class ChannelsActivity : AppCompatActivity() {
             b.status.visibility = View.GONE
             adapter.submit(chRows + vod.map { vodItemRow(it) })
         }
-        // Instant: exact repeat needs no network.
-        SearchCache.get(scope, query)?.let { show(it); return }
-        // Instant interim: reuse the nearest cached prefix's hits while the fresh result loads.
-        val interim = SearchCache.prefixFilter(scope, query)
-        if (interim != null) show(interim) else { b.status.visibility = View.VISIBLE; b.status.text = "Searching movies & shows…" }
+        // Instant: the local title index (works offline). When it's the whole catalogue, it's authoritative.
+        val idx = if (VodIndex.ready) VodIndex.search(query) else emptyList()
+        if (idx.isNotEmpty()) show(idx)
+        if (VodIndex.complete) { if (idx.isEmpty()) show(idx); return }
+        if (idx.isEmpty()) {
+            // No index yet → exact-repeat cache, then nearest cached prefix, for instant feel.
+            SearchCache.get(scope, query)?.let { show(it); return }
+            val interim = SearchCache.prefixFilter(scope, query)
+            if (interim != null) show(interim) else { b.status.visibility = View.VISIBLE; b.status.text = "Searching movies & shows…" }
+        }
         val task = Runnable {
             io.execute {
-                val vod = Portal.vodSearch(query) { partial -> runOnUiThread { show(partial) } } // render each page as it lands
-                SearchCache.put(scope, query, vod)
-                runOnUiThread { show(vod) }
+                // Portal fills anything the (partial) index missed; results render per page and are merged.
+                val vod = Portal.vodSearch(query) { partial -> runOnUiThread { show((idx + partial).distinctBy { it.id }) } }
+                val merged = (idx + vod).distinctBy { it.id }
+                SearchCache.put(scope, query, merged)
+                runOnUiThread { show(merged) }
             }
         }
         pendingSearch = task
@@ -1041,17 +1051,22 @@ class ChannelsActivity : AppCompatActivity() {
                 adapter.submit(vod.map { vodItemRow(it) })
             }
         }
-        // Instant: exact repeat needs no network.
-        SearchCache.get(scope, query)?.let { show(it, true); return }
-        // Instant interim: reuse the nearest cached prefix's hits while the fresh result loads.
-        val interim = SearchCache.prefixFilter(scope, query)
-        if (interim != null) show(interim, false) else { b.status.visibility = View.VISIBLE; b.status.text = "Searching…" }
+        // Instant: the local title index (works offline). Authoritative when it holds the whole catalogue.
+        val idx = if (VodIndex.ready) VodIndex.search(query, catId) else emptyList()
+        if (idx.isNotEmpty()) show(idx, VodIndex.complete)
+        if (VodIndex.complete) { if (idx.isEmpty()) show(idx, true); return }
+        if (idx.isEmpty()) {
+            SearchCache.get(scope, query)?.let { show(it, true); return }
+            val interim = SearchCache.prefixFilter(scope, query)
+            if (interim != null) show(interim, false) else { b.status.visibility = View.VISIBLE; b.status.text = "Searching…" }
+        }
         val task = Runnable {
             io.execute {
-                val vod = if (catId == null) Portal.vodSearch(query) { p -> runOnUiThread { show(p, false) } }
-                          else Portal.vodSearchInCategory(catId, query) { p -> runOnUiThread { show(p, false) } }
-                SearchCache.put(scope, query, vod)
-                runOnUiThread { show(vod, true) }
+                val vod = if (catId == null) Portal.vodSearch(query) { p -> runOnUiThread { show((idx + p).distinctBy { it.id }, false) } }
+                          else Portal.vodSearchInCategory(catId, query) { p -> runOnUiThread { show((idx + p).distinctBy { it.id }, false) } }
+                val merged = (idx + vod).distinctBy { it.id }
+                SearchCache.put(scope, query, merged)
+                runOnUiThread { show(merged, true) }
             }
         }
         pendingSearch = task
