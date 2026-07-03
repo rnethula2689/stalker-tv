@@ -575,9 +575,9 @@ class ChannelsActivity : AppCompatActivity() {
                 byGenre = ch.groupBy { it.genreId }
                 cachedSig = acct.sig(); cachedChannels = ch; cachedGenres = g // cache for next launch
                 SearchCache.clear() // fresh provider/session → drop any cached search results
-                // Build the local title index in the background (once per provider, cached) → instant search.
+                // Load the browse-fed title index (cached) so search serves matches instantly / offline.
                 val provSig = acct.sig()
-                searchHandler.postDelayed({ VodIndex.ensure(applicationContext, provSig) }, 5000)
+                io.execute { VodIndex.ensure(applicationContext, provSig) }
                 if (ch.isEmpty()) {
                     hideLoading()
                     b.status.visibility = View.VISIBLE
@@ -1766,6 +1766,9 @@ class ChannelsActivity : AppCompatActivity() {
                 vodLoaded = pages
                 b.status.visibility = View.GONE
                 renderVodItems(0)
+                // Index this fully-loaded folder for instant/offline search (data's already fetched → no extra network).
+                val idxList = ArrayList(vodBase); val ps = cachedSig
+                io.execute { VodIndex.add(applicationContext, ps, idxList, cat.id) }
             }
         }
     }

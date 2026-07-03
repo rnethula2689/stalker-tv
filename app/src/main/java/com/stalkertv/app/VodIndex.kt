@@ -4,25 +4,24 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.Executors
 
 /**
- * Local index of VOD titles for instant, offline search. Crawled once per provider in a low-priority
- * background thread (throttled + bounded), cached to disk, and reused across launches until it goes stale
- * or the provider changes. Search filters it in memory — no network, no debounce.
+ * Local index of VOD titles for instant, offline search. Populated as the user browses movie categories
+ * (each category already loads every page for display, so indexing it costs ZERO extra network), persisted
+ * to disk, and reused across launches until it goes stale or the provider changes.
  *
- * Resumable by a category cursor: partial progress is saved every few categories, so a kill/background
- * doesn't lose work and a relaunch continues where it left off (no re-hammering the portal).
+ * Search filters it in memory — no network, no debounce. Coverage grows with use: a folder you've opened
+ * once is fully searchable forever (even offline). Callers use it as an instant layer and let the portal
+ * fill anything not yet indexed, so results are always complete.
  *
- * Safe by design: until [ready] it returns nothing, so callers fall back to the portal search. When
- * [complete] (the whole catalogue fit within the caps) the index is authoritative and search can skip the
- * network entirely; otherwise callers use it as an instant layer and let the portal fill any gaps.
+ * Safe by design: until [ready] it returns nothing and callers fall straight back to the portal search.
  */
 object VodIndex {
-    private const val MAX_ITEMS = 40_000
-    private const val MAX_PAGES_PER_CAT = 500
-    private const val STALE_MS = 5L * 24 * 60 * 60 * 1000 // rebuild after 5 days
-    private const val SAVE_EVERY_CATS = 5
+    private const val MAX_ITEMS = 60_000
+    private const val STALE_MS = 14L * 24 * 60 * 60 * 1000 // drop the cache after 14 days
     private const val FILE = "vodindex.json"
+    private val saveIo = Executors.newSingleThreadExecutor { r -> Thread(r).apply { isDaemon = true; priority = Thread.MIN_PRIORITY } }
 
     /** Compact entry — only what a result row + detail-open needs, plus the category for folder-scoped search. */
     private class E(
@@ -30,19 +29,20 @@ object VodIndex {
         val series: Boolean, val year: String, val genre: String, val imdb: String, val cat: String
     )
 
-    @Volatile private var items: List<E> = emptyList()
-    @Volatile private var sig: String = ""
-    @Volatile private var doneCats: Int = 0
+    private var items: List<E> = emptyList()
+    private val ids = HashSet<String>()
+    private var sig: String = ""
     @Volatile var ready: Boolean = false; private set
-    @Volatile var complete: Boolean = false; private set
-    @Volatile private var building = false
+    /** True only if the whole catalogue is known to be indexed. Browse-feeding never sets this, so search
+     *  always also consults the portal to stay complete; kept for the search-integration contract. */
+    @Volatile val complete: Boolean = false
 
     fun count(): Int = items.size
 
     private fun E.toVod() = Portal.VodItem(id, name, cmd, poster, series, year = year, imdb = imdb, genre = genre)
 
     /** Instant name search over the in-memory index. [catId] scopes to one folder. Empty if not ready. */
-    fun search(query: String, catId: String? = null): List<Portal.VodItem> {
+    @Synchronized fun search(query: String, catId: String? = null): List<Portal.VodItem> {
         if (!ready) return emptyList()
         val q = query.trim()
         if (q.isEmpty()) return emptyList()
@@ -54,63 +54,40 @@ object VodIndex {
             .toList()
     }
 
-    /** Load a fresh cached index for [providerSig], else crawl/continue it in the background. Idempotent. */
-    fun ensure(ctx: Context, providerSig: String) {
-        if (providerSig.isBlank() || building) return
-        if (ready && sig == providerSig && complete) return
-        Thread {
-            try {
-                if (!(ready && sig == providerSig)) {
-                    val cached = load(ctx, providerSig)
-                    if (cached != null) {
-                        items = cached.first; doneCats = cached.third; sig = providerSig
-                        ready = true; complete = cached.second
-                        if (complete) return@Thread
-                    }
-                }
-                crawl(ctx, providerSig)
-            } catch (_: Exception) {}
-        }.apply { isDaemon = true; priority = Thread.MIN_PRIORITY }.start()
+    /** Load the disk cache for [providerSig] (if fresh). Cheap; call once after the provider loads. */
+    @Synchronized fun ensure(ctx: Context, providerSig: String) {
+        if (providerSig.isBlank() || (ready && sig == providerSig)) return
+        val loaded = load(ctx, providerSig)
+        sig = providerSig
+        if (loaded != null) {
+            items = loaded
+            ids.clear(); items.forEach { ids.add(it.id) }
+            ready = items.isNotEmpty()
+        } else {
+            items = emptyList(); ids.clear(); ready = false
+        }
     }
 
-    private fun crawl(ctx: Context, providerSig: String) {
-        if (building) return
-        building = true
-        try {
-            val cats = Portal.vodCategories()
-            if (cats.isEmpty()) return
-            val acc = ArrayList<E>(items)                     // resume from the loaded partial
-            val seen = HashSet<String>().apply { acc.forEach { add(it.id) } }
-            var capped = false
-            var i = doneCats.coerceIn(0, cats.size)           // skip already-crawled categories
-            var sinceSave = 0
-            while (i < cats.size) {
-                val cat = cats[i]
-                var page = 1; var pages = 1
-                while (page <= pages && page <= MAX_PAGES_PER_CAT) {
-                    val (list, tp) = Portal.vodList(cat.id, page)
-                    pages = tp
-                    for (v in list) if (seen.add(v.id))
-                        acc.add(E(v.id, v.name, v.cmd, v.posterUrl, v.isSeries, v.year, v.genre, v.imdb, cat.id))
-                    if (acc.size >= MAX_ITEMS) { capped = true; break }
-                    page++
-                    try { Thread.sleep(35) } catch (_: InterruptedException) {} // gentle on the portal
-                }
-                i++; doneCats = i
-                items = acc.toList(); sig = providerSig; ready = true // publish progress mid-build
-                if (capped) break
-                if (++sinceSave >= SAVE_EVERY_CATS) { sinceSave = 0; save(ctx, providerSig, acc, i, false) }
-            }
-            items = acc.toList(); sig = providerSig; ready = true; complete = !capped
-            save(ctx, providerSig, acc, if (complete) cats.size else doneCats, complete)
-        } catch (_: Exception) {
-        } finally { building = false }
+    /** Feed the titles of a browsed category into the index (no extra network). Persists in the background. */
+    @Synchronized fun add(ctx: Context, providerSig: String, newItems: List<Portal.VodItem>, catId: String) {
+        if (providerSig.isBlank() || newItems.isEmpty()) return
+        if (sig != providerSig) { items = emptyList(); ids.clear(); sig = providerSig } // provider changed → reset
+        if (items.size >= MAX_ITEMS) return
+        val mut = ArrayList(items)
+        var changed = false
+        for (v in newItems) if (v.id.isNotBlank() && ids.add(v.id)) {
+            mut.add(E(v.id, v.name, v.cmd, v.posterUrl, v.isSeries, v.year, v.genre, v.imdb, catId)); changed = true
+        }
+        if (changed) {
+            items = mut; ready = true
+            val snap = items; val s = sig
+            saveIo.execute { save(ctx, s, snap) }
+        }
     }
 
     private fun file(ctx: Context) = File(ctx.filesDir, FILE)
 
-    /** @return Triple(items, complete, doneCats) or null when absent / wrong provider / stale. */
-    private fun load(ctx: Context, providerSig: String): Triple<List<E>, Boolean, Int>? = try {
+    private fun load(ctx: Context, providerSig: String): List<E>? = try {
         val f = file(ctx)
         if (!f.exists()) null else {
             val o = JSONObject(f.readText())
@@ -125,25 +102,19 @@ object VodIndex {
                         list.add(E(a.optString(0), a.optString(1), a.optString(2), a.optString(3),
                             a.optInt(4) == 1, a.optString(5), a.optString(6), a.optString(7), a.optString(8)))
                     }
-                    Triple(list, o.optBoolean("complete"), o.optInt("donecats"))
+                    list
                 }
             }
         }
     } catch (_: Exception) { null }
 
-    private fun save(ctx: Context, providerSig: String, list: List<E>, doneCats: Int, complete: Boolean) {
+    private fun save(ctx: Context, providerSig: String, list: List<E>) {
         try {
             val arr = JSONArray()
             for (e in list) arr.put(JSONArray().put(e.id).put(e.name).put(e.cmd).put(e.poster)
                 .put(if (e.series) 1 else 0).put(e.year).put(e.genre).put(e.imdb).put(e.cat))
-            val o = JSONObject().put("sig", providerSig).put("built", System.currentTimeMillis())
-                .put("complete", complete).put("donecats", doneCats).put("items", arr)
+            val o = JSONObject().put("sig", providerSig).put("built", System.currentTimeMillis()).put("items", arr)
             file(ctx).writeText(o.toString())
         } catch (_: Exception) {}
-    }
-
-    fun invalidate(ctx: Context) {
-        items = emptyList(); ready = false; complete = false; sig = ""; doneCats = 0
-        try { file(ctx).delete() } catch (_: Exception) {}
     }
 }
