@@ -57,6 +57,7 @@ class LiveVlcActivity : AppCompatActivity() {
     private var vodSpeed = 1f        // playback speed, carried across engine switches
     private var vodSubPath = ""      // applied subtitle file (cacheDir/subtitle.srt), carried across switches
     private var vodSubAttached = false // guard so we attach the subtitle once per media
+    private var movieYear = ""        // release year, scopes subtitle search + carried across engine switches
     private val resumeSaver = object : Runnable {
         override fun run() { saveVodResume(); ui.postDelayed(this, 10_000) }
     }
@@ -188,6 +189,7 @@ class LiveVlcActivity : AppCompatActivity() {
             resumeSource = intent.getStringExtra("resumeSource") ?: ""
             resumePoster = intent.getStringExtra("resumePoster") ?: ""
             vodSpeed = intent.getFloatExtra("speed", 1f)
+            movieYear = intent.getStringExtra("year") ?: ""
             vodSubPath = intent.getStringExtra("subPath") ?: ""
             // No carried subtitle? Auto-load the one saved for this title (resume without a new search).
             if (vodSubPath.isBlank()) SubStore.saved(this, resumeId.ifBlank { resumeSource })?.let { vodSubPath = it.absolutePath }
@@ -568,7 +570,7 @@ class LiveVlcActivity : AppCompatActivity() {
         val p = mp ?: return
         val pos = p.time
         val dur = if (knownDurationMs > 0) knownDurationMs else p.length
-        if (pos > 0) Resume.save(applicationContext, resumeId, "vod", titleText, resumePoster, resumeSource, pos, if (dur > 0) dur else 0)
+        if (pos > 0) Resume.save(applicationContext, resumeId, "vod", titleText, resumePoster, resumeSource, pos, if (dur > 0) dur else 0, movieYear)
     }
 
     /** End of a VOD item: autoplay the next episode, or (movie / autoplay off) offer to drop it. */
@@ -683,6 +685,7 @@ class LiveVlcActivity : AppCompatActivity() {
             .putExtra("resumeStart", pos)
             .putExtra("speed", vodSpeed)
             .putExtra("subPath", vodSubPath)
+            .putExtra("year", movieYear)
         startActivity(i)
         finish()
     }
@@ -773,9 +776,10 @@ class LiveVlcActivity : AppCompatActivity() {
         Configs.ossKey(this).let { if (it.isNotBlank()) Subtitles.apiKey = it }
         val q = searchQuery()
         if (q.isEmpty()) return
-        android.widget.Toast.makeText(this, "Searching English subtitles for “$q”…", android.widget.Toast.LENGTH_SHORT).show()
+        val label = if (movieYear.isNotBlank()) "$q ($movieYear)" else q
+        android.widget.Toast.makeText(this, "Searching English subtitles for “$label”…", android.widget.Toast.LENGTH_SHORT).show()
         io.execute {
-            val results = Subtitles.search(q)
+            val results = Subtitles.search(q, movieYear)
             runOnUiThread {
                 if (results.isEmpty()) {
                     android.widget.Toast.makeText(this, "No subtitles found for “$q”.", android.widget.Toast.LENGTH_SHORT).show()

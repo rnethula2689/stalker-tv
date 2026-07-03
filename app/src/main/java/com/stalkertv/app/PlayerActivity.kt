@@ -39,6 +39,7 @@ class PlayerActivity : AppCompatActivity() {
     private var resumeSource = ""
     private var resumePoster = ""
     private var currentSubPath = ""   // applied subtitle file, carried across engine switches
+    private var movieYear = ""        // release year (from portal), used to scope subtitle search + carried across switches
     private val resumeHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val resumeSaver = object : Runnable {
         override fun run() { saveResume(); resumeHandler.postDelayed(this, 10_000) }
@@ -154,6 +155,7 @@ class PlayerActivity : AppCompatActivity() {
         chIndex = intent.getIntExtra("chIndex", -1)
         resumeId = intent.getStringExtra("resumeId") ?: ""
         resumeSource = intent.getStringExtra("resumeSource") ?: ""
+        movieYear = intent.getStringExtra("year") ?: ""
         resumePoster = intent.getStringExtra("resumePoster") ?: ""
         val resumeStart = intent.getLongExtra("resumeStart", 0L)
         // We have our own ⏭ Next in the top bar — never show the default centre prev/next. On TV one of
@@ -456,7 +458,8 @@ class PlayerActivity : AppCompatActivity() {
             .putExtra("resumeId", intent.getStringExtra("resumeId") ?: "")
             .putExtra("resumeSource", intent.getStringExtra("resumeSource") ?: "")
             .putExtra("resumePoster", intent.getStringExtra("resumePoster") ?: "")
-            .putExtra("resumeStart", intent.getLongExtra("resumeStart", 0L)))
+            .putExtra("resumeStart", intent.getLongExtra("resumeStart", 0L))
+            .putExtra("year", intent.getStringExtra("year") ?: ""))
         finish()
         return true
     }
@@ -480,6 +483,7 @@ class PlayerActivity : AppCompatActivity() {
             .putExtra("durationSec", if (dur > 0) dur / 1000 else 0L)
             .putExtra("speed", speeds[speedIdx])
             .putExtra("subPath", currentSubPath)
+            .putExtra("year", movieYear)
         startActivity(i)
         finish()
     }
@@ -523,9 +527,10 @@ class PlayerActivity : AppCompatActivity() {
     private fun searchSubtitles() {
         val q = searchQuery()
         if (q.isEmpty()) return
-        Toast.makeText(this, "Searching English subtitles for “$q”…", Toast.LENGTH_SHORT).show()
+        val label = if (movieYear.isNotBlank()) "$q ($movieYear)" else q
+        Toast.makeText(this, "Searching English subtitles for “$label”…", Toast.LENGTH_SHORT).show()
         io.execute {
-            val results = Subtitles.search(q)
+            val results = Subtitles.search(q, movieYear)
             runOnUiThread {
                 if (results.isEmpty()) {
                     Toast.makeText(this, "No subtitles found for “$q”.", Toast.LENGTH_SHORT).show()
@@ -851,7 +856,7 @@ class PlayerActivity : AppCompatActivity() {
                 // Keep it in Continue Watching: a finished (~end) position would be auto-dropped, so
                 // re-save it (reset to start = a clean re-watch entry) and stop onStop overwriting it.
                 resumeId = ""
-                Resume.save(applicationContext, id, "vod", titleText, resumePoster, resumeSource, 0L, player?.duration ?: 0L)
+                Resume.save(applicationContext, id, "vod", titleText, resumePoster, resumeSource, 0L, player?.duration ?: 0L, movieYear)
                 finish()
             }
             .show()
@@ -862,7 +867,7 @@ class PlayerActivity : AppCompatActivity() {
         val p = player ?: return
         val pos = p.currentPosition
         val dur = p.duration
-        if (pos > 0) Resume.save(applicationContext, resumeId, "vod", titleText, resumePoster, resumeSource, pos, if (dur > 0) dur else 0)
+        if (pos > 0) Resume.save(applicationContext, resumeId, "vod", titleText, resumePoster, resumeSource, pos, if (dur > 0) dur else 0, movieYear)
     }
 
     override fun onStop() {

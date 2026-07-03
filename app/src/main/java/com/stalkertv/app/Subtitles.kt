@@ -25,19 +25,22 @@ object Subtitles {
     // legacyUrl used for the keyless endpoint; fileId used for the official API.
     data class Sub(val name: String, val legacyUrl: String, val fileId: String)
 
-    fun search(query: String): List<Sub> =
-        if (apiKey.isNotBlank()) searchApi(query) else searchLegacy(query)
+    /** [year] (e.g. "2026") narrows results to that release so same-title films of other years are
+     *  excluded — OpenSubtitles matches by title alone otherwise. Blank year = title-only (as before). */
+    fun search(query: String, year: String = ""): List<Sub> =
+        if (apiKey.isNotBlank()) searchApi(query, year) else searchLegacy(query, year)
 
     fun download(sub: Sub, dest: File): Boolean =
         if (sub.fileId.isNotBlank()) downloadApi(sub.fileId, dest) else downloadLegacy(sub.legacyUrl, dest)
 
     // ---- Official api.opensubtitles.com ----
-    private fun searchApi(query: String): List<Sub> {
+    private fun searchApi(query: String, year: String): List<Sub> {
         val out = ArrayList<Sub>()
         try {
             val q = URLEncoder.encode(query, "UTF-8")
+            val yp = if (year.isNotBlank()) "&year=" + URLEncoder.encode(year.trim(), "UTF-8") else ""
             val req = Request.Builder()
-                .url("https://api.opensubtitles.com/api/v1/subtitles?languages=en&order_by=download_count&query=$q")
+                .url("https://api.opensubtitles.com/api/v1/subtitles?languages=en&order_by=download_count&query=$q$yp")
                 .header("Api-Key", apiKey)
                 .header("User-Agent", APP_UA)
                 .header("Accept", "application/json")
@@ -83,10 +86,10 @@ object Subtitles {
     }
 
     // ---- Keyless legacy fallback (rest.opensubtitles.org) ----
-    private fun searchLegacy(query: String): List<Sub> {
+    private fun searchLegacy(query: String, year: String): List<Sub> {
         val out = ArrayList<Sub>()
         try {
-            val q = URLEncoder.encode(query, "UTF-8")
+            val q = URLEncoder.encode(if (year.isNotBlank()) "$query ${year.trim()}" else query, "UTF-8")
             val req = Request.Builder()
                 .url("https://rest.opensubtitles.org/search/query-$q/sublanguageid-eng")
                 .header("User-Agent", "TemporaryUserAgent").build()

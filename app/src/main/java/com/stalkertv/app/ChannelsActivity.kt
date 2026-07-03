@@ -1984,6 +1984,7 @@ class ChannelsActivity : AppCompatActivity() {
                             .putExtra("resumeSource", source)
                             .putExtra("resumePoster", poster ?: "")
                             .putExtra("resumeStart", startPos)
+                            .putExtra("year", Resume.get(this, resumeId)?.year ?: "")
                     )
                 }
             }

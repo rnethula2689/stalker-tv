@@ -117,7 +117,8 @@ class MovieDetailActivity : AppCompatActivity() {
                 startActivity(Intent(this, PlayerActivity::class.java)
                     .putExtra("url", url).putExtra("title", title)
                     .putExtra("resumeId", resumeId).putExtra("resumeSource", source)
-                    .putExtra("resumePoster", poster).putExtra("resumeStart", startPos))
+                    .putExtra("resumePoster", poster).putExtra("resumeStart", startPos)
+                    .putExtra("year", year))  // narrows OpenSubtitles to this exact release
             }
         }
     }
