@@ -1432,31 +1432,33 @@ class ChannelsActivity : AppCompatActivity() {
 
     /** Prompt for the parental PIN (sets it on first use), then run [onOk] if it matches. */
     private fun requirePin(onOk: () -> Unit) {
-        val saved = Configs.parentalPin(this)
+        val hasPin = Configs.hasParentalPin(this)
         val input = android.widget.EditText(this).apply {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
             hint = "PIN"
         }
         val builder = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(if (saved.isBlank()) "Set a parental PIN" else "Enter parental PIN")
+            .setTitle(if (!hasPin) "Set a parental PIN" else "Enter parental PIN")
             .setView(input)
             .setNegativeButton("Cancel", null)
             .setPositiveButton("OK") { _, _ ->
                 val entered = input.text.toString().trim()
-                if (saved.isBlank()) {
+                if (!hasPin) {
                     if (entered.length >= 3) { Configs.setParentalPin(this, entered); onOk() }
                     else android.widget.Toast.makeText(this, "PIN must be at least 3 digits.", android.widget.Toast.LENGTH_SHORT).show()
-                } else if (entered == saved) onOk()
-                else android.widget.Toast.makeText(this, "Incorrect PIN.", android.widget.Toast.LENGTH_SHORT).show()
+                } else if (Configs.verifyParentalPin(this, entered)) onOk()
+                else {
+                    val s = Configs.parentalPinLockSecs(this)
+                    android.widget.Toast.makeText(this, if (s > 0) "Too many attempts — wait ${s}s." else "Incorrect PIN.", android.widget.Toast.LENGTH_SHORT).show()
+                }
             }
-        if (saved.isBlank()) builder.setMessage("This locks adult / restricted channels. Enter the passcode from your provider, or choose your own (min 3 digits).")
+        if (!hasPin) builder.setMessage("This locks adult / restricted channels. Enter the passcode from your provider, or choose your own (min 3 digits).")
         builder.show()
     }
 
     /** Set or change the parental PIN from the menu (asks the current PIN first if one exists). */
     private fun changePin() {
-        val saved = Configs.parentalPin(this)
-        if (saved.isBlank()) { requirePin {}; return }
+        if (!Configs.hasParentalPin(this)) { requirePin {}; return }
         val cur = android.widget.EditText(this).apply {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
             hint = "Current PIN"
@@ -1466,8 +1468,9 @@ class ChannelsActivity : AppCompatActivity() {
             .setView(cur)
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Next") { _, _ ->
-                if (cur.text.toString().trim() != saved) {
-                    android.widget.Toast.makeText(this, "Incorrect PIN.", android.widget.Toast.LENGTH_SHORT).show()
+                if (!Configs.verifyParentalPin(this, cur.text.toString().trim())) {
+                    val s = Configs.parentalPinLockSecs(this)
+                    android.widget.Toast.makeText(this, if (s > 0) "Too many attempts — wait ${s}s." else "Incorrect PIN.", android.widget.Toast.LENGTH_SHORT).show()
                 } else {
                     val next = android.widget.EditText(this).apply {
                         inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
