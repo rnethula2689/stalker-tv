@@ -188,6 +188,9 @@ object Downloads {
     fun resumeAllAuto(ctx: Context) = scheduleWork(ctx)
 
     fun enqueue(ctx: Context, id: String, title: String, poster: String, source: String) {
+        // Guard against a malicious/compromised portal returning an id with path separators: the id is
+        // later used to build download file paths, so reject anything that could escape the downloads dir.
+        if (id.isBlank() || id.contains('/') || id.contains('\\') || id.contains("..")) return
         if (has(ctx, id)) return
         upsert(ctx, Item(id, title, poster, source, "$id.mp4", QUEUED, 0, 0))
         notifyChanged()

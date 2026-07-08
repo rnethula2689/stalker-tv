@@ -30,7 +30,9 @@ class TrailerActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        videoId = intent.getStringExtra("videoId") ?: ""
+        // Validate the id (from portal/TMDb data) against the YouTube id charset before it's ever injected
+        // into the player page's JS — blocks quote-breakout / script injection into the WebView + JS bridge.
+        videoId = (intent.getStringExtra("videoId") ?: "").takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,20}")) } ?: ""
         if (videoId.isBlank()) { finish(); return }
 
         val container = FrameLayout(this).apply { setBackgroundColor(0xFF000000.toInt()) }
