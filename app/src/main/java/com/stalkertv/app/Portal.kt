@@ -78,6 +78,33 @@ object Portal {
     private fun origin(u: String): String =
         Regex("https?://[^/]+").find(u.trim())?.value ?: u.trim().trimEnd('/')
 
+    // Short-timeout client used only to probe whether an http portal also answers over TLS.
+    private val probeClient by lazy {
+        OkHttpClient.Builder().connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
+    }
+    private var originPref: Pair<String, String>? = null // (configured origin) -> (preferred origin)
+
+    /** Prefer HTTPS so the MAC / serial / session token aren't sent in cleartext. If the portal is
+     *  configured as http://, probe the https:// variant once (short timeout, cached); use it only when
+     *  the portal actually answers the handshake over TLS, otherwise keep the configured http origin. */
+    private fun preferredOrigin(configured: String): String {
+        if (configured.startsWith("https", ignoreCase = true)) return configured
+        originPref?.let { if (it.first == configured) return it.second }
+        val httpsO = configured.replaceFirst(Regex("(?i)^http://"), "https://")
+        val ok = httpsO != configured && listOf("/server/load.php", "/stalker_portal/server/load.php").any { path ->
+            try {
+                val req = Request.Builder().url("$httpsO$path?type=stb&action=handshake&JsHttpRequest=1-xml")
+                    .header("User-Agent", UA).header("X-User-Agent", "Model: MAG250; Link: WiFi").build()
+                probeClient.newCall(req).execute().use { r -> (r.body?.string() ?: "").contains("\"token\"") }
+            } catch (_: Exception) { false }
+        }
+        val chosen = if (ok) httpsO else configured
+        originPref = configured to chosen
+        android.util.Log.i("PORTALTLS", "portal origin: configured=$configured chosen=$chosen httpsOk=$ok")
+        return chosen
+    }
+
     // Cloudflare / portal cookies captured from responses, resent on every request
     // so the whole session sticks to one backend node across requests.
     private val extraCookies = java.util.Collections.synchronizedMap(LinkedHashMap<String, String>())
@@ -135,7 +162,7 @@ object Portal {
     /** @return null on success, else an error message. */
     fun connect(): String? {
         return try {
-            val o = origin(portalUrl)
+            val o = preferredOrigin(origin(portalUrl))
             val candidates = listOf(
                 "$o/stalker_portal/server/load.php",
                 "$o/server/load.php",
