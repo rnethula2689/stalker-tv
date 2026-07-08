@@ -151,8 +151,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun showParentalPinDialog() {
-        val saved = Configs.parentalPin(this)
-        if (saved.isBlank()) { promptNewPin("Set a parental PIN"); return }
+        if (!Configs.hasParentalPin(this)) { promptNewPin("Set a parental PIN"); return }
         val cur = pinInput("Current PIN")
         AlertDialog.Builder(this)
             .setTitle("Parental PIN")
@@ -160,8 +159,8 @@ class SettingsActivity : AppCompatActivity() {
             .setView(padded(cur))
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Change PIN") { _, _ ->
-                if (cur.text.toString().trim() != saved) toast("Incorrect PIN.")
-                else promptNewPin("New parental PIN")
+                if (Configs.verifyParentalPin(this, cur.text.toString().trim())) promptNewPin("New parental PIN")
+                else { val s = Configs.parentalPinLockSecs(this); toast(if (s > 0) "Too many attempts — wait ${s}s." else "Incorrect PIN.") }
             }
             .show()
     }

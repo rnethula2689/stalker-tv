@@ -89,9 +89,23 @@ object Configs {
         return next
     }
 
-    /** Parental PIN guarding adult / restricted (censored) channels. Empty = not set yet. */
-    fun parentalPin(ctx: Context): String = prefs(ctx).getString("parentalPin", "") ?: ""
-    fun setParentalPin(ctx: Context, pin: String) { prefs(ctx).edit().putString("parentalPin", pin).apply() }
+    /** Parental PIN guarding adult / restricted (censored) channels. Stored as a salted hash. */
+    private fun parentalPinStored(ctx: Context): String = prefs(ctx).getString("parentalPin", "") ?: ""
+    fun hasParentalPin(ctx: Context): Boolean = parentalPinStored(ctx).isNotEmpty()
+    fun setParentalPin(ctx: Context, pin: String) {
+        val t = pin.trim()
+        prefs(ctx).edit().putString("parentalPin", if (t.isEmpty()) "" else Secret.hash(t)).apply()
+    }
+    /** True when [entered] matches the parental PIN. Rate-limited; migrates legacy plaintext to a hash. */
+    fun verifyParentalPin(ctx: Context, entered: String): Boolean {
+        if (Secret.lockedMs(ctx, "pin") > 0L) return false
+        val stored = parentalPinStored(ctx)
+        val ok = Secret.verify(entered.trim(), stored)
+        if (ok) { Secret.recordSuccess(ctx, "pin"); if (!Secret.isHashed(stored)) setParentalPin(ctx, entered.trim()) }
+        else Secret.recordFail(ctx, "pin")
+        return ok
+    }
+    fun parentalPinLockSecs(ctx: Context): Long = (Secret.lockedMs(ctx, "pin") + 999) / 1000
 
     // ---- Autoplay next episode (global toggle, default on) ----
     fun autoplay(ctx: Context): Boolean = prefs(ctx).getBoolean("autoplay_next", true)
