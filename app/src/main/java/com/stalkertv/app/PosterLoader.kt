@@ -25,6 +25,9 @@ object PosterLoader {
                 .readTimeout(30, TimeUnit.SECONDS)
                 .callTimeout(40, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(true)
+                // Cap concurrent image loads so a fast scroll on a weak Fire TV doesn't flood the CPU/network
+                // (and leaves connections for the portal's own requests).
+                .dispatcher(okhttp3.Dispatcher().apply { maxRequests = 8; maxRequestsPerHost = 4 })
                 .addInterceptor { chain ->
                     var req = chain.request()
                     val host = Portal.imgHost()
@@ -42,6 +45,10 @@ object PosterLoader {
             ImageLoader.Builder(app)
                 .okHttpClient(client)
                 .crossfade(true)
+                // Low-RAM resilience: opaque posters/logos as RGB_565 (half the memory) + a smaller memory
+                // cache, so heavy grids don't add to memory pressure on low-end boxes (Fire TV Lite).
+                .allowRgb565(true)
+                .memoryCache { coil.memory.MemoryCache.Builder(app).maxSizePercent(0.15).build() }
                 .build()
         }
     }
