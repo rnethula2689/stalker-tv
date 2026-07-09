@@ -526,7 +526,7 @@ class LiveGridActivity : AppCompatActivity() {
         if (kc == android.view.KeyEvent.KEYCODE_DPAD_UP || kc == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
             if (event.action == android.view.KeyEvent.ACTION_UP) fastScrolled = false
             else if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount > 0 && !fastScrolled &&
-                (event.eventTime - event.downTime) >= 4000L && focusInList(currentFocus)
+                (event.eventTime - event.downTime) >= 1500L && focusInList(currentFocus)
             ) {
                 if (kc == android.view.KeyEvent.KEYCODE_DPAD_UP && b.list.canScrollVertically(-1)) {
                     fastScrolled = true

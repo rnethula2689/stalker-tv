@@ -25,43 +25,35 @@ object Subtitles {
     // legacyUrl used for the keyless endpoint; fileId used for the official API.
     data class Sub(val name: String, val legacyUrl: String, val fileId: String)
 
-    /** [year] (e.g. "2026") narrows results to that release so same-title films of other years are
-     *  excluded — OpenSubtitles matches by title alone otherwise. Blank year = title-only (as before). */
+    /** Plain English subtitle search by title. No year/relevance filtering — those were removing
+     *  legitimate results; show whatever OpenSubtitles returns. [year] is accepted but ignored. */
     fun search(query: String, year: String = ""): List<Sub> =
-        if (apiKey.isNotBlank()) searchApi(query, year) else searchLegacy(query, year)
+        if (apiKey.isNotBlank()) searchApi(query) else searchLegacy(query)
 
     fun download(sub: Sub, dest: File): Boolean =
         if (sub.fileId.isNotBlank()) downloadApi(sub.fileId, dest) else downloadLegacy(sub.legacyUrl, dest)
 
-    /** Normalise a title for loose comparison: lowercase, letters+digits only. */
-    private fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9]"), "")
-
     // ---- Official api.opensubtitles.com ----
-    private fun searchApi(query: String, year: String): List<Sub> {
+    private fun searchApi(query: String): List<Sub> {
         val out = ArrayList<Sub>()
         try {
             val q = URLEncoder.encode(query, "UTF-8")
-            val yp = if (year.isNotBlank()) "&year=" + URLEncoder.encode(year.trim(), "UTF-8") else ""
             val req = Request.Builder()
-                .url("https://api.opensubtitles.com/api/v1/subtitles?languages=en&order_by=download_count&query=$q$yp")
+                .url("https://api.opensubtitles.com/api/v1/subtitles?languages=en&order_by=download_count&query=$q")
                 .header("Api-Key", apiKey)
                 .header("User-Agent", APP_UA)
                 .header("Accept", "application/json")
                 .build()
             client.newCall(req).execute().use { r ->
                 val data = JSONObject(r.body?.string() ?: return out).optJSONArray("data") ?: return out
-                val ql = norm(query)
                 for (i in 0 until data.length()) {
                     val attr = data.optJSONObject(i)?.optJSONObject("attributes") ?: continue
                     val files = attr.optJSONArray("files") ?: continue
                     val fileId = files.optJSONObject(0)?.optString("file_id") ?: continue
                     if (fileId.isBlank()) continue
-                    // OpenSubtitles' query match is fuzzy (word-level), so unrelated same-word films leak in.
-                    // Keep only results whose actual film title matches the query.
-                    val featureTitle = attr.optJSONObject("feature_details")?.optString("title") ?: ""
-                    val ftl = norm(featureTitle)
-                    if (ql.isNotEmpty() && ftl.isNotEmpty() && !ftl.contains(ql) && !ql.contains(ftl)) continue
-                    val name = attr.optString("release").ifBlank { featureTitle.ifBlank { "English subtitle" } }
+                    val name = attr.optString("release").ifBlank {
+                        attr.optJSONObject("feature_details")?.optString("title") ?: "English subtitle"
+                    }
                     out.add(Sub(name, "", fileId))
                     if (out.size >= 25) break
                 }
@@ -93,10 +85,10 @@ object Subtitles {
     }
 
     // ---- Keyless legacy fallback (rest.opensubtitles.org) ----
-    private fun searchLegacy(query: String, year: String): List<Sub> {
+    private fun searchLegacy(query: String): List<Sub> {
         val out = ArrayList<Sub>()
         try {
-            val q = URLEncoder.encode(if (year.isNotBlank()) "$query ${year.trim()}" else query, "UTF-8")
+            val q = URLEncoder.encode(query, "UTF-8")
             val req = Request.Builder()
                 .url("https://rest.opensubtitles.org/search/query-$q/sublanguageid-eng")
                 .header("User-Agent", "TemporaryUserAgent").build()
