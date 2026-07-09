@@ -53,7 +53,8 @@ class ChannelsActivity : AppCompatActivity() {
     private var vodLetter: String? = null             // A–Z sub-search applied on top of the filter
     private var vodSortKey = "default"                // default | za | az | year_desc | year_asc | run_asc | run_desc
     private var vodLoadSeq = 0                         // cancels a stale all-pages load when the list changes
-    private val pageIo = Executors.newFixedThreadPool(8) // parallel page fetches (fast "load all")
+    private val pageIo = Executors.newFixedThreadPool(4) // parallel page fetches; kept modest so poster/still
+    // image downloads (same portal host) aren't starved of connections while a big folder loads all pages
     private val vodSortLabels = linkedMapOf(
         "default" to "Newest", "oldest" to "Oldest", "az" to "A–Z", "za" to "Z–A",
         "year_desc" to "Year ↓", "year_asc" to "Year ↑", "run_asc" to "Shortest", "run_desc" to "Longest"
@@ -1752,7 +1753,10 @@ class ChannelsActivity : AppCompatActivity() {
                 vodBase = first; vodCat = cat; vodLoaded = 1; vodTotal = pages
                 b.status.visibility = if (pages <= 1) View.GONE else View.VISIBLE
                 if (pages > 1) b.status.text = "Loading all $pages pages…"
-                renderVodItems(0)
+                // With a non-default sort (e.g. Oldest), page 1 alone shows a near-newest order that would
+                // snap once all pages arrive — confusing. Only render the partial list for the default order;
+                // other sorts wait for the full load, showing the "Loading…" status meanwhile.
+                if (vodSortKey == "default" || pages <= 1) renderVodItems(0)
                 val posters = first.mapNotNull { it.posterUrl.ifBlank { null } }
                 if (posters.size >= 8) Configs.setSplashPosters(applicationContext, posters)
             }
