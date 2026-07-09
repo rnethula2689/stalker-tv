@@ -234,7 +234,11 @@ class MovieDetailActivity : AppCompatActivity() {
         if (key.isBlank()) return
         io.execute {
             val d = Tmdb.details(key, title, year, isSeries) ?: return@execute
-            val om = if (BuildConfig.OMDB_KEY.isNotBlank()) Omdb.ratings(BuildConfig.OMDB_KEY, title, year) else null
+            // Query OMDb with the canonical title/year TMDb resolved (the raw portal title often has
+            // provider/quality junk that OMDb's stricter title match rejects → missing RT/Metacritic).
+            val omTitle = d.title.ifBlank { title }
+            val omYear = d.releaseDate.take(4).ifBlank { year }
+            val om = if (BuildConfig.OMDB_KEY.isNotBlank()) Omdb.ratings(BuildConfig.OMDB_KEY, omTitle, omYear) else null
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 if (d.title.isNotBlank()) b.title.text = d.title
