@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Green = focused (consistent with the icon circles); white otherwise. -->
     <item android:state_focused="true">
         <shape android:shape="rectangle">
-            <solid android:color="#FFFFFF" />
+            <solid android:color="#19C37D" />
             <corners android:radius="26dp" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="#19C37D" />
+            <solid android:color="#FFFFFF" />
             <corners android:radius="26dp" />
         </shape>
     </item>

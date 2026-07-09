@@ -69,7 +69,7 @@ object Portal {
         val hd: Boolean = false, val added: String = ""
     )
     data class Season(val id: String, val name: String)
-    data class Episode(val id: String, val name: String)
+    data class Episode(val id: String, val name: String, val screenshot: String = "")
     data class EpgItem(
         val name: String, val start: String, val end: String, val descr: String,
         val hasArchive: Boolean, val startTs: Long = 0, val stopTs: Long = 0
@@ -545,7 +545,14 @@ object Portal {
         val out = ArrayList<Episode>()
         pagedList("$base?type=vod&action=get_ordered_list&movie_id=$seriesId&season_id=$seasonId") { o ->
             val nm = o.optString("name").ifBlank { "Episode ${o.optString("series_number")}" }
-            out.add(Episode(o.optString("id"), nm))
+            val ss = o.optString("screenshot_uri")
+            val shot = when {
+                ss.isBlank() || ss == "null" -> ""
+                ss.startsWith("http") -> ss
+                ss.startsWith("/") -> host + ss
+                else -> "$host/$ss"
+            }
+            out.add(Episode(o.optString("id"), nm, shot))
         }
         return out
     }

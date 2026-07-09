@@ -47,7 +47,10 @@ class MultiViewActivity : AppCompatActivity() {
         goImmersive()
 
         panes = listOf(b.pane0, b.pane1, b.pane2, b.pane3)
-        libVlc = LibVLC(this, arrayListOf("--network-caching=${Configs.netCachingMs(this)}", "--http-reconnect", "--no-drop-late-frames", "--no-skip-frames"))
+        // NOTE: unlike the fullscreen player, multiview must ALLOW late/skip frame dropping — with 4 streams
+        // decoding at once the CPU falls behind, and forcing every frame makes the video lag the audio
+        // (lip-sync drift). Dropping late frames keeps each small pane in sync.
+        libVlc = LibVLC(this, arrayListOf("--network-caching=${Configs.netCachingMs(this)}", "--http-reconnect"))
 
         for (i in panes.indices) {
             panes[i].root.setOnClickListener { if (paneCh[i] == null) pickChannel(i) else setAudio(i) }

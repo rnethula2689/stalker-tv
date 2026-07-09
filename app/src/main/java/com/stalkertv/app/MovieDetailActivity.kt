@@ -191,7 +191,8 @@ class MovieDetailActivity : AppCompatActivity() {
                     android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT)
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 setBackgroundColor(0x22FFFFFF)
-                if (poster.isNotBlank()) load(poster)
+                val epShot = e.screenshot.ifBlank { poster } // real per-episode still when the portal has one
+                if (epShot.isNotBlank()) load(epShot)
             }
             val badge = TextView(this).apply {
                 text = "📥"; textSize = 13f
