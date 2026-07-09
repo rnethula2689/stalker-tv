@@ -51,6 +51,12 @@ class PlayerActivity : AppCompatActivity() {
     private var linkRetried = false // P3.1: re-resolve a fresh link once if software-decode also fails
 
     private lateinit var am: AudioManager
+    // Keep the on-screen volume slider synced with the hardware volume buttons (tablet drives device volume).
+    private val volObserver = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            if (!onTv && b.volumePanel.visibility == View.VISIBLE) refreshVol()
+        }
+    }
     private var preMuteVol = -1
     private val onTv by lazy { Tv.isTv(this) }
     private var tvDim = 0f          // TV "brightness": software dim-overlay alpha (0 = none)
@@ -714,6 +720,7 @@ class PlayerActivity : AppCompatActivity() {
     /** Wire the top-left quick controls: aspect ratio, volume (+ mute), brightness (+ night mode). */
     private fun wireQuickControls() {
         am = ScreenControls.audio(this)
+        contentResolver.registerContentObserver(android.provider.Settings.System.CONTENT_URI, true, volObserver)
         b.aspectBtn.text = "⤢  ${aspectModes[aspectIdx]}"
         b.aspectBtn.setOnClickListener { cycleAspect() }
 
@@ -878,6 +885,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        try { contentResolver.unregisterContentObserver(volObserver) } catch (_: Exception) {}
         resumeHandler.removeCallbacksAndMessages(null) // drop resumeSaver/endWatcher + any pending focus retries so nothing holds this activity past teardown
         saveResume()
         player?.release()
