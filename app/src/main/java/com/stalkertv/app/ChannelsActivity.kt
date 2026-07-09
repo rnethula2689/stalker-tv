@@ -55,7 +55,7 @@ class ChannelsActivity : AppCompatActivity() {
     private var vodLoadSeq = 0                         // cancels a stale all-pages load when the list changes
     private val pageIo = Executors.newFixedThreadPool(8) // parallel page fetches (fast "load all")
     private val vodSortLabels = linkedMapOf(
-        "default" to "Newest", "az" to "A–Z", "za" to "Z–A",
+        "default" to "Newest", "oldest" to "Oldest", "az" to "A–Z", "za" to "Z–A",
         "year_desc" to "Year ↓", "year_asc" to "Year ↑", "run_asc" to "Shortest", "run_desc" to "Longest"
     )
     private var welcomeShown = false
@@ -382,8 +382,13 @@ class ChannelsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Returning from the profile editor while the picker is open → refresh the tiles.
-        if (b.profileOverlay.visibility == View.VISIBLE) { buildProfileTiles(); return }
+        // Returning from the profile editor while the picker is open → refresh the tiles AND re-focus one,
+        // otherwise nothing is focused and the D-pad does nothing.
+        if (b.profileOverlay.visibility == View.VISIBLE) {
+            buildProfileTiles()
+            b.profileRow.post { b.profileRow.getChildAt(0)?.requestFocus() }
+            return
+        }
         if (Configs.dirty) {
             Configs.dirty = false
             connectAndLoad(true)
@@ -511,7 +516,7 @@ class ChannelsActivity : AppCompatActivity() {
         private var cachedGenres: List<Portal.Genre> = emptyList()
         private var cachedVodCats: List<Portal.VodCat> = emptyList()
         private var cachedRecent: List<Portal.VodItem> = emptyList() // newest movies, for the home rail
-        private var cachedRecentScope: String? = " " // profile id the rail was loaded for (  = never)
+        private var cachedRecentScope: String? = "" // profile id the rail was loaded for ( = never)
 
         // Catalog access for the profile editor (so it can list categories without a screen of its own).
         fun catGenres(): List<Portal.Genre> = cachedGenres
@@ -1832,6 +1837,7 @@ class ChannelsActivity : AppCompatActivity() {
         "year_asc" -> list.sortedBy { it.year.toIntOrNull() ?: Int.MAX_VALUE }
         "run_asc" -> list.sortedBy { it.runtimeMin.toIntOrNull() ?: Int.MAX_VALUE }
         "run_desc" -> list.sortedByDescending { it.runtimeMin.toIntOrNull() ?: 0 }
+        "oldest" -> list.reversed() // reverse of "Newest" (the portal's newest-first order)
         else -> list // "default" = the portal's newest-first order, as loaded
     }
 

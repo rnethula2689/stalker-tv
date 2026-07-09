@@ -33,6 +33,9 @@ object Subtitles {
     fun download(sub: Sub, dest: File): Boolean =
         if (sub.fileId.isNotBlank()) downloadApi(sub.fileId, dest) else downloadLegacy(sub.legacyUrl, dest)
 
+    /** Normalise a title for loose comparison: lowercase, letters+digits only. */
+    private fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9]"), "")
+
     // ---- Official api.opensubtitles.com ----
     private fun searchApi(query: String, year: String): List<Sub> {
         val out = ArrayList<Sub>()
@@ -47,14 +50,18 @@ object Subtitles {
                 .build()
             client.newCall(req).execute().use { r ->
                 val data = JSONObject(r.body?.string() ?: return out).optJSONArray("data") ?: return out
+                val ql = norm(query)
                 for (i in 0 until data.length()) {
                     val attr = data.optJSONObject(i)?.optJSONObject("attributes") ?: continue
                     val files = attr.optJSONArray("files") ?: continue
                     val fileId = files.optJSONObject(0)?.optString("file_id") ?: continue
                     if (fileId.isBlank()) continue
-                    val name = attr.optString("release").ifBlank {
-                        attr.optJSONObject("feature_details")?.optString("title") ?: "English subtitle"
-                    }
+                    // OpenSubtitles' query match is fuzzy (word-level), so unrelated same-word films leak in.
+                    // Keep only results whose actual film title matches the query.
+                    val featureTitle = attr.optJSONObject("feature_details")?.optString("title") ?: ""
+                    val ftl = norm(featureTitle)
+                    if (ql.isNotEmpty() && ftl.isNotEmpty() && !ftl.contains(ql) && !ql.contains(ftl)) continue
+                    val name = attr.optString("release").ifBlank { featureTitle.ifBlank { "English subtitle" } }
                     out.add(Sub(name, "", fileId))
                     if (out.size >= 25) break
                 }
