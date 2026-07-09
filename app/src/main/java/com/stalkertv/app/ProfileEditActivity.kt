@@ -35,7 +35,13 @@ class ProfileEditActivity : AppCompatActivity() {
                 val sv = b.root as? android.widget.ScrollView
                 if (sv != null) {
                     fastScrolled = true
-                    sv.fullScroll(if (kc == android.view.KeyEvent.KEYCODE_DPAD_UP) View.FOCUS_UP else View.FOCUS_DOWN)
+                    // Move focus to the target FIRST, then scroll — otherwise the ScrollView keeps the still-
+                    // focused view (e.g. Save) on screen and snaps straight back to it.
+                    if (kc == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+                        b.profileName.requestFocus(); sv.post { sv.smoothScrollTo(0, 0) }
+                    } else {
+                        b.saveBtn.requestFocus(); sv.post { sv.fullScroll(View.FOCUS_DOWN) }
+                    }
                     return true
                 }
             }

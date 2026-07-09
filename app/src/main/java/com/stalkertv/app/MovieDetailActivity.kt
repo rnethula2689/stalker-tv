@@ -239,7 +239,6 @@ class MovieDetailActivity : AppCompatActivity() {
             val omTitle = d.title.ifBlank { title }
             val omYear = d.releaseDate.take(4).ifBlank { year }
             val om = if (BuildConfig.OMDB_KEY.isNotBlank()) Omdb.ratings(BuildConfig.OMDB_KEY, omTitle, omYear) else null
-            android.util.Log.i("OMDBDBG", "t='$omTitle' y='$omYear' omdbKeyLen=${BuildConfig.OMDB_KEY.length} tmdbKeyLen=${BuildConfig.TMDB_KEY.length} -> imdb=${om?.imdb} rt=${om?.rottenTomatoes} mc=${om?.metacritic}")
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 if (d.title.isNotBlank()) b.title.text = d.title
