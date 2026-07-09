@@ -21,6 +21,27 @@ class ProfileEditActivity : AppCompatActivity() {
     private var pendingCameraPath: String? = null
     private val liveBoxes = ArrayList<CheckBox>()
     private val vodBoxes = ArrayList<CheckBox>()
+    private var fastScrolled = false
+
+    /** Hold Up/Down ~1.5s to jump to the top (name + Select-all) / bottom (Save) of the long editor,
+     *  so you don't have to D-pad through every category checkbox to reach those controls. */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        val kc = event.keyCode
+        if (kc == android.view.KeyEvent.KEYCODE_DPAD_UP || kc == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+            if (event.action == android.view.KeyEvent.ACTION_UP) fastScrolled = false
+            else if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount > 0 && !fastScrolled &&
+                (event.eventTime - event.downTime) >= 1500L
+            ) {
+                val sv = b.root as? android.widget.ScrollView
+                if (sv != null) {
+                    fastScrolled = true
+                    sv.fullScroll(if (kc == android.view.KeyEvent.KEYCODE_DPAD_UP) View.FOCUS_UP else View.FOCUS_DOWN)
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
 
     private fun toast(m: String) = android.widget.Toast.makeText(this, m, android.widget.Toast.LENGTH_SHORT).show()
 
