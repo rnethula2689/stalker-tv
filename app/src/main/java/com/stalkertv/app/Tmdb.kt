@@ -121,6 +121,26 @@ object Tmdb {
         )
     }
 
+    /** TMDb id of a TV series (used to fetch per-season episode stills). */
+    fun tvIdFor(apiKey: String, title: String, year: String): Int? = try {
+        searchId(apiKey, "tv", title, year) ?: (if (year.isNotBlank()) searchId(apiKey, "tv", title, "") else null)
+    } catch (_: Exception) { null }
+
+    /** Real per-episode stills for one season, keyed by episode number (w300). Empty on any failure. */
+    fun seasonStills(apiKey: String, tvId: Int, seasonNumber: Int): Map<Int, String> {
+        return try {
+            val js = JSONObject(httpGet("https://api.themoviedb.org/3/tv/$tvId/season/$seasonNumber?api_key=$apiKey"))
+            val eps = js.optJSONArray("episodes") ?: return emptyMap()
+            val out = HashMap<Int, String>()
+            for (i in 0 until eps.length()) {
+                val e = eps.optJSONObject(i) ?: continue
+                val p = e.optString("still_path")
+                if (p.isNotBlank() && p != "null") out[e.optInt("episode_number")] = "https://image.tmdb.org/t/p/w300$p"
+            }
+            out
+        } catch (_: Exception) { emptyMap() }
+    }
+
     /** Returns a YouTube video id for the best trailer, or null (no key / no match / network error). */
     fun trailerYoutubeId(apiKey: String, title: String, year: String): String? {
         if (apiKey.isBlank() || title.isBlank()) return null

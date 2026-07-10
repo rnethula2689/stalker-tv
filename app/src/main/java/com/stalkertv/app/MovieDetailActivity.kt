@@ -173,6 +173,7 @@ class MovieDetailActivity : AppCompatActivity() {
 
     private fun buildEpisodes(eps: List<Portal.Episode>, s: Portal.Season) {
         val dp = resources.displayMetrics.density
+        val thumbs = ArrayList<ImageView>() // aligned with eps; TMDb stills may replace these async
         for (e in eps) {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -194,6 +195,7 @@ class MovieDetailActivity : AppCompatActivity() {
                 val epShot = e.screenshot.ifBlank { poster } // real per-episode still when the portal has one
                 if (epShot.isNotBlank()) load(epShot)
             }
+            thumbs.add(thumb)
             val badge = TextView(this).apply {
                 text = "📥"; textSize = 13f
                 setPadding((6 * dp).toInt(), (2 * dp).toInt(), (6 * dp).toInt(), (2 * dp).toInt())
@@ -212,6 +214,34 @@ class MovieDetailActivity : AppCompatActivity() {
             card.setOnClickListener { playEpisode(s, e) }
             card.setOnLongClickListener { episodeMenu(s, e); true } // OK-hold on TV → Play / Download
             b.episodesRow.addView(card)
+        }
+        maybeLoadTmdbStills(eps, s, thumbs)
+    }
+
+    private var tmdbTvId = 0 // cached TMDb series id (resolved once, reused across seasons)
+
+    /** Some providers repeat ONE series-level image in screenshot_uri for every episode (all cards
+     *  look identical). When that happens, swap in the real per-episode stills from TMDb — the same
+     *  source Strimix shows. Portal stills that genuinely differ per episode are left untouched. */
+    private fun maybeLoadTmdbStills(eps: List<Portal.Episode>, s: Portal.Season, thumbs: List<ImageView>) {
+        if (eps.isEmpty() || eps.map { it.screenshot }.distinct().size > 1) return // portal stills are real
+        val key = BuildConfig.TMDB_KEY
+        if (key.isBlank()) return
+        val seasonNum = Regex("\\d+").find(s.name)?.value?.toIntOrNull() ?: return
+        io.execute {
+            val id = tmdbTvId.takeIf { it > 0 }
+                ?: Tmdb.tvIdFor(key, title, year)?.also { tmdbTvId = it }
+                ?: return@execute
+            val stills = Tmdb.seasonStills(key, id, seasonNum)
+            if (stills.isEmpty()) return@execute
+            runOnUiThread {
+                if (isFinishing || curSeason?.id != s.id) return@runOnUiThread
+                thumbs.forEachIndexed { i, iv ->
+                    // Episode number from the name ("Episode 3. …" → 3), falling back to list order.
+                    val epNum = Regex("\\d+").find(eps[i].name)?.value?.toIntOrNull() ?: (i + 1)
+                    stills[epNum]?.let { iv.load(it) }
+                }
+            }
         }
     }
 
