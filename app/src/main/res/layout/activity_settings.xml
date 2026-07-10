@@ -95,6 +95,16 @@
             android:text="ℹ️   About" />
 
         <TextView
+            android:id="@+id/rowRestart"
+            style="@style/SettingsRow"
+            android:text="🔄   Restart app" />
+
+        <TextView
+            android:id="@+id/rowFactory"
+            style="@style/SettingsRow"
+            android:text="🧹   Restore factory defaults" />
+
+        <TextView
             android:id="@+id/rowExit"
             style="@style/SettingsRow"
             android:text="✖   Exit" />

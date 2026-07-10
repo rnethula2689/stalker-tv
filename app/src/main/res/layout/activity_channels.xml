@@ -249,7 +249,7 @@
             android:orientation="vertical" android:gravity="center" android:layout_marginHorizontal="3dp"
             android:paddingHorizontal="12dp" android:paddingVertical="8dp" android:focusable="true" android:clickable="true"
             android:background="@drawable/item_bg">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⬇" android:textSize="20sp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📥" android:textSize="20sp" />
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Downloads" android:textSize="9sp" android:textColor="#9fb0c0" android:layout_marginTop="2dp" />
         </LinearLayout>
     </LinearLayout>
@@ -285,7 +285,7 @@
             </HorizontalScrollView>
 
             <LinearLayout
-                android:layout_width="320dp"
+                android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:layout_margin="14dp"

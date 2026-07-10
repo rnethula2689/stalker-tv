@@ -107,7 +107,7 @@ grid. Select a pane to make it the active audio/full screen.
   3. Select a title to open its DETAILS screen — backdrop, poster, genre,
      ratings (IMDb plus Rotten Tomatoes 🍅 where available), runtime, full
      overview, a Trailers rail and a Cast rail, with Play plus icon buttons
-     for Favourite (★, turns gold when on), Watch later (＋) and Download (⬇).
+     for Favourite (★, turns gold when on), Watch later (＋) and Download (📥).
   4. For a SERIES, the details screen shows a Season selector and an episode
      list — pick an episode to play it.
   The screen adapts to portrait or landscape automatically.
@@ -203,7 +203,13 @@ Open Settings from Home (gear icon, or MENU on a remote).
   - Sync & Backup: back up your Favourites / Watch Later / Continue Watching
     to a file, restore from one, or delete the backup file.
   - Troubleshooting: a diagnostics screen (see 20).
-  - About / Exit.
+  - About.
+  - Restart app: fully closes and relaunches the app (a quick fix for
+    glitches without reaching for the Fire TV settings).
+  - Restore factory defaults: wipes EVERYTHING — portal settings, profiles,
+    favourites, downloads and caches — so the app starts like a brand-new
+    install. Asks for confirmation first; this cannot be undone.
+  - Exit.
 
 
 19. REMOTE CONTROL — MAP YOUR KEYS

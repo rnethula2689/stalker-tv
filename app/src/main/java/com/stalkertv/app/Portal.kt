@@ -614,7 +614,13 @@ object Portal {
             } catch (e: Exception) {
                 lastError = e.message ?: "connection error"
             }
-            if (attempt < 2) Thread.sleep(800)
+            // Back-off between retries. If the worker thread is interrupted mid-sleep (the activity
+            // tore down / the user navigated away), abort cleanly instead of letting the
+            // InterruptedException escape as an uncaught java.lang.Error that crashes the whole app.
+            if (attempt < 2) {
+                try { Thread.sleep(800) }
+                catch (ie: InterruptedException) { Thread.currentThread().interrupt(); return null }
+            }
         }
         return null
     }

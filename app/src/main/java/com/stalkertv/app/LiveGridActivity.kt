@@ -37,6 +37,7 @@ class LiveGridActivity : AppCompatActivity() {
     private var currentUrl: String? = null
     private var currentUrlId: String? = null
     private var pendingPreview: Runnable? = null
+    private var previewRetries = 0 // caps auto-retry of a failed preview stream (see mp event listener)
     private var seq = 0
     private var attached = false
 
@@ -62,8 +63,20 @@ class LiveGridActivity : AppCompatActivity() {
         val vlc = LibVLC(this, arrayListOf("--network-caching=${Configs.netCachingMs(this)}", "--http-reconnect", "--no-drop-late-frames", "--no-skip-frames"))
         libVlc = vlc
         mp = MediaPlayer(vlc).apply { // attached to the surface in onStart (re-attached on return from fullscreen)
-            // Re-apply mute/volume once audio output exists (libVLC ignores setVolume before then).
-            setEventListener { ev -> if (ev.type == MediaPlayer.Event.Playing) runOnUiThread { applyPreviewMute() } }
+            setEventListener { ev ->
+                when (ev.type) {
+                    // Re-apply mute/volume once audio output exists (libVLC ignores setVolume before then).
+                    MediaPlayer.Event.Playing -> { previewRetries = 0; runOnUiThread { applyPreviewMute() } }
+                    // A transient stream failure (the portal is still freeing the old slot after a
+                    // fullscreen / timeshift session) used to leave the preview stuck black forever.
+                    // Retry the current channel once or twice instead of going dark. Deferred off the
+                    // callback so we never stop/start the player from inside its own event.
+                    MediaPlayer.Event.EncounteredError -> ui.post {
+                        if (previewRetries < 2) { previewRetries++; current?.let { loadPreview(it) } }
+                    }
+                    else -> {}
+                }
+            }
         }
 
         adapter = ChannelGridAdapter(
@@ -114,6 +127,7 @@ class LiveGridActivity : AppCompatActivity() {
     private fun select(ch: Portal.Channel) {
         if (current?.id == ch.id) return // already previewing this channel (e.g. redundant focus event)
         current = ch
+        previewRetries = 0 // fresh channel → allow its own retry budget
         mp?.stop() // release the previous stream immediately (portals often cap concurrent streams)
         pendingPreview?.let { ui.removeCallbacks(it) }
         val r = Runnable { loadPreview(ch) }
@@ -147,7 +161,10 @@ class LiveGridActivity : AppCompatActivity() {
         val player = mp ?: return
         player.stop()
         val media = Media(vlc, Uri.parse(url))
-        media.setHWDecoderEnabled(Configs.hwDecode(this), false)
+        // Force SOFTWARE decode for the small preview pane. The box has a single hardware video decoder;
+        // letting the tiny preview grab it too made it compete with the fullscreen player and, on low-end
+        // MediaTek sticks, segfault the decoder (MtkOmxVdecDecod). The preview is small, so SW decode is cheap.
+        media.setHWDecoderEnabled(false, false)
         media.addOption(":network-caching=${Configs.netCachingMs(this)}")
         media.addOption(":http-user-agent=" + Portal.UA)
         media.addOption(":http-reconnect")

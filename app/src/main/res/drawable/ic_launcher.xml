@@ -9,6 +9,4 @@
     <path android:strokeColor="#19c37d" android:strokeWidth="14"
         android:strokeLineCap="round" android:strokeLineJoin="round"
         android:pathData="M30,32 L54,78 L78,32" />
-    <!-- accent dot -->
-    <path android:fillColor="#4f8cff" android:pathData="M54,90 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
 </vector>

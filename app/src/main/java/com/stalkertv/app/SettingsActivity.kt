@@ -37,9 +37,50 @@ class SettingsActivity : AppCompatActivity() {
         b.rowDiag.setOnClickListener { startActivity(Intent(this, DiagnosticsActivity::class.java)) }
         b.rowHelp.setOnClickListener { startActivity(Intent(this, HelpActivity::class.java)) }
         b.rowAbout.setOnClickListener { About.show(this) }
+        b.rowRestart.setOnClickListener { restartApp() }
+        b.rowFactory.setOnClickListener { confirmFactoryReset() }
         b.rowExit.setOnClickListener { finishAffinity() }
 
         b.rowProviders.requestFocus()
+    }
+
+    /** Full cold restart: schedule the home screen to relaunch in ~½s, then kill this process.
+     *  (Just startActivity + exit races the launch; the alarm survives the process death.) */
+    private fun restartApp() {
+        val i = Intent(this, ChannelsActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        val pi = android.app.PendingIntent.getActivity(
+            this, 0, i,
+            android.app.PendingIntent.FLAG_CANCEL_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        val am = getSystemService(ALARM_SERVICE) as android.app.AlarmManager
+        am.set(android.app.AlarmManager.RTC, System.currentTimeMillis() + 500, pi)
+        finishAffinity()
+        Runtime.getRuntime().exit(0)
+    }
+
+    /** Wipe ALL app data (prefs, profiles, portal settings, caches, downloads, databases) — a true
+     *  "like a fresh install" reset. clearApplicationUserData() is atomic and kills the app itself. */
+    private fun confirmFactoryReset() {
+        AlertDialog.Builder(this)
+            .setTitle("🧹  Restore factory defaults?")
+            .setMessage(
+                "This wipes EVERYTHING and cannot be undone:\n\n" +
+                "• Portal / provider settings\n" +
+                "• Profiles and parental PIN\n" +
+                "• Favourites, Watch Later, Continue Watching\n" +
+                "• Downloads and all cached data\n\n" +
+                "The app will close. When you reopen it, it starts like a brand-new install."
+            )
+            .setPositiveButton("Wipe everything") { _, _ ->
+                val ok = try {
+                    (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager).clearApplicationUserData()
+                } catch (_: Exception) { false }
+                if (!ok) toast("Couldn't reset — please clear the app's data from Android Settings.")
+                // On success Android wipes all data and kills the process — nothing more to do here.
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun toast(m: String) = android.widget.Toast.makeText(this, m, android.widget.Toast.LENGTH_SHORT).show()

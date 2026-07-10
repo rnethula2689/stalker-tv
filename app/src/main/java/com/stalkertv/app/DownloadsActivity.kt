@@ -82,7 +82,7 @@ class DownloadsActivity : AppCompatActivity(), Downloads.Listener {
 
     private fun refresh() {
         val items = Downloads.list(this)
-        b.title.text = if (items.isEmpty()) "⬇  Downloads" else "⬇  Downloads  (${items.size})"
+        b.title.text = if (items.isEmpty()) "📥  Downloads" else "📥  Downloads  (${items.size})"
         b.empty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
         b.removeAllBtn.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
         adapter.submit(items)

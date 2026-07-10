@@ -118,7 +118,8 @@ class ChannelsActivity : AppCompatActivity() {
         b.profileBtn.setOnClickListener { showProfilePicker() }
         b.profileBtn.setOnFocusChangeListener { v, f -> val s = if (f) 1.18f else 1f; v.animate().scaleX(s).scaleY(s).setDuration(120).start() }
 
-        b.liveCatList.layoutManager = LinearLayoutManager(this)
+        // Same multi-column chip grid as the Movies/VOD folders (was a single tall column).
+        b.liveCatList.layoutManager = androidx.recyclerview.widget.GridLayoutManager(this, chipCols)
         b.liveCatList.adapter = liveCatAdapter
 
         // Floating bottom tab bar (home only).
@@ -501,7 +502,7 @@ class ChannelsActivity : AppCompatActivity() {
             Page(
                 "Vibe TV",
                 listOf(
-                    Row("⬇   Downloads (offline)", null) { startActivity(Intent(this, DownloadsActivity::class.java)) },
+                    Row("📥   Downloads (offline)", null) { startActivity(Intent(this, DownloadsActivity::class.java)) },
                     Row("🔄   Retry connection", null) { connectAndLoad(true) }
                 ),
                 kind = SearchKind.LOCAL
@@ -859,12 +860,12 @@ class ChannelsActivity : AppCompatActivity() {
             val added = WatchLater.add(applicationContext, kind, id, title, poster ?: "", source)
             android.widget.Toast.makeText(this, if (added) "Added to Watch Later" else "Already in Watch Later", android.widget.Toast.LENGTH_SHORT).show()
         }
-        labels.add("⬇  Download for offline"); acts.add {
+        labels.add("📥  Download for offline"); acts.add {
             if (Downloads.has(applicationContext, id)) {
                 android.widget.Toast.makeText(this, "Already saved (or downloading). See Downloads.", android.widget.Toast.LENGTH_SHORT).show()
             } else {
                 Downloads.enqueue(applicationContext, id, title, poster ?: "", source)
-                android.widget.Toast.makeText(this, "Download started — see ⬇ Downloads.", android.widget.Toast.LENGTH_LONG).show()
+                android.widget.Toast.makeText(this, "Download started — see 📥 Downloads.", android.widget.Toast.LENGTH_LONG).show()
             }
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
@@ -1157,19 +1158,19 @@ class ChannelsActivity : AppCompatActivity() {
         // Only the categories/channels this profile is allowed to see.
         val visChannels = allChannels.filter { ContentProfiles.liveCatVisible(this, it.genreId) }
         // Keep the overlay up while the player launches (hidden in onStop) so home doesn't flash through.
-        rows.add(Row("📺  TV Guide — what's on now", null, sortKey = "TV Guide") {
+        rows.add(Row("📺  TV Guide — what's on now", null, sortKey = "TV Guide", chip = true) {
             EpgGuideActivity.channels = visChannels
             startActivity(Intent(this, EpgGuideActivity::class.java))
         })
         if (favChannels.isNotEmpty())
-            rows.add(Row("⭐  Favourites  (${favChannels.size})", null, sortKey = "Favourites") { openLiveGrid(favChannels, "Favourites") })
-        rows.add(Row("All Channels  (${visChannels.size})", null, sortKey = "All Channels") { openLiveGrid(visChannels, "All Channels") })
+            rows.add(Row("⭐  Favourites  (${favChannels.size})", null, sortKey = "Favourites", chip = true) { openLiveGrid(favChannels, "Favourites") })
+        rows.add(Row("All Channels  (${visChannels.size})", null, sortKey = "All Channels", chip = true) { openLiveGrid(visChannels, "All Channels") })
         for (g in genres) {
             if (!ContentProfiles.liveCatVisible(this, g.id)) continue
             val list = byGenre[g.id] ?: emptyList()
             if (list.isEmpty() && !g.censored) continue
             val label = (if (g.censored) "🔒  " else "") + g.title + (if (list.isNotEmpty()) "  (${list.size})" else "")
-            rows.add(Row(label, null, sortKey = g.title) { openGenre(g) })
+            rows.add(Row(label, null, sortKey = g.title, chip = true) { openGenre(g) })
         }
         liveCatRows = rows
         liveCatAdapter.submit(rows)
@@ -1393,8 +1394,8 @@ class ChannelsActivity : AppCompatActivity() {
         val favChannels = allChannels.filter { favs.contains(it.id) }
         val visChannels = allChannels.filter { ContentProfiles.liveCatVisible(this, it.genreId) }
         if (favChannels.isNotEmpty())
-            rows.add(Row("⭐  Favourites  (${favChannels.size})", null, sortKey = "Favourites") { showLiveFavRoot() })
-        rows.add(Row("All Channels  (${visChannels.size})", null, sortKey = "All Channels") { openLiveGrid(visChannels, "All Channels") })
+            rows.add(Row("⭐  Favourites  (${favChannels.size})", null, sortKey = "Favourites", chip = true) { showLiveFavRoot() })
+        rows.add(Row("All Channels  (${visChannels.size})", null, sortKey = "All Channels", chip = true) { openLiveGrid(visChannels, "All Channels") })
         for (g in genres) {
             if (!ContentProfiles.liveCatVisible(this, g.id)) continue
             val list = byGenre[g.id] ?: emptyList()
@@ -1402,7 +1403,7 @@ class ChannelsActivity : AppCompatActivity() {
             // empty here — show them anyway (locked) and load their channels on demand.
             if (list.isEmpty() && !g.censored) continue
             val label = (if (g.censored) "🔒  " else "") + g.title + (if (list.isNotEmpty()) "  (${list.size})" else "")
-            rows.add(Row(label, null, sortKey = g.title) { openGenre(g) })
+            rows.add(Row(label, null, sortKey = g.title, chip = true) { openGenre(g) })
         }
         push(Page("Live TV", rows, kind = SearchKind.CHANNELS, scopeChannels = visChannels, rebuild = { showLiveGenres() }))
     }

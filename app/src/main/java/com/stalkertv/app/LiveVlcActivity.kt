@@ -407,7 +407,7 @@ class LiveVlcActivity : AppCompatActivity() {
                     android.widget.Toast.makeText(this, "Timeshift unavailable right now", android.widget.Toast.LENGTH_SHORT).show()
                     returnToLive(); return@runOnUiThread
                 }
-                play(u)
+                freshPlay(u)
             }
         }
     }
@@ -432,7 +432,7 @@ class LiveVlcActivity : AppCompatActivity() {
             val u = Portal.createLink(ch.cmd)
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
-                if (!u.isNullOrEmpty()) { liveUrl = u; play(u) } else b.status.text = "Couldn't return to live"
+                if (!u.isNullOrEmpty()) { liveUrl = u; freshPlay(u) } else b.status.text = "Couldn't return to live"
             }
         }
     }
@@ -564,6 +564,22 @@ class LiveVlcActivity : AppCompatActivity() {
         player.media = media
         media.release()
         player.play()
+    }
+
+    /**
+     * Switch to a new stream with a *fresh* decoder. Reusing the same MediaPlayer across a stream
+     * change (play()'s stop + new media) can segfault the hardware video decoder on low-end MediaTek
+     * boxes (MtkOmxVdecDecod SIGSEGV → whole-app crash-loop), which is what killed the app during
+     * live↔timeshift transitions and channel surfing. Tearing the player fully down and rebuilding it
+     * guarantees the old OMX decode session is released before the new one starts.
+     * MUST be called on the UI thread and never from inside a VLC event callback.
+     */
+    private fun freshPlay(url: String) {
+        val vlc = libVlc ?: return
+        try { mp?.let { it.stop(); if (vlcAttached) it.detachViews(); it.release() } } catch (_: Exception) {}
+        vlcAttached = false
+        buildVlcPlayer(vlc)
+        play(url)
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -849,7 +865,7 @@ class LiveVlcActivity : AppCompatActivity() {
                 runOnUiThread {
                     autoRetrying = false
                     if (isFinishing) return@runOnUiThread
-                    if (!u.isNullOrEmpty()) { liveUrl = u; play(u) }
+                    if (!u.isNullOrEmpty()) { liveUrl = u; freshPlay(u) }
                     else if (retryCount < maxRetry) autoRetry()
                     else showPlayFailed()
                 }
@@ -907,7 +923,7 @@ class LiveVlcActivity : AppCompatActivity() {
                 if (isFinishing || channels.getOrNull(chIndex)?.id != ch.id) return@runOnUiThread
                 if (u.isNullOrEmpty()) { b.status.text = "No stream for ${ch.name}"; return@runOnUiThread }
                 liveUrl = u
-                try { play(u) } catch (e: Exception) { showPlayFailed() }
+                try { freshPlay(u) } catch (e: Exception) { showPlayFailed() }
                 loadNowNext(ch)
             }
         }
