@@ -542,7 +542,7 @@ class PlayerActivity : AppCompatActivity() {
                     Toast.makeText(this, "No subtitles found for “$q”.", Toast.LENGTH_SHORT).show()
                     return@runOnUiThread
                 }
-                val names = results.map { it.name }.toTypedArray()
+                val names = results.map { it.label }.toTypedArray()
                 AlertDialog.Builder(this)
                     .setTitle("English subtitles (${results.size})")
                     .setItems(names) { _, which -> applySubtitle(results[which]) }

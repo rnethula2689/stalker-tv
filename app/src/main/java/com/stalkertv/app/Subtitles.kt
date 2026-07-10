@@ -23,7 +23,16 @@ object Subtitles {
     var apiKey: String = "zVrOLC9GryTV5tAGMblRZbBiTQlmarLH"
 
     // legacyUrl used for the keyless endpoint; fileId used for the official API.
-    data class Sub(val name: String, val legacyUrl: String, val fileId: String)
+    data class Sub(val name: String, val legacyUrl: String, val fileId: String, val downloads: Int = -1) {
+        /** Picker label: subtitle name + how often it's been downloaded (a quality signal, à la Strimix). */
+        val label: String get() = if (downloads >= 0) "$name   (⬇ ${fmtCount(downloads)})" else name
+    }
+
+    private fun fmtCount(n: Int): String = when {
+        n >= 1_000_000 -> String.format("%.1fM", n / 1_000_000f)
+        n >= 1_000 -> String.format("%.1fK", n / 1_000f)
+        else -> n.toString()
+    }
 
     /** Plain English subtitle search by title. No year/relevance filtering — those were removing
      *  legitimate results; show whatever OpenSubtitles returns. [year] is accepted but ignored. */
@@ -54,7 +63,7 @@ object Subtitles {
                     val name = attr.optString("release").ifBlank {
                         attr.optJSONObject("feature_details")?.optString("title") ?: "English subtitle"
                     }
-                    out.add(Sub(name, "", fileId))
+                    out.add(Sub(name, "", fileId, attr.optInt("download_count", -1)))
                     if (out.size >= 25) break
                 }
             }
@@ -99,7 +108,8 @@ object Subtitles {
                     if (!o.optString("SubFormat").equals("srt", true)) continue
                     val name = o.optString("SubFileName")
                     val dl = o.optString("SubDownloadLink")
-                    if (name.isNotBlank() && dl.isNotBlank()) out.add(Sub(name, dl, ""))
+                    val cnt = o.optString("SubDownloadsCnt").toIntOrNull() ?: -1
+                    if (name.isNotBlank() && dl.isNotBlank()) out.add(Sub(name, dl, "", cnt))
                     if (out.size >= 25) break
                 }
             }
