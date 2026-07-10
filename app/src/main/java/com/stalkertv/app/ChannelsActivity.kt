@@ -401,7 +401,14 @@ class ChannelsActivity : AppCompatActivity() {
         // Returning from a player/child → rebuild the current screen so counts and
         // Continue-Watching progress are current (all in-memory; no portal reconnect).
         val top = backStack.lastOrNull()
-        if (top?.rebuild != null) { backStack.removeLast(); top.rebuild!!.invoke() }
+        if (top?.rebuild != null) {
+            // EXCEPT a movie folder: its items are already in memory (vodBase) and the grid is still
+            // on screen exactly as the user left it. Rebuilding would refetch the ENTIRE category
+            // from the portal (a 1700-title folder blanked out + reloaded for ~30s on every return
+            // from a movie/series detail). Nothing in a folder grid needs refreshing — just resume.
+            if (top.kind == SearchKind.VOD_CATEGORY && vodCatRef?.id == top.scopeId) return
+            backStack.removeLast(); top.rebuild!!.invoke()
+        }
     }
 
     override fun onStop() {
@@ -693,6 +700,9 @@ class ChannelsActivity : AppCompatActivity() {
             return
         }
         if (backStack.size > 1) {
+            // Leaving a movie folder cancels its in-flight all-pages load (see the stale-guard in
+            // loadVodAll) — otherwise it keeps fetching for minutes and can clobber the next screen.
+            if (cur?.kind == SearchKind.VOD_CATEGORY) vodLoadSeq++
             backStack.removeLast()
             val prev = backStack.last()
             // Rebuild the screen we're returning to (refreshes favourite counts on TV, no pull needed).
@@ -1767,7 +1777,12 @@ class ChannelsActivity : AppCompatActivity() {
             // Fetch pages 2..N concurrently; cap as a runaway guard.
             val last = pages.coerceAtMost(1000)
             val futures = (2..last).map { p ->
-                pageIo.submit(java.util.concurrent.Callable { Portal.vodList(cat.id, p, "added").first })
+                pageIo.submit(java.util.concurrent.Callable {
+                    // Superseded (user left the folder / a new load started)? Skip the network call so
+                    // the stale queued pages drain instantly instead of hogging the pool + the portal's
+                    // connections for minutes — that contention is what froze the UI and starved posters.
+                    if (seq != vodLoadSeq) emptyList() else Portal.vodList(cat.id, p, "added").first
+                })
             }
             val rest = ArrayList<Portal.VodItem>()
             for (f in futures) {
