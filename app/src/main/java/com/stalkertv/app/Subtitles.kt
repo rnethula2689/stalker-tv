@@ -25,30 +25,38 @@ object Subtitles {
     // legacyUrl used for the keyless endpoint; fileId used for the official API.
     data class Sub(val name: String, val legacyUrl: String, val fileId: String, val downloads: Int = -1) {
         /** Picker label: subtitle name + how often it's been downloaded (a quality signal, à la Strimix). */
-        val label: String get() = if (downloads >= 0) "$name   (⬇ ${fmtCount(downloads)})" else name
+        val label: String get() = if (downloads >= 0) "$name  •  $downloads downloads" else name
     }
 
-    private fun fmtCount(n: Int): String = when {
-        n >= 1_000_000 -> String.format("%.1fM", n / 1_000_000f)
-        n >= 1_000 -> String.format("%.1fK", n / 1_000f)
-        else -> n.toString()
-    }
+    /** A selectable subtitle language: display label + ISO codes for the API (2-letter) and the
+     *  legacy endpoint (3-letter). */
+    data class Lang(val label: String, val api2: String, val legacy3: String)
+    val LANGS = listOf(
+        Lang("English", "en", "eng"), Lang("Spanish", "es", "spa"), Lang("French", "fr", "fre"),
+        Lang("German", "de", "ger"), Lang("Italian", "it", "ita"), Lang("Portuguese", "pt", "por"),
+        Lang("Hindi", "hi", "hin"), Lang("Tamil", "ta", "tam"), Lang("Telugu", "te", "tel"),
+        Lang("Malayalam", "ml", "mal"), Lang("Kannada", "kn", "kan"), Lang("Bengali", "bn", "ben"),
+        Lang("Marathi", "mr", "mar"), Lang("Urdu", "ur", "urd"), Lang("Arabic", "ar", "ara"),
+        Lang("Russian", "ru", "rus"), Lang("Chinese", "zh", "chi"), Lang("Japanese", "ja", "jpn"),
+        Lang("Korean", "ko", "kor"), Lang("Turkish", "tr", "tur"), Lang("Dutch", "nl", "dut"),
+        Lang("Polish", "pl", "pol")
+    )
 
-    /** Plain English subtitle search by title. No year/relevance filtering — those were removing
+    /** Plain subtitle search by title in [lang]. No year/relevance filtering — those were removing
      *  legitimate results; show whatever OpenSubtitles returns. [year] is accepted but ignored. */
-    fun search(query: String, year: String = ""): List<Sub> =
-        if (apiKey.isNotBlank()) searchApi(query) else searchLegacy(query)
+    fun search(query: String, year: String = "", lang: Lang = LANGS[0]): List<Sub> =
+        if (apiKey.isNotBlank()) searchApi(query, lang.api2) else searchLegacy(query, lang.legacy3)
 
     fun download(sub: Sub, dest: File): Boolean =
         if (sub.fileId.isNotBlank()) downloadApi(sub.fileId, dest) else downloadLegacy(sub.legacyUrl, dest)
 
     // ---- Official api.opensubtitles.com ----
-    private fun searchApi(query: String): List<Sub> {
+    private fun searchApi(query: String, lang2: String = "en"): List<Sub> {
         val out = ArrayList<Sub>()
         try {
             val q = URLEncoder.encode(query, "UTF-8")
             val req = Request.Builder()
-                .url("https://api.opensubtitles.com/api/v1/subtitles?languages=en&order_by=download_count&query=$q")
+                .url("https://api.opensubtitles.com/api/v1/subtitles?languages=$lang2&order_by=download_count&query=$q")
                 .header("Api-Key", apiKey)
                 .header("User-Agent", APP_UA)
                 .header("Accept", "application/json")
@@ -94,12 +102,12 @@ object Subtitles {
     }
 
     // ---- Keyless legacy fallback (rest.opensubtitles.org) ----
-    private fun searchLegacy(query: String): List<Sub> {
+    private fun searchLegacy(query: String, lang3: String = "eng"): List<Sub> {
         val out = ArrayList<Sub>()
         try {
             val q = URLEncoder.encode(query, "UTF-8")
             val req = Request.Builder()
-                .url("https://rest.opensubtitles.org/search/query-$q/sublanguageid-eng")
+                .url("https://rest.opensubtitles.org/search/query-$q/sublanguageid-$lang3")
                 .header("User-Agent", "TemporaryUserAgent").build()
             client.newCall(req).execute().use { r ->
                 val arr = org.json.JSONArray(r.body?.string() ?: return out)

@@ -155,10 +155,11 @@ devices, which have no Google services.)
 
 16. SUBTITLES
 -------------
-  - In the movie player menu, choose Subtitles to search for and load
-    subtitles for the current title. The search is matched to the movie's
-    RELEASE YEAR, so you get results for the right film — not other movies
-    that happen to share the same name.
+  - In the movie player menu, choose Subtitles to open the subtitle search:
+    the movie's title is pre-filled (edit it if needed), pick a LANGUAGE from
+    the dropdown (remembered for next time), and press Search. Each result
+    shows its DOWNLOAD COUNT — higher usually means better quality/sync.
+    Tap a result to apply it.
   - Once you pick a subtitle it is REMEMBERED for that movie: resuming it later
     (or switching player) re-loads the same subtitle automatically, with no new
     search or download. Clear them anytime via Settings > Subtitles > Clear

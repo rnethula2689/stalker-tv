@@ -798,23 +798,7 @@ class LiveVlcActivity : AppCompatActivity() {
         Configs.ossKey(this).let { if (it.isNotBlank()) Subtitles.apiKey = it }
         val q = searchQuery()
         if (q.isEmpty()) return
-        val label = if (movieYear.isNotBlank()) "$q ($movieYear)" else q
-        android.widget.Toast.makeText(this, "Searching English subtitles for “$label”…", android.widget.Toast.LENGTH_SHORT).show()
-        io.execute {
-            val results = Subtitles.search(q, movieYear)
-            runOnUiThread {
-                if (results.isEmpty()) {
-                    android.widget.Toast.makeText(this, "No subtitles found for “$q”.", android.widget.Toast.LENGTH_SHORT).show()
-                    return@runOnUiThread
-                }
-                val names = results.map { it.label }.toTypedArray()
-                AlertDialog.Builder(this)
-                    .setTitle("English subtitles (${results.size})")
-                    .setItems(names) { _, which -> applySubtitle(results[which]) }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            }
-        }
+        SubtitleDialog.show(this, q) { applySubtitle(it) }
     }
 
     private fun applySubtitle(sub: Subtitles.Sub) {
