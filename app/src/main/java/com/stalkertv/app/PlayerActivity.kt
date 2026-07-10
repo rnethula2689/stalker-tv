@@ -177,12 +177,26 @@ class PlayerActivity : AppCompatActivity() {
         val p = buildPlayer()
         player = p
         b.playerView.player = p
+        // Subtitle to auto-attach: carried from the VLC engine (Switch player) or saved for this
+        // title. Attached to the FIRST media item — the old "+800ms re-set" raced the initial
+        // buffering and silently lost the subtitle when switching engines on slow/4K streams.
+        val carrySub = intent.getStringExtra("subPath") ?: ""
+        val autoSub = (if (carrySub.isNotEmpty()) File(carrySub) else SubStore.saved(this, subKey()))
+            ?.takeIf { it.exists() && !isLive }
+        val firstItem = if (autoSub != null) {
+            currentSubPath = autoSub.absolutePath
+            MediaItem.Builder().setUri(videoUrl).setSubtitleConfigurations(listOf(srtConfig(autoSub))).build()
+        } else MediaItem.fromUri(videoUrl)
         // Start buffering DIRECTLY at the resume position — prepare()+seekTo() double-buffers
         // (loads at 0, discards it, re-buffers at the resume point) which stutters on open.
-        if (resumeStart > 0 && !isLive) p.setMediaItem(MediaItem.fromUri(videoUrl), resumeStart)
-        else p.setMediaItem(MediaItem.fromUri(videoUrl))
+        if (resumeStart > 0 && !isLive) p.setMediaItem(firstItem, resumeStart)
+        else p.setMediaItem(firstItem)
         p.prepare()
         p.playWhenReady = true
+        // VOD: prefer English text tracks, so a movie's EMBEDDED subtitles show by default — parity
+        // with the VLC player, which auto-selects the embedded English track.
+        if (!isLive) p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setPreferredTextLanguage("en").build()
         applyPlayPrefsAudio()   // restore session mute/volume
 
         if (resumeId.isNotBlank() && !isLive) resumeHandler.postDelayed(resumeSaver, 10_000)
@@ -198,11 +212,6 @@ class PlayerActivity : AppCompatActivity() {
             speedIdx = speeds.indexOfFirst { it == carrySpeed }.let { if (it < 0) 2 else it }
             p.setPlaybackSpeed(speeds[speedIdx]); updateSpeedBtn()
         }
-        // Auto-load the subtitle carried from the other engine, or the one saved for this title.
-        val carrySub = intent.getStringExtra("subPath") ?: ""
-        val autoSub = if (carrySub.isNotEmpty()) File(carrySub) else SubStore.saved(this, subKey())
-        if (autoSub != null && autoSub.exists()) b.playerView.postDelayed({ applySubtitleFile(autoSub, toast = false) }, 800)
-
         // TV: land focus on the seek bar (not Play/Pause) on open so D-pad rewind/forward work at once.
         if (onTv && !isLive) focusSeekBar()
     }
@@ -560,20 +569,21 @@ class PlayerActivity : AppCompatActivity() {
     /** Stable key for remembering a title's chosen subtitle across sessions. */
     private fun subKey() = resumeId.ifBlank { resumeSource }
 
-    /** Attach a local subtitle .srt to the current stream at the current position (reused when a
-     *  subtitle is carried over from the VLC engine). */
+    private fun srtConfig(file: File) = MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(file))
+        .setMimeType(MimeTypes.APPLICATION_SUBRIP)
+        .setLanguage("en")
+        .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+        .build()
+
+    /** Attach a local subtitle .srt to the current stream at the current position (used when the
+     *  user picks a new subtitle from the search dialog mid-playback). */
     private fun applySubtitleFile(file: File, toast: Boolean) {
         if (!file.exists()) return
         val pl = player ?: return
         val pos = pl.currentPosition
-        val subConfig = MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(file))
-            .setMimeType(MimeTypes.APPLICATION_SUBRIP)
-            .setLanguage("en")
-            .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
-            .build()
         val item = MediaItem.Builder()
             .setUri(videoUrl)
-            .setSubtitleConfigurations(listOf(subConfig))
+            .setSubtitleConfigurations(listOf(srtConfig(file)))
             .build()
         pl.setMediaItem(item, pos)
         pl.prepare()
