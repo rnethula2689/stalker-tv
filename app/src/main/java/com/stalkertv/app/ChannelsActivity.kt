@@ -53,8 +53,10 @@ class ChannelsActivity : AppCompatActivity() {
     private var vodLetter: String? = null             // A–Z sub-search applied on top of the filter
     private var vodSortKey = "default"                // default | za | az | year_desc | year_asc | run_asc | run_desc
     private var vodLoadSeq = 0                         // cancels a stale all-pages load when the list changes
-    private val pageIo = Executors.newFixedThreadPool(4) // parallel page fetches; kept modest so poster/still
-    // image downloads (same portal host) aren't starved of connections while a big folder loads all pages
+    private val pageIo = Executors.newFixedThreadPool(2) // parallel page fetches; kept LOW on purpose —
+    // poster/still downloads hit the same portal host, and at 4 threads the page fetches saturated the
+    // portal's per-client connection cap so visible thumbnails stalled until the full load finished.
+    // 2 threads leaves headroom for posters to keep flowing while pages load (slower full load = OK).
     private val vodSortLabels = linkedMapOf(
         "default" to "Newest", "oldest" to "Oldest", "az" to "A–Z", "za" to "Z–A",
         "year_desc" to "Year ↓", "year_asc" to "Year ↑", "run_asc" to "Shortest", "run_desc" to "Longest"
