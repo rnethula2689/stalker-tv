@@ -44,19 +44,15 @@ class SettingsActivity : AppCompatActivity() {
         b.rowProviders.requestFocus()
     }
 
-    /** Full cold restart: schedule the home screen to relaunch in ~½s, then kill this process.
-     *  (Just startActivity + exit races the launch; the alarm survives the process death.) */
+    /** Full cold restart via RestartActivity — a trampoline in its OWN process that outlives this one,
+     *  kills it, and relaunches the app. (An AlarmManager relaunch was silently blocked by Fire OS's
+     *  background-activity-launch restrictions: the app exited but never came back.) */
     private fun restartApp() {
-        val i = Intent(this, ChannelsActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        val pi = android.app.PendingIntent.getActivity(
-            this, 0, i,
-            android.app.PendingIntent.FLAG_CANCEL_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        startActivity(
+            Intent(this, RestartActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                .putExtra("pid", android.os.Process.myPid())
         )
-        val am = getSystemService(ALARM_SERVICE) as android.app.AlarmManager
-        am.set(android.app.AlarmManager.RTC, System.currentTimeMillis() + 500, pi)
-        finishAffinity()
-        Runtime.getRuntime().exit(0)
     }
 
     /** Wipe ALL app data (prefs, profiles, portal settings, caches, downloads, databases) — a true
