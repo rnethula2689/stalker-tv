@@ -851,8 +851,7 @@ class LiveVlcActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun searchQuery(): String =
-        titleText.substringBefore(" / ").substringBefore(" - ").substringBefore(" (").trim()
+    private fun searchQuery(): String = Subtitles.queryFor(titleText)
 
     /** Stable key for remembering a title's chosen subtitle across sessions. */
     private fun subKey() = resumeId.ifBlank { resumeSource }

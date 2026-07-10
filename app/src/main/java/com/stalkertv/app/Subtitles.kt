@@ -47,6 +47,23 @@ object Subtitles {
     fun search(query: String, year: String = "", lang: Lang = LANGS[0]): List<Sub> =
         if (apiKey.isNotBlank()) searchApi(query, lang.api2) else searchLegacy(query, lang.legacy3)
 
+    /** Build the search query from a player title. For series episodes the S/E context is ESSENTIAL:
+     *  "Super Subbu" alone fuzzy-matches junk (Super Troopers…), while "Super Subbu S01E02" hits the
+     *  exact episode releases — this is what Strimix searches too. Season defaults to 1 when the
+     *  portal title only carries an episode number. */
+    fun queryFor(rawTitle: String): String {
+        val base = rawTitle.substringBefore(" / ").substringBefore(" - ").substringBefore(" (").trim()
+        val se = Regex("S(\\d{1,2})\\s*E(\\d{1,3})", RegexOption.IGNORE_CASE).find(rawTitle)
+        val ep = Regex("Episode\\s*(\\d{1,3})", RegexOption.IGNORE_CASE).find(rawTitle)
+        val season = Regex("Season\\s*(\\d{1,2})", RegexOption.IGNORE_CASE).find(rawTitle)
+            ?.groupValues?.get(1)?.toIntOrNull()
+        return when {
+            se != null -> "%s S%02dE%02d".format(base, se.groupValues[1].toInt(), se.groupValues[2].toInt())
+            ep != null -> "%s S%02dE%02d".format(base, season ?: 1, ep.groupValues[1].toInt())
+            else -> base
+        }
+    }
+
     fun download(sub: Sub, dest: File): Boolean =
         if (sub.fileId.isNotBlank()) downloadApi(sub.fileId, dest) else downloadLegacy(sub.legacyUrl, dest)
 

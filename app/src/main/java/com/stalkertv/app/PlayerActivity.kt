@@ -541,9 +541,8 @@ class PlayerActivity : AppCompatActivity() {
         return super.dispatchKeyEvent(event)
     }
 
-    /** Clean the display title into a search query (drop language/category/quality tags). */
-    private fun searchQuery(): String =
-        titleText.substringBefore(" / ").substringBefore(" - ").substringBefore(" (").trim()
+    /** Clean the display title into a search query (drops tags; adds S01E02 for episodes). */
+    private fun searchQuery(): String = Subtitles.queryFor(titleText)
 
     private fun searchSubtitles() {
         val q = searchQuery()
