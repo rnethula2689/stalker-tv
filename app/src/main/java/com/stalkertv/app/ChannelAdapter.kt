@@ -24,6 +24,15 @@ class RowAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         notifyDataSetChanged()
     }
 
+    /** Add rows to the end without rebinding what's shown (keeps scroll + focus — used by the
+     *  progressive folder load, where pages append while the user is already browsing). */
+    fun append(list: List<ChannelsActivity.Row>) {
+        if (list.isEmpty()) return
+        val start = items.size
+        items.addAll(list)
+        notifyItemRangeInserted(start, list.size)
+    }
+
     class VH(val b: ItemChannelBinding) : RecyclerView.ViewHolder(b.root)
     class RailVH(val b: ItemRailBinding) : RecyclerView.ViewHolder(b.root)
     class ChipVH(val b: ItemCatChipBinding) : RecyclerView.ViewHolder(b.root)

@@ -1785,17 +1785,46 @@ class ChannelsActivity : AppCompatActivity() {
                 })
             }
             val rest = ArrayList<Portal.VodItem>()
-            for (f in futures) {
+            // Progressive render: on the plain default view, new titles are APPENDED to the grid as
+            // their pages arrive (~3 pages per batch) so the user can browse (and thumbnails load)
+            // during a big load. Previously the grid held only page 1 until every page was in — on a
+            // 150-page folder that looked like "thumbnails stopped loading" for minutes.
+            val progressive = vodSortKey == "default"
+            var cleanAppend = progressive // false = something changed mid-load → one-shot render at the end
+            var pushed = 0                // rest-items already appended to the visible grid
+            for ((i, f) in futures.withIndex()) {
                 try { rest.addAll(f.get()) } catch (_: Exception) {}
                 val soFar = first.size + rest.size
-                runOnUiThread { if (seq == vodLoadSeq) b.status.text = "Loading… $soFar titles" }
+                val newN = rest.size - pushed
+                val batch = if (progressive && newN > 0 && (newN >= 42 || i == futures.size - 1))
+                    ArrayList(rest.subList(pushed, rest.size)) else null
+                val snapshot = if (batch != null) ArrayList<Portal.VodItem>(first).also { it.addAll(rest) } else null
+                if (batch != null) pushed = rest.size
+                runOnUiThread {
+                    if (seq != vodLoadSeq) return@runOnUiThread
+                    b.status.text = "Loading… $soFar titles"
+                    if (batch != null && cleanAppend) {
+                        // A filter / A–Z / search / sort applied mid-load changes what's on screen —
+                        // stop appending and let the final one-shot render handle it.
+                        if (vodFilterAttr == null && vodLetter == null && b.search.text.isEmpty() && vodSortKey == "default") {
+                            vodBase = snapshot!!
+                            adapter.append(batch.map { vodItemRow(it, poster = true) })
+                        } else cleanAppend = false
+                    }
+                }
             }
             runOnUiThread {
                 if (seq != vodLoadSeq) return@runOnUiThread
                 vodBase = ArrayList<Portal.VodItem>(first).also { it.addAll(rest) }
                 vodLoaded = pages
                 b.status.visibility = View.GONE
-                renderVodItems(0)
+                // Everything already appended in load order → keep the user's scroll/focus and just
+                // finalise the header count. Otherwise (sort/filter/search view) render in one shot.
+                if (cleanAppend && vodFilterAttr == null && vodLetter == null && b.search.text.isEmpty() && vodSortKey == "default") {
+                    val base = (vodCatRef?.title ?: cat.title).substringBefore("  (")
+                    b.title.text = "$base  (${vodBase.size})"
+                    updateVodButtons()
+                } else renderVodItems(0)
                 // Index this fully-loaded folder for instant/offline search (data's already fetched → no extra network).
                 val idxList = ArrayList(vodBase); val ps = cachedSig ?: ""
                 io.execute { VodIndex.add(applicationContext, ps, idxList, cat.id) }
