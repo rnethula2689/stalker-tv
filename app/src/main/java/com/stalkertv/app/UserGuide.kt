@@ -167,6 +167,8 @@ devices, which have no Google services.)
   - In the VLC player, the 💬 button on the top bar picks between the movie's
     built-in subtitle tracks, Off, or an online search. Movies with built-in
     English subtitles show them automatically — same as the Default player.
+  - If a downloaded subtitle appears slightly early or late, use 💬 > Adjust
+    timing to shift it in half-second steps.
   - To use OpenSubtitles, add your free API key in Settings > Subtitles.
 
 

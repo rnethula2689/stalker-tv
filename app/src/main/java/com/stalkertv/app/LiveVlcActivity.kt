@@ -501,6 +501,12 @@ class LiveVlcActivity : AppCompatActivity() {
                 if (isArchive || timeshifting) b.playBtn.text = "⏸"
             }
             MediaPlayer.Event.Paused -> { if (isArchive || timeshifting) b.playBtn.text = "▶" }
+            // Feed the interpolated clock used by the subtitle overlay (mp.time alone lags 1-2s on
+            // Fire's MediaTek decode — "no reference clock" — making subs appear late).
+            MediaPlayer.Event.TimeChanged -> {
+                vlcTimeBase = ev.timeChanged
+                vlcTimeStamp = android.os.SystemClock.uptimeMillis()
+            }
             MediaPlayer.Event.EndReached -> {
                 if (isVod) ui.post { onVodEnded() }
                 else if (isArchive) b.playBtn.text = "▶"
@@ -737,17 +743,48 @@ class LiveVlcActivity : AppCompatActivity() {
 
     // ---- The app's own SRT overlay (external subtitles) ----
     private var srtCues: List<SrtSubs.Cue> = emptyList()
+    private var subSyncMs = 0L    // user timing adjust: positive = show subtitles EARLIER
+    private var vlcTimeBase = 0L  // last TimeChanged position…
+    private var vlcTimeStamp = 0L // …and when it arrived (uptime) — interpolate between sparse events
+
+    /** Playback position for subtitle timing: the last TimeChanged value advanced by wall-clock,
+     *  because polling mp.time lags 1-2s behind the picture on Fire hardware decode. */
+    private fun playerTimeNow(): Long {
+        val p = mp ?: return 0L
+        return try {
+            if (p.isPlaying && vlcTimeStamp > 0)
+                vlcTimeBase + ((android.os.SystemClock.uptimeMillis() - vlcTimeStamp) * p.rate).toLong()
+            else p.time
+        } catch (_: Exception) { 0L }
+    }
+
     private val srtTick = object : Runnable {
         override fun run() {
             if (srtCues.isEmpty()) return
-            val t = try { mp?.time ?: 0L } catch (_: Exception) { 0L }
+            val t = playerTimeNow() + subSyncMs
             val txt = SrtSubs.cueAt(srtCues, t)?.text ?: ""
             if (b.subtitleText.text.toString() != txt) {
                 b.subtitleText.text = txt
                 b.subtitleText.visibility = if (txt.isEmpty()) View.GONE else View.VISIBLE
             }
-            ui.postDelayed(this, 250)
+            ui.postDelayed(this, 200)
         }
+    }
+
+    /** ⏱ fine-tune when overlay subtitles appear (compensates stream/decoder clock drift). */
+    private fun showSubSyncDialog() {
+        val opts = (-8..8).map { it * 500L } // −4s … +4s in ½s steps
+        val labels = opts.map { o ->
+            val base = when {
+                o == 0L -> "On time (default)"
+                o > 0 -> "Show %.1fs earlier".format(o / 1000f)
+                else -> "Show %.1fs later".format(-o / 1000f)
+            }
+            if (o == subSyncMs) "✔   $base" else base
+        }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("⏱  Subtitle timing")
+            .setItems(labels) { _, w -> subSyncMs = opts[w] }
+            .setNegativeButton("Cancel", null).show()
     }
 
     private fun startSrtOverlay(f: java.io.File) {
@@ -796,12 +833,14 @@ class LiveVlcActivity : AppCompatActivity() {
         if (hasDl) names.add((if (overlayOn) "✔   " else "💬   ") + "Downloaded subtitle")
         val trackBase = names.size
         for (t in tracks) names.add((if (t.id == cur) "✔   " else "💬   ") + t.name)
+        val timingIdx = if (overlayOn) { names.add("⏱   Adjust timing"); names.size - 1 } else -1
         names.add("🔍   Search online subtitles…")
         androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Subtitles")
             .setItems(names.toTypedArray()) { _, w ->
                 when {
                     w == 0 -> { subUserOff = true; stopSrtOverlay(); try { p?.setSpuTrack(-1) } catch (_: Exception) {} }
                     hasDl && w == 1 -> { subUserOff = false; startSrtOverlay(java.io.File(vodSubPath)) }
+                    w == timingIdx -> showSubSyncDialog()
                     w == names.size - 1 -> searchSubtitles()
                     else -> { subUserOff = false; stopSrtOverlay(); try { p?.setSpuTrack(tracks[w - trackBase].id) } catch (_: Exception) {} }
                 }
