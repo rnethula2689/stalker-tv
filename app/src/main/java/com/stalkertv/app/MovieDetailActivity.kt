@@ -105,7 +105,11 @@ class MovieDetailActivity : AppCompatActivity() {
     }
 
     private fun playEpisode(s: Portal.Season, e: Portal.Episode) {
-        startPlayerWith("$title — ${e.name}", "ep_${vodId}_${s.id}_${e.id}", "ep|$vodId|${s.id}|${e.id}", 0L)
+        // Include the SEASON in the title so the subtitle search can build the right SxxExx query —
+        // "… — Episode 2" alone made it default to Season 1 (wrong for a season-29 show).
+        val label = if (s.name.contains("season", ignoreCase = true)) "$title — ${s.name}, ${e.name}"
+                    else "$title — Season ${s.name}, ${e.name}"
+        startPlayerWith(label, "ep_${vodId}_${s.id}_${e.id}", "ep|$vodId|${s.id}|${e.id}", 0L)
     }
 
     private fun startPlayerWith(title: String, resumeId: String, source: String, startPos: Long) {

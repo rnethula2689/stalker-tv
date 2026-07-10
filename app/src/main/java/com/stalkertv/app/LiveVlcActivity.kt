@@ -830,8 +830,14 @@ class LiveVlcActivity : AppCompatActivity() {
         val p = mp ?: return
         try {
             if (p.spuTrack >= 0) return // something is already selected
-            val t = p.spuTracks?.firstOrNull { it.id >= 0 && it.name.contains("eng", ignoreCase = true) } ?: return
-            p.setSpuTrack(t.id)
+            val tracks = p.spuTracks?.filter { it.id >= 0 } ?: return
+            // Prefer an English track; else fall back to a closed-captions track (US TV shows carry
+            // CEA-608 CCs with no language name), else the first available — so embedded subs show
+            // automatically like Strimix's "Closed captions 1".
+            val t = tracks.firstOrNull { it.name.contains("eng", ignoreCase = true) }
+                ?: tracks.firstOrNull { it.name.contains("caption", ignoreCase = true) || it.name.contains("CC", ignoreCase = true) }
+                ?: tracks.firstOrNull()
+            if (t != null) p.setSpuTrack(t.id)
         } catch (_: Exception) {}
     }
 

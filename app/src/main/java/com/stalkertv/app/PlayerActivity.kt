@@ -142,7 +142,7 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         )
-        b.subBtn.setOnClickListener { searchSubtitles() }
+        b.subBtn.setOnClickListener { showSubtitleMenu() }
         b.menuBtn.setOnClickListener { showMenu() }
         wireQuickControls()
         applyPlayPrefsScreen()   // restore session brightness + night mode
@@ -193,10 +193,14 @@ class PlayerActivity : AppCompatActivity() {
         else p.setMediaItem(firstItem)
         p.prepare()
         p.playWhenReady = true
-        // VOD: prefer English text tracks, so a movie's EMBEDDED subtitles show by default — parity
-        // with the VLC player, which auto-selects the embedded English track.
-        if (!isLive) p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
-            .setPreferredTextLanguage("en").build()
+        // VOD: auto-show the stream's EMBEDDED subtitles/closed-captions by default (parity with VLC
+        // and Strimix). setSelectUndeterminedTextLanguage is ESSENTIAL — CEA-608/708 closed captions
+        // (common on US TV shows like "On the Case…") carry NO language, so an "en"-only preference
+        // deselects them; this makes them auto-select like Strimix's "Closed captions 1".
+        if (!isLive && autoSub == null) p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setPreferredTextLanguage("en")
+            .setSelectUndeterminedTextLanguage(true)
+            .build()
         applyPlayPrefsAudio()   // restore session mute/volume
 
         if (resumeId.isNotBlank() && !isLive) resumeHandler.postDelayed(resumeSaver, 10_000)
@@ -543,6 +547,35 @@ class PlayerActivity : AppCompatActivity() {
 
     /** Clean the display title into a search query (drops tags; adds S01E02 for episodes). */
     private fun searchQuery(): String = Subtitles.queryFor(titleText)
+
+    /** 💬 picker: Off / the stream's embedded subtitle + closed-caption tracks / online search. */
+    private fun showSubtitleMenu() {
+        val p = player ?: run { searchSubtitles(); return }
+        val groups = p.currentTracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
+        val textDisabled = p.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
+        val anySelected = groups.any { g -> (0 until g.length).any { g.isTrackSelected(it) } }
+        data class Row(val label: String, val apply: () -> Unit)
+        val rows = ArrayList<Row>()
+        rows.add(Row(if (textDisabled || !anySelected) "✔   Off" else "✖   Off") {
+            p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+        })
+        for (g in groups) for (i in 0 until g.length) {
+            val f = g.getTrackFormat(i)
+            val name = f.label ?: f.language?.uppercase() ?: "Closed captions"
+            val sel = !textDisabled && g.isTrackSelected(i)
+            rows.add(Row((if (sel) "✔   " else "💬   ") + name) {
+                p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .setOverrideForType(androidx.media3.common.TrackSelectionOverride(g.mediaTrackGroup, i))
+                    .build()
+            })
+        }
+        rows.add(Row("🔍   Search online subtitles…") { searchSubtitles() })
+        AlertDialog.Builder(this).setTitle("Subtitles")
+            .setItems(rows.map { it.label }.toTypedArray()) { _, w -> rows[w].apply() }
+            .setNegativeButton("Cancel", null).show()
+    }
 
     private fun searchSubtitles() {
         val q = searchQuery()
