@@ -642,6 +642,7 @@ class LiveVlcActivity : AppCompatActivity() {
         knownDurationMs = 0            // new episode: unknown length → fall back to VLC's own timeline
         seekTarget = -1L; startSeekTo = 0
         vodSubPath = ""               // a new episode has its own (or no) subtitle; speed persists
+        stopSrtOverlay()
         android.widget.Toast.makeText(this, "▶  Next: ${item.title}", android.widget.Toast.LENGTH_SHORT).show()
         io.execute {
             val url = Downloads.resolveSource(item.source)
@@ -721,18 +722,12 @@ class LiveVlcActivity : AppCompatActivity() {
         speedIdx = speeds.indexOfFirst { it == vodSpeed }.let { if (it < 0) 2 else it }
         try { mp?.rate = speeds[speedIdx] } catch (_: Exception) {}
         updateSpeedBtn()
-        // Attach the subtitle at runtime now that audio/video output exists (once per media).
+        // External subtitle → OUR overlay renderer (once per media). libVLC's addSlave path selects
+        // the track but never PAINTS it on Fire hardware decode ("no reference clock" breaks SPU
+        // scheduling), so we parse the SRT and draw it ourselves, synced to the player clock.
         if (vodSubPath.isNotEmpty() && !vodSubAttached) {
-            val f = java.io.File(vodSubPath)
-            if (f.exists()) {
-                try {
-                    mp?.addSlave(0 /* IMedia.Slave.Type.Subtitle */, Uri.fromFile(f), true)
-                    vodSubAttached = true
-                    // The slave track can take a moment to register (longer on the carry path where a fresh
-                    // portal link is still loading), so keep trying to select it until it sticks.
-                    for (d in longArrayOf(400, 1000, 2000, 3500, 5500)) ui.postDelayed({ selectSubtitleTrack() }, d)
-                } catch (_: Exception) {}
-            }
+            vodSubAttached = true
+            startSrtOverlay(java.io.File(vodSubPath))
         } else if (vodSubPath.isEmpty()) {
             // No external sub carried/saved — the subtitles the user saw in ExoPlayer were the stream's
             // EMBEDDED track (media3 auto-selects English). VLC doesn't auto-select on Fire, so do it here.
@@ -740,17 +735,38 @@ class LiveVlcActivity : AppCompatActivity() {
         }
     }
 
-    /** Turn ON the external subtitle track. libVLC's addSlave(select=true) doesn't reliably show the sub
-     *  on Fire, so we enumerate the SPU tracks and select the last real one (the slave we just added).
-     *  Idempotent + retried, because the track appears asynchronously after addSlave. */
-    private fun selectSubtitleTrack() {
-        val p = mp ?: return
-        try {
-            val tracks = p.spuTracks
-            // Pick the LAST real (id>=0) track — that's the freshly-added external slave, not an embedded one.
-            val target = tracks?.lastOrNull { it.id >= 0 }?.id ?: return
-            if (p.spuTrack != target) p.setSpuTrack(target)
-        } catch (_: Exception) {}
+    // ---- The app's own SRT overlay (external subtitles) ----
+    private var srtCues: List<SrtSubs.Cue> = emptyList()
+    private val srtTick = object : Runnable {
+        override fun run() {
+            if (srtCues.isEmpty()) return
+            val t = try { mp?.time ?: 0L } catch (_: Exception) { 0L }
+            val txt = SrtSubs.cueAt(srtCues, t)?.text ?: ""
+            if (b.subtitleText.text.toString() != txt) {
+                b.subtitleText.text = txt
+                b.subtitleText.visibility = if (txt.isEmpty()) View.GONE else View.VISIBLE
+            }
+            ui.postDelayed(this, 250)
+        }
+    }
+
+    private fun startSrtOverlay(f: java.io.File) {
+        io.execute {
+            val cues = SrtSubs.parse(f)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                srtCues = cues
+                ui.removeCallbacks(srtTick)
+                if (cues.isNotEmpty()) ui.post(srtTick)
+                else android.widget.Toast.makeText(this, "Couldn't read that subtitle file.", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun stopSrtOverlay() {
+        srtCues = emptyList()
+        ui.removeCallbacks(srtTick)
+        b.subtitleText.visibility = View.GONE
     }
 
     private var subUserOff = false // the user chose "Off" — never auto re-enable behind their back
@@ -768,21 +784,26 @@ class LiveVlcActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 
-    /** 💬 icon: the subtitle picker — Off / every available track (embedded + external) / search online. */
+    /** 💬 icon: the subtitle picker — Off / downloaded SRT (own overlay) / embedded tracks / search online. */
     private fun showSubtitleMenu() {
         val p = mp
         val tracks = try { p?.spuTracks?.filter { it.id >= 0 } ?: emptyList() } catch (_: Exception) { emptyList() }
         val cur = try { p?.spuTrack ?: -1 } catch (_: Exception) { -1 }
+        val overlayOn = srtCues.isNotEmpty()
+        val hasDl = vodSubPath.isNotEmpty()
         val names = ArrayList<String>()
-        names.add(if (cur < 0) "✔   Off" else "✖   Off")
+        names.add(if (!overlayOn && cur < 0) "✔   Off" else "✖   Off")
+        if (hasDl) names.add((if (overlayOn) "✔   " else "💬   ") + "Downloaded subtitle")
+        val trackBase = names.size
         for (t in tracks) names.add((if (t.id == cur) "✔   " else "💬   ") + t.name)
         names.add("🔍   Search online subtitles…")
         androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Subtitles")
             .setItems(names.toTypedArray()) { _, w ->
-                when (w) {
-                    0 -> { subUserOff = true; try { p?.setSpuTrack(-1) } catch (_: Exception) {} }
-                    names.size - 1 -> searchSubtitles()
-                    else -> { subUserOff = false; try { p?.setSpuTrack(tracks[w - 1].id) } catch (_: Exception) {} }
+                when {
+                    w == 0 -> { subUserOff = true; stopSrtOverlay(); try { p?.setSpuTrack(-1) } catch (_: Exception) {} }
+                    hasDl && w == 1 -> { subUserOff = false; startSrtOverlay(java.io.File(vodSubPath)) }
+                    w == names.size - 1 -> searchSubtitles()
+                    else -> { subUserOff = false; stopSrtOverlay(); try { p?.setSpuTrack(tracks[w - trackBase].id) } catch (_: Exception) {} }
                 }
             }
             .setNegativeButton("Cancel", null).show()
@@ -853,11 +874,12 @@ class LiveVlcActivity : AppCompatActivity() {
                     android.widget.Toast.makeText(this, "Couldn't download that subtitle.", android.widget.Toast.LENGTH_SHORT).show()
                     return@runOnUiThread
                 }
-                // Save it per-title (so resume / engine-switch re-loads it without another API call),
-                // then reload the stream at the current spot with the subtitle attached.
+                // Save it per-title (so resume / engine-switch re-loads it without another API call).
+                // Our own overlay renders it instantly — no stream reload needed.
                 vodSubPath = SubStore.remember(this, subKey(), file).absolutePath
-                startSeekTo = mp?.time ?: 0L
-                play(currentUrl)
+                vodSubAttached = true
+                subUserOff = false
+                startSrtOverlay(java.io.File(vodSubPath))
                 android.widget.Toast.makeText(this, "Subtitle applied ✓", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
