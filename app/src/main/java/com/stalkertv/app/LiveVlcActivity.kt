@@ -728,6 +728,8 @@ class LiveVlcActivity : AppCompatActivity() {
         speedIdx = speeds.indexOfFirst { it == vodSpeed }.let { if (it < 0) 2 else it }
         try { mp?.rate = speeds[speedIdx] } catch (_: Exception) {}
         updateSpeedBtn()
+        // libVLC resets SPU delay on new media — re-apply the user's timing shift for embedded tracks.
+        if (subSyncMs != 0L) try { mp?.setSpuDelay(-subSyncMs * 1000L) } catch (_: Exception) {}
         // External subtitle → OUR overlay renderer (once per media). libVLC's addSlave path selects
         // the track but never PAINTS it on Fire hardware decode ("no reference clock" breaks SPU
         // scheduling), so we parse the SRT and draw it ourselves, synced to the player clock.
@@ -783,8 +785,20 @@ class LiveVlcActivity : AppCompatActivity() {
             if (o == subSyncMs) "✔   $base" else base
         }.toTypedArray()
         androidx.appcompat.app.AlertDialog.Builder(this).setTitle("⏱  Subtitle timing")
-            .setItems(labels) { _, w -> subSyncMs = opts[w] }
+            .setItems(labels) { _, w -> setSubSync(opts[w]) }
             .setNegativeButton("Cancel", null).show()
+    }
+
+    /** Apply a timing shift to BOTH subtitle paths: our SRT overlay (via subSyncMs, read each tick)
+     *  and libVLC's own SPU track (embedded/selected) via setSpuDelay. Positive = show EARLIER, so
+     *  VLC's delay is negated (its positive delay means later). */
+    private fun setSubSync(ms: Long) {
+        subSyncMs = ms
+        try { mp?.setSpuDelay(-ms * 1000L) } catch (_: Exception) {} // libVLC delay is in microseconds
+        android.widget.Toast.makeText(this,
+            if (ms == 0L) "Subtitle timing: on time"
+            else "Subtitle timing: %.1fs %s".format(Math.abs(ms) / 1000f, if (ms > 0) "earlier" else "later"),
+            android.widget.Toast.LENGTH_SHORT).show()
     }
 
     private fun startSrtOverlay(f: java.io.File) {
@@ -833,7 +847,7 @@ class LiveVlcActivity : AppCompatActivity() {
         if (hasDl) names.add((if (overlayOn) "✔   " else "💬   ") + "Downloaded subtitle")
         val trackBase = names.size
         for (t in tracks) names.add((if (t.id == cur) "✔   " else "💬   ") + t.name)
-        val timingIdx = if (overlayOn) { names.add("⏱   Adjust timing"); names.size - 1 } else -1
+        val timingIdx = if (overlayOn || cur >= 0) { names.add("⏱   Adjust timing"); names.size - 1 } else -1
         names.add("🔍   Search online subtitles…")
         androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Subtitles")
             .setItems(names.toTypedArray()) { _, w ->
