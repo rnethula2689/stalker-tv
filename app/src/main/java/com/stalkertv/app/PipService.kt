@@ -210,8 +210,11 @@ class PipService : Service() {
             .setConnectTimeoutMs(20000).setReadTimeoutMs(20000)
         val ds = DefaultDataSource.Factory(this, http)
         val (minBuf, maxBuf) = Configs.exoBufferMs(this)
+        // Byte-capped like the main player: time-priority buffering OOM'd the 128 MB heap on 4K (see PlayerActivity).
         val load = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(minBuf, maxBuf, 1500, 3000).setPrioritizeTimeOverSizeThresholds(true).build()
+            .setBufferDurationsMs(minBuf, maxBuf, 1500, 3000)
+            .setTargetBufferBytes(16 * 1024 * 1024)
+            .setPrioritizeTimeOverSizeThresholds(false).build()
         val mode = if (forceSoftware || !Configs.hwDecode(this)) DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
         else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
         val renderers = NextRenderersFactory(this).setExtensionRendererMode(mode).setEnableDecoderFallback(true)

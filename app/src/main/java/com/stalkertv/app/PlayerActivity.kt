@@ -251,9 +251,15 @@ class PlayerActivity : AppCompatActivity() {
         // Give playback a healthier head-start before it begins / resumes after a seek, so a weak
         // box (Fire Stick) on high-bitrate VOD doesn't start early and stutter while the buffer fills.
         // (VOD only — live uses the separate libVLC player, so channel-zap speed is unaffected.)
+        // HARD byte cap on the sample buffer. Buffered samples live on the JAVA heap (128 MB cap on
+        // 32-bit Fire devices) — prioritizing time over size let a 4K movie buffer 60-120s ≈ 200-350 MB
+        // → OutOfMemoryError loop when playing/resuming (verified via live heap sawtooth on a Fire HD).
+        // With the cap, high-bitrate titles simply hold ~32 MB of buffer and refill continuously; the
+        // time targets still give low-bitrate titles their full head-start.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(minBuf, maxBuf, 2500, 5000)
-            .setPrioritizeTimeOverSizeThresholds(true)
+            .setTargetBufferBytes(32 * 1024 * 1024)
+            .setPrioritizeTimeOverSizeThresholds(false)
             .build()
         // Honour the user's hardware-decoding pref, plus the auto software-fallback flag.
         val mode = if (forceSoftware || !Configs.hwDecode(this))
