@@ -120,7 +120,9 @@ object SubtitleDialog {
         closeBtn.setOnClickListener { dlg.dismiss() }
 
         var searchSeq = 0
-        fun runSearch() {
+        /** [strict] = an automatic search (dialog open / language change): junk-free — identity
+         *  match or clean "not found", like Strimix. Pressing Search runs the broad text match. */
+        fun runSearch(strict: Boolean) {
             val q = queryBox.text.toString().trim()
             if (q.isEmpty()) return
             val mine = ++searchSeq
@@ -130,20 +132,27 @@ object SubtitleDialog {
             io.execute {
                 // Movies: resolve the EXACT feature via TMDb and ask for its subtitles by id — a text
                 // query fuzzy-matches junk ("David" → David & Lisa 1962), the id returns only the real
-                // movie's releases (how Strimix gets clean results). Episodes keep the S01E02 text query;
-                // anything unresolved falls back to plain text search.
+                // movie's releases (how Strimix gets clean results). Episodes keep the S01E02 text query.
+                // Strict (auto) searches filter text results to ones that actually NAME the title, so a
+                // regional movie unknown to OpenSubtitles shows "not found" instead of unrelated junk.
                 val results = try {
                     val isEpisode = Regex("S\\d{1,2}E\\d{1,3}", RegexOption.IGNORE_CASE).containsMatchIn(q)
                     val tmdbId = if (!isEpisode && Subtitles.apiKey.isNotBlank() && BuildConfig.TMDB_KEY.isNotBlank())
                         Tmdb.movieIdFor(BuildConfig.TMDB_KEY, q, if (q == initialQuery) year else "") ?: 0 else 0
                     val byId = if (tmdbId > 0) Subtitles.searchByTmdb(tmdbId, lang) else emptyList()
-                    byId.ifEmpty { Subtitles.search(q, lang = lang) }
+                    when {
+                        byId.isNotEmpty() -> byId
+                        strict -> relevantOnly(Subtitles.search(q, lang = lang), q)
+                        else -> Subtitles.search(q, lang = lang)
+                    }
                 } catch (_: Exception) { emptyList() }
                 a.runOnUiThread {
                     if (mine != searchSeq || !dlg.isShowing) return@runOnUiThread
                     if (results.isEmpty()) {
                         status.setTextColor(0xFFFF8A8A.toInt())
-                        status.text = "No ${lang.label} subtitles found for “$q”."
+                        status.text = if (strict)
+                            "⚠  No ${lang.label} subtitles found for this title.  Edit the title or press Search for a broader match."
+                        else "No ${lang.label} subtitles found for “$q”."
                         return@runOnUiThread
                     }
                     status.setTextColor(0xFF19C37D.toInt())
@@ -179,16 +188,30 @@ object SubtitleDialog {
             AlertDialog.Builder(a).setTitle("Subtitle language")
                 .setSingleChoiceItems(labels, cur) { d, w ->
                     lang = Subtitles.LANGS[w]
-                    saveLang(a, lang); renderLang(); d.dismiss(); runSearch()
+                    saveLang(a, lang); renderLang(); d.dismiss(); runSearch(strict = true)
                 }
                 .setNegativeButton("Cancel", null).show()
         }
-        searchBtn.setOnClickListener { runSearch() }
-        queryBox.setOnEditorActionListener { _, _, _ -> runSearch(); true }
+        // The user explicitly pressing Search opts into the broad text match (junk possible).
+        searchBtn.setOnClickListener { runSearch(strict = false) }
+        queryBox.setOnEditorActionListener { _, _, _ -> runSearch(strict = false); true }
 
         dlg.show()
         dlg.window?.setLayout((a.resources.displayMetrics.widthPixels * 0.92f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
-        runSearch() // auto-search the pre-filled title on open
+        runSearch(strict = true) // auto-search the pre-filled title on open — junk-free
+    }
+
+    /** Keep only results whose release name actually contains the title's words — an auto-search
+     *  for a regional movie OpenSubtitles doesn't know should say "not found", not list junk. */
+    private fun relevantOnly(subs: List<Subtitles.Sub>, title: String): List<Subtitles.Sub> {
+        val words = title.lowercase()
+            .replace(Regex("s\\d{1,2}e\\d{1,3}"), " ") // drop the S01E02 token
+            .split(Regex("[^a-z0-9]+")).filter { it.length >= 3 }
+        if (words.isEmpty()) return subs
+        return subs.filter { s ->
+            val n = s.name.lowercase().replace('.', ' ')
+            words.all { n.contains(it) }
+        }
     }
 
     private fun savedLang(a: Activity): Subtitles.Lang {
