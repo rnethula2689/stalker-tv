@@ -1259,7 +1259,7 @@ class LiveVlcActivity : AppCompatActivity() {
     private fun showMenu() {
         if (menuDialog?.isShowing == true) { menuDialog?.dismiss(); return }
         if (isVod) { showVodMenu(); return }
-        val items = arrayOf("🔄   Retry stream", "⚠   Report not working", SleepTimer.menuLabel(), "🎚   Playback settings", "📡   Cast to TV", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
+        val items = arrayOf("🔄   Retry stream", "⚠   Report not working", SleepTimer.menuLabel(), "🎚   Playback settings", "⚙   Settings", "📥   App updates", "ℹ️   About", "✖   Exit")
         val dlg = AlertDialog.Builder(this)
             .setItems(items) { _, which ->
                 when (which) {
@@ -1267,11 +1267,10 @@ class LiveVlcActivity : AppCompatActivity() {
                     1 -> reportNotWorking()
                     2 -> SleepTimer.showDialog(this)
                     3 -> PlaybackSettings.show(this)
-                    4 -> if (currentUrl.isNotEmpty()) CastHelper.show(this, currentUrl, titleText, isLive = !isArchive)
-                    5 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    6 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
-                    7 -> About.show(this)
-                    8 -> finishAffinity()
+                    4 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    5 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
+                    6 -> About.show(this)
+                    7 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }
@@ -1293,7 +1292,6 @@ class LiveVlcActivity : AppCompatActivity() {
             "⏩   Playback speed",
             "💬   Subtitles",
             "⚠   Report not working",
-            "📡   Cast to TV",
             autoLabel,
             "⚙   Settings",
             "📥   App updates",
@@ -1310,15 +1308,14 @@ class LiveVlcActivity : AppCompatActivity() {
                     4 -> showSpeedDialog()
                     5 -> searchSubtitles()
                     6 -> reportVod()
-                    7 -> if (currentUrl.isNotEmpty()) CastHelper.show(this, currentUrl, titleText, isLive = false)
-                    8 -> {
+                    7 -> {
                         Configs.setAutoplay(this, !Configs.autoplay(this))
                         android.widget.Toast.makeText(this, if (Configs.autoplay(this)) "Autoplay next: ON" else "Autoplay next: OFF", android.widget.Toast.LENGTH_SHORT).show()
                     }
-                    9 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    10 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
-                    11 -> About.show(this)
-                    12 -> finishAffinity()
+                    8 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    9 -> startActivity(Intent(this, AppUpdatesActivity::class.java))
+                    10 -> About.show(this)
+                    11 -> finishAffinity()
                 }
             }
             .setOnDismissListener { menuDialog = null }

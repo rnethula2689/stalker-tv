@@ -422,7 +422,6 @@ class PlayerActivity : AppCompatActivity() {
         if (!isLive) items.add("🔀   Switch player (VLC)")   // hand this title to the libVLC engine
         items.add(boostLabel)
         items.add("⚠   Report not working")
-        items.add("📡   Cast to TV")
         items.add("💬   Subtitles")
         items.add(autoLabel)
         items.add("⚙   Settings")
@@ -442,7 +441,6 @@ class PlayerActivity : AppCompatActivity() {
                         Reports.add(this, titleText, resumeSource.ifBlank { "vod" })
                         Toast.makeText(this, "Reported — logged in Settings ▸ Diagnostics.", Toast.LENGTH_SHORT).show()
                     }
-                    a.contains("Cast") -> if (videoUrl.isNotEmpty()) CastHelper.show(this, videoUrl, titleText, isLive)
                     a.contains("Subtitles") -> searchSubtitles()
                     a.contains("Autoplay") -> {
                         Configs.setAutoplay(this, !Configs.autoplay(this))

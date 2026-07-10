@@ -24,7 +24,7 @@ Ministra portal). You enter the details once.
        - Serial Number (if your provider uses one)
   4. Tap Submit. Channels and movies load automatically.
   5. To change or add another provider later, return to the same screen.
-Tip: if nothing loads, see section 20 (Troubleshooting).
+Tip: if nothing loads, see section 19 (Troubleshooting).
 
 
 2. GETTING AROUND (REMOTE & TOUCH)
@@ -35,7 +35,7 @@ On a TV remote:
   - The MENU button opens Settings from Home.
   - While watching live, UP/DOWN change channel.
 On a touch tablet: just tap. Long-press a poster for more options.
-You can re-assign remote buttons — see section 19 (Remote control).
+You can re-assign remote buttons — see section 18 (Remote control).
 
 
 3. THE HOME SCREEN
@@ -49,7 +49,7 @@ Home shows rows ("rails") built from what you watch:
 Along the bottom is the navigation bar:
   Live TV  -  VOD  -  Favourites  -  Watch Later  -  Recordings  -  Downloads
 Top-right icons: profile, search, refresh, and Settings (gear).
-You can hide the "For You" and "Recently Added" rows — see section 18.
+You can hide the "For You" and "Recently Added" rows — see section 17.
 
 
 4. LIVE TV
@@ -63,7 +63,7 @@ You can hide the "For You" and "Recently Added" rows — see section 18.
        - A slim "Now Playing" bar shows the current programme, a progress
          bar, and what's next. It hides itself after a few seconds.
   5. The top bar has aspect ratio, volume, brightness, and a menu (the three
-     dots) for Retry, Report, Cast, Sleep timer, and Settings.
+     dots) for Retry, Report, Sleep timer, and Settings.
 
 
 5. TV GUIDE (EPG)
@@ -76,7 +76,7 @@ You can hide the "For You" and "Recently Added" rows — see section 18.
        - Set a reminder for an upcoming programme (you'll get a notification
          about a minute before it starts).
        - Watch a past programme if your provider offers catch-up (see 6).
-Optional: use your own guide source — Settings > TV Guide (EPG), section 18.
+Optional: use your own guide source — Settings > TV Guide (EPG), section 17.
 
 
 6. CATCH-UP & TIMESHIFT (REWIND LIVE TV)
@@ -146,14 +146,7 @@ Your live recordings are listed under Home > Recordings — select to play,
 or remove to free up space.
 
 
-15. CASTING TO ANOTHER SCREEN
------------------------------
-From the player menu choose "Cast to TV" to send the stream to a DLNA or
-Chromecast device on your network. (Casting is not available on Fire OS
-devices, which have no Google services.)
-
-
-16. SUBTITLES
+15. SUBTITLES
 -------------
   - In the movie player menu, choose Subtitles to open the subtitle search:
     the movie's title is pre-filled (edit it if needed), pick a LANGUAGE from
@@ -172,15 +165,15 @@ devices, which have no Google services.)
   - To use OpenSubtitles, add your free API key in Settings > Subtitles.
 
 
-17. PLAYER CONTROLS
+16. PLAYER CONTROLS
 -------------------
   - Aspect ratio: cycle Fit / Fill / 16:9 etc. from the top bar.
   - Volume & brightness: the side panels (tablet); on TV use the remote's
     volume keys.
-  - Sleep timer: player menu > Sleep timer (see 18).
+  - Sleep timer: player menu > Sleep timer (see 17).
 
 
-18. SETTINGS — EVERY SECTION
+17. SETTINGS — EVERY SECTION
 ----------------------------
 Open Settings from Home (gear icon, or MENU on a remote).
   - IPTV configuration: add/edit your provider(s).
@@ -189,7 +182,7 @@ Open Settings from Home (gear icon, or MENU on a remote).
     Give each profile a PICTURE: pick a fun icon (animals, toys, etc.), or use
     "Camera"/"Gallery" to take or choose a photo ("Aa" keeps colour + initial).
   - Personalization: hide the "Recently Added" and/or "For You" rows on Home.
-  - Remote control (key mapping): re-assign remote buttons to actions — see 19.
+  - Remote control (key mapping): re-assign remote buttons to actions — see 18.
   - Parental PIN: set a PIN that locks restricted channels.
   - Playback settings: buffering size and hardware decoding. If you see
     stutter, try a higher buffer; if video fails, turn hardware decoding off.
@@ -208,7 +201,7 @@ Open Settings from Home (gear icon, or MENU on a remote).
   - App updates: check for and install the latest version.
   - Sync & Backup: back up your Favourites / Watch Later / Continue Watching
     to a file, restore from one, or delete the backup file.
-  - Troubleshooting: a diagnostics screen (see 20).
+  - Troubleshooting: a diagnostics screen (see 19).
   - About.
   - Restart app: fully closes and relaunches the app (a quick fix for
     glitches without reaching for the Fire TV settings).
@@ -218,7 +211,7 @@ Open Settings from Home (gear icon, or MENU on a remote).
   - Exit.
 
 
-19. REMOTE CONTROL — MAP YOUR KEYS
+18. REMOTE CONTROL — MAP YOUR KEYS
 ----------------------------------
 Make any remote work the way you like (like STB Emulator).
   1. Settings > Remote control (key mapping).
@@ -230,7 +223,7 @@ Note: Back and Home can never be re-mapped, so you can always exit. Mappings
 apply in the live player.
 
 
-20. TROUBLESHOOTING
+19. TROUBLESHOOTING
 -------------------
   - Channels/movies won't load: check internet; Settings > Troubleshooting >
     "Test portal connection". Re-check your Portal URL / MAC / Serial.
@@ -258,10 +251,10 @@ apply in the live player.
     in Settings > TV Guide (EPG).
   - The app closed unexpectedly: Settings > Troubleshooting shows the last
     crash details (handy to send to support). "Clear" dismisses it.
-  - Remote buttons not doing what you expect: remap them (section 19).
+  - Remote buttons not doing what you expect: remap them (section 18).
 
 
-21. TIPS
+20. TIPS
 --------
   - Use Profiles to keep different content sets tidy and switch fast.
   - Set reminders for shows you don't want to miss.
