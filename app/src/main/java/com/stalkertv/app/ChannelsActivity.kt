@@ -304,12 +304,12 @@ class ChannelsActivity : AppCompatActivity() {
             grabInitialFocus()
             return true
         }
-        // Fast-scroll: hold Up ~4s → jump to the top (+ A–Z rail); hold Down ~4s → jump to the bottom.
+        // Fast-scroll: hold Up ~1.5s → jump to the top (+ A–Z rail); hold Down ~1.5s → jump to the bottom.
         val fsKc = event.keyCode
         if (fsKc == android.view.KeyEvent.KEYCODE_DPAD_UP || fsKc == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
             if (event.action == android.view.KeyEvent.ACTION_UP) fastScrolled = false
             else if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount > 0 && !fastScrolled &&
-                (event.eventTime - event.downTime) >= 4000L && isInList(currentFocus)
+                (event.eventTime - event.downTime) >= 1500L && isInList(currentFocus)
             ) {
                 if (fsKc == android.view.KeyEvent.KEYCODE_DPAD_UP && b.list.canScrollVertically(-1)) {
                     fastScrolled = true
