@@ -651,7 +651,7 @@ class ChannelsActivity : AppCompatActivity() {
         b.search.hint = when (page.kind) {
             SearchKind.GLOBAL -> "Search channels, movies & shows…"
             SearchKind.CHANNELS -> "Search channels…"
-            SearchKind.VOD_ALL -> "Search movies & shows…"
+            SearchKind.VOD_ALL -> "Search VOD…"
             SearchKind.VOD_CATEGORY -> "Search this folder…"
             SearchKind.LOCAL -> "Filter…"
         }
@@ -1336,7 +1336,7 @@ class ChannelsActivity : AppCompatActivity() {
             for (e in live) rows.add(Row("📺  ${e.title}", e.poster.ifBlank { null }, sortKey = e.title) { continueClick(e) })
         }
         if (vod.isNotEmpty()) {
-            rows.add(Row("🎬   MOVIES & SHOWS", null, isHeader = true) {})
+            rows.add(Row("🎬   VOD", null, isHeader = true) {})
             for (e in vod) {
                 val pct = if (e.duration > 0) (e.position * 100 / e.duration).toInt() else 0
                 val label = "🎬  ${e.title}" + (if (pct in 1..99) "   •   $pct%" else "")
@@ -1523,7 +1523,7 @@ class ChannelsActivity : AppCompatActivity() {
     private fun showVodCategories() {
         if (vodCats.isNotEmpty()) { displayVodCategories(); return } // cached → in-memory rebuild
         b.status.visibility = View.VISIBLE
-        b.status.text = "Loading movies…"
+        b.status.text = "Loading VOD…"
         io.execute {
             val cats = Portal.vodCategories()
             runOnUiThread {
@@ -1545,7 +1545,7 @@ class ChannelsActivity : AppCompatActivity() {
         // sortKey lets the A–Z bar jump to a category folder by first letter.
         val rows = vodCats.filter { ContentProfiles.vodCatVisible(this, it.id) }
             .map { c -> Row(c.title, null, sortKey = c.title, chip = true) { showVodList(c) } }
-        push(Page("Movies", rows, kind = SearchKind.VOD_ALL, rebuild = { showVodCategories() }))
+        push(Page("VOD", rows, kind = SearchKind.VOD_ALL, rebuild = { showVodCategories() }))
     }
 
     /** Title for episodes/seasons is "Series  /  Season  /  Episode" → split for nesting. */
@@ -1559,7 +1559,7 @@ class ChannelsActivity : AppCompatActivity() {
         val vodN = Favorites.all(this).size
         val rows = ArrayList<Row>()
         rows.add(Row("📺   Live TV — Favourites  ($liveN)", null) { showLiveFavRoot() })
-        rows.add(Row("🎬   Movies & VOD — Favourites  ($vodN)", null) { showVodFavRoot() })
+        rows.add(Row("🎬   VOD — Favourites  ($vodN)", null) { showVodFavRoot() })
         push(Page("Favourites", rows, kind = SearchKind.LOCAL, rebuild = { showFavouritesHome() }))
     }
 
@@ -1598,7 +1598,7 @@ class ChannelsActivity : AppCompatActivity() {
         if (ungroupedN > 0) rows.add(Row("📁  Ungrouped  ($ungroupedN)", null) { showVodFavGroup(null) })
         rows.add(Row("⚙   Manage groups", null) { manageGroups("vod") })
         if (all.isNotEmpty()) rows.add(Row("🗑   Clear all favourites", null) { confirmClearVodFavorites() })
-        push(Page("Movies & VOD — Favourites", rows, kind = SearchKind.LOCAL, rebuild = { showVodFavRoot() }))
+        push(Page("VOD — Favourites", rows, kind = SearchKind.LOCAL, rebuild = { showVodFavRoot() }))
     }
 
     /** Flat list of a single VOD favourite group (movies play; series/season open; episodes play). */
@@ -1847,7 +1847,7 @@ class ChannelsActivity : AppCompatActivity() {
         adapter.submit(rows)
         // Header count: show ONLY once every page is loaded — a page-1 count (e.g. "(14)") mid-load is
         // misleading; the "Loading… N titles" status shows progress meanwhile. "shown / total" if filtered.
-        val base = (vodCatRef?.title ?: backStack.lastOrNull()?.title ?: "Movies").substringBefore("  (")
+        val base = (vodCatRef?.title ?: backStack.lastOrNull()?.title ?: "VOD").substringBefore("  (")
         b.title.text = when {
             vodLoaded < vodTotal -> base
             rows.size != vodBase.size -> "$base  (${rows.size} / ${vodBase.size})"

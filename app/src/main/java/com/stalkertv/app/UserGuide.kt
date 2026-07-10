@@ -47,7 +47,7 @@ Home shows rows ("rails") built from what you watch:
   - For You — movie picks based on what you play.
   - Recently Added — the newest movies from your provider.
 Along the bottom is the navigation bar:
-  Live TV  -  Movies  -  Favourites  -  Watch Later  -  Recordings  -  Downloads
+  Live TV  -  VOD  -  Favourites  -  Watch Later  -  Recordings  -  Downloads
 Top-right icons: profile, search, refresh, and Settings (gear).
 You can hide the "For You" and "Recently Added" rows — see section 18.
 
@@ -100,9 +100,9 @@ From the live player menu, open Multi-view to watch multiple channels in a
 grid. Select a pane to make it the active audio/full screen.
 
 
-9. MOVIES & SERIES (VOD)
+9. VOD (MOVIES, SERIES & DOCUMENTARIES)
 ------------------------
-  1. From Home, select "Movies".
+  1. From Home, select "VOD".
   2. Browse categories, or use Search (top-right) to find a title.
   3. Select a title to open its DETAILS screen — backdrop, poster, genre,
      ratings (IMDb plus Rotten Tomatoes 🍅 where available), runtime, full

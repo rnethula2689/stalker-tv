@@ -30,6 +30,21 @@ object SubtitleDialog {
         fun pill(color: Int, radiusDp: Float = 12f) = GradientDrawable().apply {
             setColor(color); cornerRadius = radiusDp * dp
         }
+        // Make a focusable view show an UNMISTAKABLE focus state on a TV remote: a bright green fill +
+        // border + lift, instead of the near-invisible default. (The old faint alpha/scale was the
+        // "hard to tell where focus is" bug.)
+        fun wireFocus(v: View, normalFill: Int, radius: Float = 12f) {
+            v.isFocusable = true
+            v.background = pill(normalFill, radius)
+            v.setOnFocusChangeListener { _, f ->
+                v.background = if (f) GradientDrawable().apply {
+                    setColor(0xFF14512F.toInt()); cornerRadius = radius * dp   // dark-green fill keeps text readable
+                    setStroke((3f * dp).toInt(), 0xFF19C37D.toInt())           // bright green border = clearly "here"
+                } else pill(normalFill, radius)
+                v.scaleX = if (f) 1.03f else 1f; v.scaleY = if (f) 1.03f else 1f
+                v.elevation = if (f) 10f else 0f
+            }
+        }
 
         val io = Executors.newSingleThreadExecutor()
         var lang = savedLang(a)
@@ -44,11 +59,11 @@ object SubtitleDialog {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
         val closeBtn = TextView(a).apply {
-            text = "✕"; textSize = 18f; setTextColor(0xFFB9C4CF.toInt())
-            isFocusable = true; isClickable = true
+            text = "✕"; textSize = 18f; setTextColor(Color.WHITE)
+            isClickable = true
             pad(this, 10, 4, 10, 4)
-            background = pill(0xFF232A33.toInt(), 18f)
         }
+        wireFocus(closeBtn, 0xFF232A33.toInt(), 18f)
         header.addView(title); header.addView(closeBtn)
         root.addView(header)
 
@@ -65,31 +80,39 @@ object SubtitleDialog {
             setTextColor(Color.WHITE); textSize = 14f; maxLines = 1
             inputType = android.text.InputType.TYPE_CLASS_TEXT
             imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
-            background = pill(0xFF10151B.toInt())
             pad(this, 14, 10, 14, 10)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            // EditText: keep the dark fill when focused (green fill would hide the typed text) but add a
+            // bright green border so it's clearly the active field.
+            val normal = pill(0xFF10151B.toInt())
+            background = normal
+            setOnFocusChangeListener { _, f ->
+                background = if (f) GradientDrawable().apply {
+                    setColor(0xFF10151B.toInt()); cornerRadius = 12f * dp
+                    setStroke((3f * dp).toInt(), 0xFF19C37D.toInt())
+                } else normal
+            }
         }
         val langBtn = TextView(a).apply {
-            textSize = 13f; setTextColor(Color.WHITE)
-            isFocusable = true; isClickable = true; maxLines = 1
-            background = pill(0xFF232A33.toInt())
+            textSize = 13f; setTextColor(Color.WHITE); isClickable = true; maxLines = 1
             pad(this, 12, 10, 12, 10)
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { marginStart = (8 * dp).toInt() }
         }
+        wireFocus(langBtn, 0xFF232A33.toInt())
         fun renderLang() { langBtn.text = "🌐 ${lang.label}  ⌄" }
         renderLang()
         val searchBtn = TextView(a).apply {
-            text = "→  Search"; textSize = 13f; setTextColor(0xFF04120C.toInt())
+            text = "→  Search"; textSize = 13f; setTextColor(Color.WHITE)
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            isFocusable = true; isClickable = true; maxLines = 1
-            background = pill(0xFFF2F4F6.toInt())
+            isClickable = true; maxLines = 1
             pad(this, 14, 10, 14, 10)
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { marginStart = (8 * dp).toInt() }
         }
+        wireFocus(searchBtn, 0xFF2C6B4E.toInt())
         row.addView(queryBox); row.addView(langBtn); row.addView(searchBtn)
         root.addView(row)
 
@@ -160,24 +183,26 @@ object SubtitleDialog {
                     for (sub in results) {
                         val r = LinearLayout(a).apply {
                             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-                            isFocusable = true; isClickable = true
-                            background = pill(0xFF10151B.toInt())
+                            isClickable = true
                             pad(this, 12, 10, 12, 10)
                             layoutParams = LinearLayout.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
                             ).apply { topMargin = (8 * dp).toInt() }
-                            setOnFocusChangeListener { v, f -> v.alpha = if (f) 1f else 0.92f; v.scaleX = if (f) 1.01f else 1f; v.scaleY = if (f) 1.01f else 1f }
                         }
+                        wireFocus(r, 0xFF10151B.toInt())
                         r.addView(TextView(a).apply { text = "💬"; textSize = 14f; pad(this, 0, 0, 10, 0) })
                         r.addView(TextView(a).apply {
                             text = sub.label; textSize = 13f; setTextColor(0xFFE6EDF3.toInt())
                             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
                             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                         })
-                        r.addView(TextView(a).apply { text = "⬇"; textSize = 15f; setTextColor(0xFF9AA6B2.toInt()); pad(this, 10, 0, 0, 0) })
+                        r.addView(TextView(a).apply { text = "⬇"; textSize = 15f; setTextColor(0xFFE6EDF3.toInt()); pad(this, 10, 0, 0, 0) })
                         r.setOnClickListener { dlg.dismiss(); onPick(sub) }
                         list.addView(r)
                     }
+                    // Land focus on the first result so the remote can scroll the list immediately (D-pad
+                    // Up returns to the search row). Avoids the soft keyboard popping over the results.
+                    list.getChildAt(0)?.requestFocus()
                 }
             }
         }
@@ -196,8 +221,12 @@ object SubtitleDialog {
         searchBtn.setOnClickListener { runSearch(strict = false) }
         queryBox.setOnEditorActionListener { _, _, _ -> runSearch(strict = false); true }
 
+        // Don't let the EditText grab focus on open (it pops the soft keyboard over the results on TV).
+        queryBox.isFocusableInTouchMode = true
+        dlg.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
         dlg.show()
         dlg.window?.setLayout((a.resources.displayMetrics.widthPixels * 0.92f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+        searchBtn.requestFocus() // a safe landing spot until results arrive (then the 1st result takes focus)
         runSearch(strict = true) // auto-search the pre-filled title on open — junk-free
     }
 

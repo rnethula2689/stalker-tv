@@ -218,7 +218,7 @@
             android:paddingHorizontal="12dp" android:paddingVertical="8dp" android:focusable="true" android:clickable="true"
             android:background="@drawable/item_bg">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🎬" android:textSize="20sp" />
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Movies" android:textSize="9sp" android:textColor="#9fb0c0" android:layout_marginTop="2dp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="VOD" android:textSize="9sp" android:textColor="#9fb0c0" android:layout_marginTop="2dp" />
         </LinearLayout>
 
         <LinearLayout android:id="@+id/navFav" android:layout_width="wrap_content" android:layout_height="wrap_content"
