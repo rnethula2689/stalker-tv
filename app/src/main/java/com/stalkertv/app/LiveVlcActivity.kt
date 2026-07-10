@@ -232,6 +232,9 @@ class LiveVlcActivity : AppCompatActivity() {
             knownDurationMs = intent.getLongExtra("durationSec", 0) * 1000 // program length → stable scrub timeline
             b.controlBar.visibility = View.VISIBLE   // catch-up: bar stays visible
             wireTransportControls()
+            // Subtitle icon (ExoPlayer's CC-button parity): pick embedded tracks, turn off, or search online.
+            b.subBtn.visibility = View.VISIBLE
+            b.subBtn.setOnClickListener { showSubtitleMenu() }
             if (isVod) {
                 b.recBtn.visibility = View.GONE   // recording a movie/episode makes no sense
                 val rs = intent.getLongExtra("resumeStart", 0L)
@@ -730,6 +733,10 @@ class LiveVlcActivity : AppCompatActivity() {
                     for (d in longArrayOf(400, 1000, 2000, 3500, 5500)) ui.postDelayed({ selectSubtitleTrack() }, d)
                 } catch (_: Exception) {}
             }
+        } else if (vodSubPath.isEmpty()) {
+            // No external sub carried/saved — the subtitles the user saw in ExoPlayer were the stream's
+            // EMBEDDED track (media3 auto-selects English). VLC doesn't auto-select on Fire, so do it here.
+            for (d in longArrayOf(800, 2000, 4000)) ui.postDelayed({ selectEmbeddedEnglishTrack() }, d)
         }
     }
 
@@ -744,6 +751,41 @@ class LiveVlcActivity : AppCompatActivity() {
             val target = tracks?.lastOrNull { it.id >= 0 }?.id ?: return
             if (p.spuTrack != target) p.setSpuTrack(target)
         } catch (_: Exception) {}
+    }
+
+    private var subUserOff = false // the user chose "Off" — never auto re-enable behind their back
+
+    /** No external subtitle for this title? Match ExoPlayer's default of auto-showing an embedded
+     *  ENGLISH text track, so switching engines doesn't silently lose the subtitles the user was
+     *  watching. Retried, because embedded tracks register asynchronously after Playing. */
+    private fun selectEmbeddedEnglishTrack() {
+        if (subUserOff) return
+        val p = mp ?: return
+        try {
+            if (p.spuTrack >= 0) return // something is already selected
+            val t = p.spuTracks?.firstOrNull { it.id >= 0 && it.name.contains("eng", ignoreCase = true) } ?: return
+            p.setSpuTrack(t.id)
+        } catch (_: Exception) {}
+    }
+
+    /** 💬 icon: the subtitle picker — Off / every available track (embedded + external) / search online. */
+    private fun showSubtitleMenu() {
+        val p = mp
+        val tracks = try { p?.spuTracks?.filter { it.id >= 0 } ?: emptyList() } catch (_: Exception) { emptyList() }
+        val cur = try { p?.spuTrack ?: -1 } catch (_: Exception) { -1 }
+        val names = ArrayList<String>()
+        names.add(if (cur < 0) "✔   Off" else "✖   Off")
+        for (t in tracks) names.add((if (t.id == cur) "✔   " else "💬   ") + t.name)
+        names.add("🔍   Search online subtitles…")
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Subtitles")
+            .setItems(names.toTypedArray()) { _, w ->
+                when (w) {
+                    0 -> { subUserOff = true; try { p?.setSpuTrack(-1) } catch (_: Exception) {} }
+                    names.size - 1 -> searchSubtitles()
+                    else -> { subUserOff = false; try { p?.setSpuTrack(tracks[w - 1].id) } catch (_: Exception) {} }
+                }
+            }
+            .setNegativeButton("Cancel", null).show()
     }
 
     // ---- VOD menu parity: audio boost, subtitles, speed, report ----

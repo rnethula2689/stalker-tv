@@ -164,6 +164,9 @@ devices, which have no Google services.)
     (or switching player) re-loads the same subtitle automatically, with no new
     search or download. Clear them anytime via Settings > Subtitles > Clear
     saved subtitles.
+  - In the VLC player, the 💬 button on the top bar picks between the movie's
+    built-in subtitle tracks, Off, or an online search. Movies with built-in
+    English subtitles show them automatically — same as the Default player.
   - To use OpenSubtitles, add your free API key in Settings > Subtitles.
 
 
