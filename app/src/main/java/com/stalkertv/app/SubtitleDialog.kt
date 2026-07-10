@@ -23,7 +23,7 @@ import java.util.concurrent.Executors
  */
 object SubtitleDialog {
 
-    fun show(a: Activity, initialQuery: String, onPick: (Subtitles.Sub) -> Unit) {
+    fun show(a: Activity, initialQuery: String, year: String = "", onPick: (Subtitles.Sub) -> Unit) {
         val dp = a.resources.displayMetrics.density
         fun pad(v: View, l: Int, t: Int, r: Int, b: Int) =
             v.setPadding((l * dp).toInt(), (t * dp).toInt(), (r * dp).toInt(), (b * dp).toInt())
@@ -128,7 +128,17 @@ object SubtitleDialog {
             status.text = "Searching ${lang.label} subtitles…"
             list.removeAllViews()
             io.execute {
-                val results = try { Subtitles.search(q, lang = lang) } catch (_: Exception) { emptyList() }
+                // Movies: resolve the EXACT feature via TMDb and ask for its subtitles by id — a text
+                // query fuzzy-matches junk ("David" → David & Lisa 1962), the id returns only the real
+                // movie's releases (how Strimix gets clean results). Episodes keep the S01E02 text query;
+                // anything unresolved falls back to plain text search.
+                val results = try {
+                    val isEpisode = Regex("S\\d{1,2}E\\d{1,3}", RegexOption.IGNORE_CASE).containsMatchIn(q)
+                    val tmdbId = if (!isEpisode && Subtitles.apiKey.isNotBlank() && BuildConfig.TMDB_KEY.isNotBlank())
+                        Tmdb.movieIdFor(BuildConfig.TMDB_KEY, q, if (q == initialQuery) year else "") ?: 0 else 0
+                    val byId = if (tmdbId > 0) Subtitles.searchByTmdb(tmdbId, lang) else emptyList()
+                    byId.ifEmpty { Subtitles.search(q, lang = lang) }
+                } catch (_: Exception) { emptyList() }
                 a.runOnUiThread {
                     if (mine != searchSeq || !dlg.isShowing) return@runOnUiThread
                     if (results.isEmpty()) {

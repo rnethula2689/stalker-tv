@@ -547,7 +547,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun searchSubtitles() {
         val q = searchQuery()
         if (q.isEmpty()) return
-        SubtitleDialog.show(this, q) { applySubtitle(it) }
+        SubtitleDialog.show(this, q, movieYear) { applySubtitle(it) }
     }
 
     private fun applySubtitle(sub: Subtitles.Sub) {

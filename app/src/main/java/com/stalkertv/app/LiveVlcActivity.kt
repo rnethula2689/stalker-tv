@@ -860,7 +860,7 @@ class LiveVlcActivity : AppCompatActivity() {
         Configs.ossKey(this).let { if (it.isNotBlank()) Subtitles.apiKey = it }
         val q = searchQuery()
         if (q.isEmpty()) return
-        SubtitleDialog.show(this, q) { applySubtitle(it) }
+        SubtitleDialog.show(this, q, movieYear) { applySubtitle(it) }
     }
 
     private fun applySubtitle(sub: Subtitles.Sub) {

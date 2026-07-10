@@ -67,13 +67,24 @@ object Subtitles {
     fun download(sub: Sub, dest: File): Boolean =
         if (sub.fileId.isNotBlank()) downloadApi(sub.fileId, dest) else downloadLegacy(sub.legacyUrl, dest)
 
+    /** Exact-feature search: subtitles for THIS movie (by TMDb id), not for whatever fuzzy-matches
+     *  the title text — a plain "David" query returns David & Lisa (1962) junk; the id returns only
+     *  David (2025) releases. This is how Strimix gets clean results. */
+    fun searchByTmdb(tmdbId: Int, lang: Lang = LANGS[0]): List<Sub> =
+        if (apiKey.isBlank() || tmdbId <= 0) emptyList()
+        else apiFetch("https://api.opensubtitles.com/api/v1/subtitles?languages=${lang.api2}&order_by=download_count&tmdb_id=$tmdbId")
+
     // ---- Official api.opensubtitles.com ----
     private fun searchApi(query: String, lang2: String = "en"): List<Sub> {
+        val q = URLEncoder.encode(query, "UTF-8")
+        return apiFetch("https://api.opensubtitles.com/api/v1/subtitles?languages=$lang2&order_by=download_count&query=$q")
+    }
+
+    private fun apiFetch(url: String): List<Sub> {
         val out = ArrayList<Sub>()
         try {
-            val q = URLEncoder.encode(query, "UTF-8")
             val req = Request.Builder()
-                .url("https://api.opensubtitles.com/api/v1/subtitles?languages=$lang2&order_by=download_count&query=$q")
+                .url(url)
                 .header("Api-Key", apiKey)
                 .header("User-Agent", APP_UA)
                 .header("Accept", "application/json")
@@ -86,7 +97,7 @@ object Subtitles {
                     val fileId = files.optJSONObject(0)?.optString("file_id") ?: continue
                     if (fileId.isBlank()) continue
                     val name = attr.optString("release").ifBlank {
-                        attr.optJSONObject("feature_details")?.optString("title") ?: "English subtitle"
+                        attr.optJSONObject("feature_details")?.optString("title") ?: "Subtitle"
                     }
                     out.add(Sub(name, "", fileId, attr.optInt("download_count", -1)))
                     if (out.size >= 25) break

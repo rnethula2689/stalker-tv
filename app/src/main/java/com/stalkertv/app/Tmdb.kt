@@ -126,6 +126,11 @@ object Tmdb {
         searchId(apiKey, "tv", title, year) ?: (if (year.isNotBlank()) searchId(apiKey, "tv", title, "") else null)
     } catch (_: Exception) { null }
 
+    /** TMDb id of a movie (used for exact-feature subtitle search — text queries fuzzy-match junk). */
+    fun movieIdFor(apiKey: String, title: String, year: String): Int? = try {
+        searchId(apiKey, "movie", title, year) ?: (if (year.isNotBlank()) searchId(apiKey, "movie", title, "") else null)
+    } catch (_: Exception) { null }
+
     /** Real per-episode stills for one season, keyed by episode number (w300). Empty on any failure. */
     fun seasonStills(apiKey: String, tvId: Int, seasonNumber: Int): Map<Int, String> {
         return try {
