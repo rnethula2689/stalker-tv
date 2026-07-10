@@ -643,6 +643,10 @@ class ChannelsActivity : AppCompatActivity() {
     }
 
     private fun display(page: Page, focusPos: Int = 0) {
+        // Any leftover load/search status belongs to the screen we're leaving (e.g. backing out of a
+        // folder mid-load left "Loading… N titles" stuck on every screen). The owner re-shows it if
+        // it's still relevant.
+        b.status.visibility = View.GONE
         b.title.text = page.title
         b.search.hint = when (page.kind) {
             SearchKind.GLOBAL -> "Search channels, movies & shows…"
