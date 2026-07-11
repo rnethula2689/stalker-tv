@@ -1411,10 +1411,18 @@ class LiveVlcActivity : AppCompatActivity() {
         super.onDestroy()
         if (isVod) saveVodResume()
         ui.removeCallbacksAndMessages(null) // drops every posted runnable incl. the async subtitle-select retries, so nothing holds this activity past teardown
-        mp?.let { it.stop(); if (vlcAttached) try { it.detachViews() } catch (_: Exception) {}; it.release() }
-        vlcAttached = false
-        mp = null
-        libVlc?.release()
-        libVlc = null
+        // Detach the surface on the MAIN thread (must match the attach thread), then release the player
+        // + LibVLC on a BACKGROUND thread: on low-end MediaTek boxes the native decoder teardown takes
+        // ~10s, which was blocking onDestroy (→ "Activity destroy timeout"/ANR) AND holding the live
+        // stream so the grid preview got HTTP 403 until it finished. Backgrounding returns onDestroy
+        // instantly and frees the stream sooner.
+        if (vlcAttached) { try { mp?.detachViews() } catch (_: Exception) {}; vlcAttached = false }
+        val p = mp; val v = libVlc
+        mp = null; libVlc = null
+        Thread {
+            try { p?.stop() } catch (_: Exception) {}
+            try { p?.release() } catch (_: Exception) {}
+            try { v?.release() } catch (_: Exception) {}
+        }.start()
     }
 }
