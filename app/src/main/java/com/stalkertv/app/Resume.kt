@@ -59,14 +59,14 @@ object Resume {
         e != null && e.kind == "vod" && e.position > MIN_RESUME_MS &&
             (e.duration <= 0 || e.position < e.duration * 95 / 100)
 
-    fun save(ctx: Context, id: String, kind: String, title: String, poster: String, source: String, position: Long, duration: Long, year: String = "") {
+    fun save(ctx: Context, id: String, kind: String, title: String, poster: String, source: String, position: Long, duration: Long, year: String = "", restricted: Boolean = false) {
         if (id.isBlank()) return
         // Preserve a previously-saved year if this call doesn't carry one (e.g. resumed from Continue Watching).
         val prevYear = all(ctx).firstOrNull { it.id == id }?.year ?: ""
         val list = all(ctx).filterNot { it.id == id }.toMutableList()
         // Drop finished VOD instead of storing it.
         if (kind == "vod" && duration > 0 && position >= duration * 95 / 100) { saveList(ctx, list); return }
-        list.add(Entry(id, kind, title, poster, source, position, duration, System.currentTimeMillis(), year.ifBlank { prevYear }))
+        list.add(Entry(id, kind, title, poster, source, position, duration, System.currentTimeMillis(), year.ifBlank { prevYear }, restricted))
         saveList(ctx, list)
     }
 
