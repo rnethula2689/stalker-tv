@@ -1406,9 +1406,14 @@ class LiveVlcActivity : AppCompatActivity() {
         super.onStop()
         if (isVod) { vodLastPos = mp?.time ?: 0L; saveVodResume() }
         stopRecordingIfActive()
-        mp?.stop()
         // Detach the surface so it re-binds cleanly next time (fixes blank-video-with-audio on return).
-        if (vlcAttached) { try { mp?.detachViews() } catch (_: Exception) {}; vlcAttached = false }
+        val player = mp
+        if (vlcAttached) { try { player?.detachViews() } catch (_: Exception) {}; vlcAttached = false }
+        // Stop OFF the main thread. libVLC.stop() blocks for SECONDS tearing down the (4K) decoder on this
+        // box, and the whole app runs on ONE shared main thread — that freeze ANR-killed whatever screen is
+        // now in front (the channel grid returning from fullscreen). When finishing (Back), onDestroy's
+        // background release stops+releases anyway, so skip the redundant stop here.
+        if (!isFinishing) Thread { try { player?.stop() } catch (_: Exception) {} }.start()
     }
 
     override fun onDestroy() {
