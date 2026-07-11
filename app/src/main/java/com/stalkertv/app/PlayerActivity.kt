@@ -51,25 +51,9 @@ class PlayerActivity : AppCompatActivity() {
     private var linkRetried = false // P3.1: re-resolve a fresh link once if software-decode also fails
 
     private lateinit var am: AudioManager
-    // Keep the on-screen volume slider synced with the hardware volume buttons (tablet drives device volume).
-    private val volObserver = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
-        override fun onChange(selfChange: Boolean) {
-            if (!onTv && b.volumePanel.visibility == View.VISIBLE) refreshVol()
-        }
-    }
-    private var preMuteVol = -1
     private val onTv by lazy { Tv.isTv(this) }
     private var tvDim = 0f          // TV "brightness": software dim-overlay alpha (0 = none)
 
-    // Volume + brightness abstractions: on a TV the device stream volume is often fixed and the panel
-    // backlight can't be touched, so we drive the PLAYER's own volume and a dim overlay instead.
-    private fun volMax() = if (onTv) 100 else ScreenControls.maxVolume(am)
-    private fun volGet() = if (onTv) ((player?.volume ?: 1f) * 100).toInt() else ScreenControls.volume(am)
-    private fun volSet(v: Int) {
-        val c = v.coerceIn(0, volMax())
-        if (onTv) player?.volume = c / 100f else ScreenControls.setVolume(am, c)
-        PlayPrefs.noteVolume(if (volMax() > 0) c * 100 / volMax() else 0)
-    }
     private fun brightGetPct() = if (onTv) ((1f - tvDim) * 100).toInt() else (ScreenControls.brightness(window) * 100).toInt()
     private fun brightSetPct(pct: Int) {
         val f = pct.coerceIn(0, 100) / 100f
@@ -752,7 +736,6 @@ class PlayerActivity : AppCompatActivity() {
     /** Wire the top-left quick controls: aspect ratio, volume (+ mute), brightness (+ night mode). */
     private fun wireQuickControls() {
         am = ScreenControls.audio(this)
-        contentResolver.registerContentObserver(android.provider.Settings.System.CONTENT_URI, true, volObserver)
         b.aspectBtn.text = "⤢  ${aspectModes[aspectIdx]}"
         b.aspectBtn.setOnClickListener { cycleAspect() }
 
@@ -837,9 +820,6 @@ class PlayerActivity : AppCompatActivity() {
         updateMuteLabel()
     }
 
-    /** Kept so existing callers compile — just refreshes the mute icon now (no slider/device volume). */
-    private fun refreshVol() { updateMuteLabel() }
-
     private fun updateBrightLabel() { b.brightLabel.text = "☀  Brightness  ${brightGetPct()}%" }
 
     private fun updateMuteLabel() {
@@ -901,7 +881,6 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        try { contentResolver.unregisterContentObserver(volObserver) } catch (_: Exception) {}
         resumeHandler.removeCallbacksAndMessages(null) // drop resumeSaver/endWatcher + any pending focus retries so nothing holds this activity past teardown
         saveResume()
         player?.release()

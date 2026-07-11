@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.view.View
 import coil.load
 import androidx.appcompat.app.AppCompatActivity
-import androidx.recyclerview.widget.LinearLayoutManager
 import com.stalkertv.app.databinding.ActivityChannelsBinding
 import java.util.concurrent.Executors
 
@@ -539,6 +538,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     /** Read the active provider, connect in the background, then show the home menu. */
     private fun connectAndLoad(force: Boolean = false) {
+        vodLoadSeq++ // cancels any in-flight folder page-load so stale batches can't append onto this screen
         parentalUnlocked = false // a fresh portal load re-locks restricted folders
         val acct = Configs.active(this)
         b.title.text = "Vibe TV"
@@ -1098,6 +1098,7 @@ class ChannelsActivity : AppCompatActivity() {
 
     // ---- screens ----
     private fun showHome() {
+        vodLoadSeq++ // cancels any in-flight folder page-load so stale batches can't append onto this screen
         backStack.clear()
         updateProfileBadge()
         loadRecentlyAdded() // refreshes the Recently Added / For You rails for the active profile

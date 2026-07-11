@@ -175,11 +175,10 @@ class LiveGridActivity : AppCompatActivity() {
     }
 
     /** Only one audio source: mute the preview while the pop-up (PiP) is running AND playing. Also
-     *  honour the session mute/volume (PlayPrefs) so a mute set in the fullscreen player carries here. */
+     *  honour the session mute (PlayPrefs) so a mute set in the fullscreen player carries here. */
     private fun applyPreviewMute() {
         val muted = PlayPrefs.muted || (PipService.running && PipService.playing)
-        val lvl = if (PlayPrefs.volPct in 0..100) PlayPrefs.volPct else 100
-        try { mp?.setVolume(if (muted) 0 else lvl) } catch (_: Exception) {}
+        try { mp?.setVolume(if (muted) 0 else 100) } catch (_: Exception) {}
     }
 
     /** Transient one-line message in the EPG panel (loading / opening / no channels). */

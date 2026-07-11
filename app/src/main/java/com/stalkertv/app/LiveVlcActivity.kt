@@ -66,32 +66,15 @@ class LiveVlcActivity : AppCompatActivity() {
     private var knownDurationMs = 0L // authoritative timeline length (program / timeshift window); 0 = fall back to VLC length
     private var seekTarget = -1L     // ms we just seeked to; poller holds the UI here until VLC catches up
     private var seekDeadline = 0L    // uptime cutoff so a clamped/failed seek can't freeze the UI
-    private var currentUrl = ""      // stream currently playing (for casting)
+    private var currentUrl = ""      // stream currently playing
     private var timeshifting = false // live rewind (DVR) mode
     private var tsWindowSec = 0L     // scrubbable timeshift buffer length
     private var startSeekTo = 0L     // pending seek (ms) to apply once the stream length is known
     private var liveUrl = ""         // current live stream URL — its token is reused for timeshift
 
     private lateinit var am: AudioManager
-    // Keep the on-screen volume slider synced with the hardware volume buttons (tablet drives device volume).
-    private val volObserver = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
-        override fun onChange(selfChange: Boolean) {
-            if (!onTv && b.volumePanel.visibility == View.VISIBLE) refreshVol()
-        }
-    }
-    private var preMuteVol = -1
     private val onTv by lazy { Tv.isTv(this) }
     private var tvDim = 0f          // TV "brightness": software dim-overlay alpha (0 = none)
-
-    // On a TV the device stream volume is often fixed and the panel backlight can't be touched, so
-    // drive libVLC's own volume and a dim overlay instead of the device volume / window brightness.
-    private fun volMax() = if (onTv) 100 else ScreenControls.maxVolume(am)
-    private fun volGet() = if (onTv) (mp?.volume ?: 100) else ScreenControls.volume(am)
-    private fun volSet(v: Int) {
-        val c = v.coerceIn(0, volMax())
-        if (onTv) mp?.volume = c else ScreenControls.setVolume(am, c)
-        PlayPrefs.noteVolume(if (volMax() > 0) c * 100 / volMax() else 0)
-    }
 
     /** Apply the session mute to the player's own audio output (independent of device volume). */
     private fun applyPlayPrefsAudio() {
@@ -878,13 +861,13 @@ class LiveVlcActivity : AppCompatActivity() {
     private fun applyVlcBoost() {
         if (!isVod) return
         val mb = Configs.audioBoostMb(this)
-        if (mb > 0) mp?.volume = mbToVlcVol(mb)
+        if (mb > 0 && !PlayPrefs.muted) mp?.volume = mbToVlcVol(mb) // never un-mute a muted player
     }
 
     private fun cycleVlcAudioBoost() {
         Configs.cycleAudioBoost(this)
         val mb = Configs.audioBoostMb(this)
-        mp?.volume = if (mb > 0) mbToVlcVol(mb) else 100
+        if (!PlayPrefs.muted) mp?.volume = if (mb > 0) mbToVlcVol(mb) else 100 // never un-mute a muted player
         refreshVol()
         val extra = if (mb >= 800) "  (VLC max ~200%)" else ""
         android.widget.Toast.makeText(this, "Audio boost: ${Configs.audioBoostLabel(this)}$extra", android.widget.Toast.LENGTH_SHORT).show()
@@ -1070,7 +1053,6 @@ class LiveVlcActivity : AppCompatActivity() {
     /** Wire the top-left quick controls: aspect ratio, volume (+ mute), brightness (+ night mode). */
     private fun wireQuickControls() {
         am = ScreenControls.audio(this)
-        contentResolver.registerContentObserver(android.provider.Settings.System.CONTENT_URI, true, volObserver)
         b.aspectBtn.text = "⤢  ${aspectModes[aspectIdx]}"
         b.aspectBtn.setOnClickListener { cycleAspect(); scheduleHide() }
 
@@ -1427,7 +1409,6 @@ class LiveVlcActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        try { contentResolver.unregisterContentObserver(volObserver) } catch (_: Exception) {}
         if (isVod) saveVodResume()
         ui.removeCallbacksAndMessages(null) // drops every posted runnable incl. the async subtitle-select retries, so nothing holds this activity past teardown
         mp?.let { it.stop(); if (vlcAttached) try { it.detachViews() } catch (_: Exception) {}; it.release() }

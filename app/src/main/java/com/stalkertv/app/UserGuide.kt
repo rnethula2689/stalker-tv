@@ -168,8 +168,9 @@ or remove to free up space.
 16. PLAYER CONTROLS
 -------------------
   - Aspect ratio: cycle Fit / Fill / 16:9 etc. from the top bar.
-  - Volume & brightness: the side panels (tablet); on TV use the remote's
-    volume keys.
+  - Volume: the speaker button is a mute/unmute toggle; change the loudness
+    with the device or remote volume keys.
+  - Brightness: the sun button opens the brightness side panel.
   - Sleep timer: player menu > Sleep timer (see 17).
 
 

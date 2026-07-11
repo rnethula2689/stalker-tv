@@ -101,7 +101,6 @@ object Portal {
         }
         val chosen = if (ok) httpsO else configured
         originPref = configured to chosen
-        android.util.Log.i("PORTALTLS", "portal origin: configured=$configured chosen=$chosen httpsOk=$ok")
         return chosen
     }
 

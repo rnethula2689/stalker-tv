@@ -119,7 +119,6 @@ class TrailerActivity : AppCompatActivity() {
     private inner class Bridge {
         @JavascriptInterface
         fun onError(code: Int) {
-            android.util.Log.d("TRAILERDBG", "IFrame onError code=$code videoId=$videoId")
             playExternal()
         }
     }
