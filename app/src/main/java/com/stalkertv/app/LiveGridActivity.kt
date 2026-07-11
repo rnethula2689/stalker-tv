@@ -23,6 +23,10 @@ class LiveGridActivity : AppCompatActivity() {
     }
 
     private val io = Executors.newSingleThreadExecutor()
+    // All preview player stop/setMedia/play run on this ONE background thread — never the main thread.
+    // libVLC.stop() is synchronous and blocks for seconds tearing down a stream on this box; doing it
+    // on the main thread during rapid channel surfing piled up key events and ANR-killed the app.
+    private val playerExec = Executors.newSingleThreadExecutor()
     private val ui = Handler(Looper.getMainLooper())
     private lateinit var b: ActivityLivegridBinding
     private lateinit var adapter: ChannelGridAdapter
@@ -39,7 +43,7 @@ class LiveGridActivity : AppCompatActivity() {
     private var pendingPreview: Runnable? = null
     private var previewRetries = 0 // caps auto-retry of a failed preview stream (see mp event listener)
     private var seq = 0
-    private var attached = false
+    @Volatile private var attached = false
 
     // Live filter + sort (client-side over the loaded channel list).
     private var liveFilter: String? = null   // one of liveFilters, or null
@@ -128,7 +132,11 @@ class LiveGridActivity : AppCompatActivity() {
         if (current?.id == ch.id) return // already previewing this channel (e.g. redundant focus event)
         current = ch
         previewRetries = 0 // fresh channel → allow its own retry budget
-        mp?.stop() // release the previous stream immediately (portals often cap concurrent streams)
+        seq++              // abort any in-flight preview load for the previous channel
+        // Do NOT stop the player here. libVLC.stop() blocks the main thread (seconds when tearing down a
+        // stream on this box) — mashing up/down/back that way piled up key events and ANR-killed the app.
+        // The debounced loadPreview stops+plays on a background thread; while surfing we leave the current
+        // stream running until the user settles on a channel.
         pendingPreview?.let { ui.removeCallbacks(it) }
         val r = Runnable { loadPreview(ch) }
         pendingPreview = r
@@ -140,6 +148,8 @@ class LiveGridActivity : AppCompatActivity() {
         showEpgStatus("Loading ${ch.name}…")
         io.execute {
             if (mine != seq) return@execute // superseded by a newer selection
+            waitForStreamFree()             // let a just-closed fullscreen stream free the portal slot first
+            if (mine != seq) return@execute
             val url = Portal.createLink(ch.cmd)
             if (mine != seq) return@execute
             // The real guide lives in the day table (get_data_table); get_short_epg returns
@@ -150,28 +160,47 @@ class LiveGridActivity : AppCompatActivity() {
                 if (mine != seq || current != ch) return@runOnUiThread
                 currentUrl = url
                 currentUrlId = ch.id
-                if (!url.isNullOrEmpty()) playPreview(url)
+                if (!url.isNullOrEmpty()) playPreview(url, mine)
                 renderEpg(ch, epg, url)
             }
         }
     }
 
-    private fun playPreview(url: String) {
+    /** Block (on the io thread) until the fullscreen live player has released its stream, so the portal
+     *  frees its single concurrent-stream slot before we open a new preview link. Without this the
+     *  preview requested a 2nd stream while the fullscreen one was still closing → HTTP 403 → a ~10s
+     *  black retry storm on return. Bounded, so a stuck flag can never hang the preview. */
+    private fun waitForStreamFree() {
+        val deadline = System.currentTimeMillis() + 4000
+        while (LiveVlcActivity.liveStreamHeld && System.currentTimeMillis() < deadline) {
+            try { Thread.sleep(120) } catch (_: InterruptedException) { return }
+        }
+        try { Thread.sleep(250) } catch (_: InterruptedException) {} // grace for the portal to register the closed socket
+    }
+
+    private fun playPreview(url: String, mine: Int) {
         val vlc = libVlc ?: return
         val player = mp ?: return
-        player.stop()
-        val media = Media(vlc, Uri.parse(url))
-        // Force SOFTWARE decode for the small preview pane. The box has a single hardware video decoder;
-        // letting the tiny preview grab it too made it compete with the fullscreen player and, on low-end
-        // MediaTek sticks, segfault the decoder (MtkOmxVdecDecod). The preview is small, so SW decode is cheap.
-        media.setHWDecoderEnabled(false, false)
-        media.addOption(":network-caching=${Configs.netCachingMs(this)}")
-        media.addOption(":http-user-agent=" + Portal.UA)
-        media.addOption(":http-reconnect")
-        player.media = media
-        media.release()
-        player.play()
-        applyPreviewMute()
+        // stop/setMedia/play OFF the main thread — libVLC.stop() blocks for seconds on this box.
+        playerExec.execute {
+            if (mine != seq || !attached) return@execute
+            try {
+                player.stop()
+                val media = Media(vlc, Uri.parse(url))
+                // Force SOFTWARE decode for the small preview pane. The box has a single hardware video
+                // decoder; letting the tiny preview grab it too made it compete with the fullscreen player
+                // and, on low-end MediaTek sticks, segfault the decoder (MtkOmxVdecDecod).
+                media.setHWDecoderEnabled(false, false)
+                media.addOption(":network-caching=${Configs.netCachingMs(this)}")
+                media.addOption(":http-user-agent=" + Portal.UA)
+                media.addOption(":http-reconnect")
+                player.media = media
+                media.release()
+                if (mine != seq || !attached) { player.stop(); return@execute } // superseded / detached mid-setup
+                player.play()
+            } catch (_: Exception) {}
+            runOnUiThread { applyPreviewMute() }
+        }
     }
 
     /** Only one audio source: mute the preview while the pop-up (PiP) is running AND playing. Also
@@ -605,16 +634,24 @@ class LiveGridActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         PipService.onStateChanged = null
-        mp?.stop() // free the stream while in fullscreen / background
-        if (attached) { mp?.detachViews(); attached = false }
+        seq++ // abort any queued/in-flight preview so it can't fire onto a detached surface
+        pendingPreview?.let { ui.removeCallbacks(it) }
+        val player = mp
+        if (attached) { try { player?.detachViews() } catch (_: Exception) {}; attached = false } // detach on main
+        playerExec.execute { try { player?.stop() } catch (_: Exception) {} } // stop off the main thread
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        seq++
         pendingPreview?.let { ui.removeCallbacks(it) }
-        mp?.let { it.stop(); if (attached) { it.detachViews(); attached = false }; it.release() }
-        mp = null
-        libVlc?.release()
-        libVlc = null
+        val player = mp; val vlc = libVlc
+        mp = null; libVlc = null
+        if (attached) { try { player?.detachViews() } catch (_: Exception) {}; attached = false } // detach on main
+        playerExec.execute { // release off the main thread so onDestroy returns instantly (no destroy-timeout)
+            try { player?.stop() } catch (_: Exception) {}
+            try { player?.release() } catch (_: Exception) {}
+            try { vlc?.release() } catch (_: Exception) {}
+        }
     }
 }

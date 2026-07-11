@@ -30,6 +30,10 @@ class LiveVlcActivity : AppCompatActivity() {
         // can autoplay-next just like ExoPlayer. Consumed once in onCreate.
         var vodPlaylist: List<PlayerActivity.PlaylistItem> = emptyList()
         var vodPlaylistIndex = -1
+        // True while a fullscreen LIVE stream is open (or still releasing). The channel-grid preview
+        // waits for this to clear before opening its own stream, so the portal's single concurrent-stream
+        // slot is free (otherwise the preview gets HTTP 403 → ~10s black retry storm on return).
+        @Volatile var liveStreamHeld = false
     }
 
     private val io = Executors.newSingleThreadExecutor()
@@ -231,7 +235,7 @@ class LiveVlcActivity : AppCompatActivity() {
                 b.tsBtn.setOnClickListener { enterTimeshift() }
             }
         }
-        if (!isArchive) liveUrl = url
+        if (!isArchive) { liveUrl = url; liveStreamHeld = true } // grid preview waits for this to clear
         play(url)
         if (!isArchive) channels.getOrNull(chIndex)?.let { loadNowNext(it) }
         showBar()
@@ -1423,6 +1427,7 @@ class LiveVlcActivity : AppCompatActivity() {
             try { p?.stop() } catch (_: Exception) {}
             try { p?.release() } catch (_: Exception) {}
             try { v?.release() } catch (_: Exception) {}
+            liveStreamHeld = false // portal slot is now free → the grid preview may open its stream
         }.start()
     }
 }
