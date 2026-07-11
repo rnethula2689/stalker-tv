@@ -17,7 +17,8 @@ object Resume {
     data class Entry(
         val id: String, val kind: String, val title: String, val poster: String,
         val source: String, val position: Long, val duration: Long, val updated: Long,
-        val year: String = ""
+        val year: String = "",
+        val restricted: Boolean = false   // came from an adult/censored (PIN-locked) channel → keep off home rails
     )
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("cfg", Context.MODE_PRIVATE)
@@ -33,7 +34,7 @@ object Resume {
                     Entry(
                         o.optString("id"), o.optString("kind"), o.optString("title"), o.optString("poster"),
                         o.optString("source"), o.optLong("position"), o.optLong("duration"), o.optLong("updated"),
-                        o.optString("year")
+                        o.optString("year"), o.optBoolean("restricted", false)
                     )
                 )
             }
@@ -46,7 +47,7 @@ object Resume {
         for (e in list.sortedByDescending { it.updated }.take(CAP)) a.put(
             JSONObject().put("id", e.id).put("kind", e.kind).put("title", e.title).put("poster", e.poster)
                 .put("source", e.source).put("position", e.position).put("duration", e.duration).put("updated", e.updated)
-                .put("year", e.year)
+                .put("year", e.year).put("restricted", e.restricted)
         )
         prefs(ctx).edit().putString(key(ctx), a.toString()).apply()
     }

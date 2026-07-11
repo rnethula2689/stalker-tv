@@ -78,11 +78,9 @@ class PlayerActivity : AppCompatActivity() {
         PlayPrefs.brightPct = pct.coerceIn(0, 100)
     }
 
-    /** Apply the session mute/volume (TV drives the player's own volume; tablets use system volume). */
+    /** Apply the session mute to the player's own audio output (independent of device volume). */
     private fun applyPlayPrefsAudio() {
-        if (!onTv) return
-        val lvl = if (PlayPrefs.volPct >= 0) PlayPrefs.volPct / 100f else 1f
-        player?.volume = if (PlayPrefs.muted) 0f else lvl
+        player?.volume = if (PlayPrefs.muted) 0f else 1f
     }
 
     /** Apply the session brightness + night mode overlays. */
@@ -518,6 +516,10 @@ class PlayerActivity : AppCompatActivity() {
             if (event.action == android.view.KeyEvent.ACTION_UP) showMenu()
             return true
         }
+        // Hardware mute key → app-level mute toggle (may be OS-locked on Fire TV and never arrive).
+        if (kc == android.view.KeyEvent.KEYCODE_VOLUME_MUTE && event.action == android.view.KeyEvent.ACTION_DOWN) {
+            toggleMute(); return true
+        }
         // Panel open: the focused slider handles ◀▶, focus nav reaches the Mute/Night button.
         // Only intercept Back (close); everything else goes to native focus handling.
         if (event.action == android.view.KeyEvent.ACTION_DOWN &&
@@ -754,20 +756,8 @@ class PlayerActivity : AppCompatActivity() {
         b.aspectBtn.text = "⤢  ${aspectModes[aspectIdx]}"
         b.aspectBtn.setOnClickListener { cycleAspect() }
 
-        b.volSeek.max = volMax()
-        refreshVol()
-        b.volSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(sb: SeekBar, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    volSet(progress); updateMuteLabel()
-                    b.volLabel.text = "🔊  Volume  ${if (volMax() > 0) progress * 100 / volMax() else 0}%"
-                }
-            }
-            override fun onStartTrackingTouch(sb: SeekBar) {}
-            override fun onStopTrackingTouch(sb: SeekBar) {}
-        })
-        b.volBtn.setOnClickListener { refreshVol(); openPanel(b.volumePanel) }
-        b.muteBtn.setOnClickListener { toggleMute() }
+        updateMuteLabel()
+        b.volBtn.setOnClickListener { toggleMute() }   // simple mute/unmute toggle (no slider panel)
 
         b.brightSeek.max = 100
         b.brightSeek.progress = brightGetPct()
@@ -840,24 +830,20 @@ class PlayerActivity : AppCompatActivity() {
         b.aspectBtn.text = "⤢  ${aspectModes[aspectIdx]}"
     }
 
+    /** App-level mute toggle: mutes only the player's own audio (device volume keys stay independent). */
     private fun toggleMute() {
-        if (volGet() > 0) { preMuteVol = volGet(); volSet(0) }
-        else volSet(if (preMuteVol > 0) preMuteVol else volMax() / 2)
-        refreshVol()
+        PlayPrefs.muted = !PlayPrefs.muted
+        applyPlayPrefsAudio()   // push the new mute state to the player output
+        updateMuteLabel()
     }
 
-    private fun refreshVol() {
-        b.volSeek.progress = volGet()
-        updateMuteLabel()
-        b.volLabel.text = "🔊  Volume  ${if (volMax() > 0) volGet() * 100 / volMax() else 0}%"
-    }
+    /** Kept so existing callers compile — just refreshes the mute icon now (no slider/device volume). */
+    private fun refreshVol() { updateMuteLabel() }
 
     private fun updateBrightLabel() { b.brightLabel.text = "☀  Brightness  ${brightGetPct()}%" }
 
     private fun updateMuteLabel() {
-        val muted = volGet() == 0
-        b.muteBtn.text = if (muted) "🔈  Unmute" else "🔇  Mute"
-        b.volBtn.text = if (muted) "🔇" else "🔊"   // the cluster button shows the mute state on TV
+        b.volBtn.text = if (PlayPrefs.muted) "🔇" else "🔊"
     }
 
     private fun closePanels() {

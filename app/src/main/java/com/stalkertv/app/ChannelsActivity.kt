@@ -1104,7 +1104,8 @@ class ChannelsActivity : AppCompatActivity() {
         val rows = ArrayList<Row>()
 
         // Content rails (thumbnails) from local data — no portal calls, so the home is instant.
-        val cw = Resume.all(this)
+        // Restricted (adult/censored/PIN-locked) items never surface on the home rail (no PIN bypass).
+        val cw = visibleResume()
         if (cw.isNotEmpty()) rows.add(Row("Continue Watching", null, rail = cw.map { e ->
             val pct = if (e.duration > 0) (e.position * 100 / e.duration).toInt() else -1
             Card(e.title, e.poster.ifBlank { null }, pct, landscape = true, onLongClick = { cwCardMenu(e) }) { continueClick(e) }
@@ -1326,8 +1327,21 @@ class ChannelsActivity : AppCompatActivity() {
             }.show()
     }
 
+    /** Continue-Watching entries safe to show without the PIN: drops anything tagged restricted, AND
+     *  any LIVE entry whose channel isn't in the visible catalogue — which catches adult/censored
+     *  channels (get_all_channels never returns them) and entries saved before the restricted tag
+     *  existed (e.g. an "INDIAN XX" channel watched on an older build). */
+    private fun visibleResume(): List<Resume.Entry> = Resume.all(this).filter { e ->
+        if (e.restricted) return@filter false
+        if (e.kind == "live" && allChannels.isNotEmpty()) {
+            val chId = e.source.split("|").getOrNull(1)
+            if (chId != null && allChannels.none { it.id == chId }) return@filter false
+        }
+        true
+    }
+
     private fun showContinueWatching() {
-        val all = Resume.all(this)
+        val all = visibleResume()
         val live = all.filter { it.kind == "live" }
         val vod = all.filter { it.kind != "live" }
         val rows = ArrayList<Row>()
