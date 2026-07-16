@@ -649,6 +649,7 @@ class PlayerActivity : AppCompatActivity() {
         resumeId = item.resumeId
         resumeSource = item.source
         resumePoster = item.poster
+        currentSubPath = ""
         forceSoftware = false
         linkRetried = false
         Toast.makeText(this, "▶  Next: ${item.title}", Toast.LENGTH_SHORT).show()
@@ -663,9 +664,18 @@ class PlayerActivity : AppCompatActivity() {
                 }
                 videoUrl = url
                 val p = player ?: return@runOnUiThread
-                p.setMediaItem(MediaItem.fromUri(url))
+                val savedSub = SubStore.saved(this, subKey())?.takeIf { it.exists() }
+                val mediaItem = if (savedSub != null) {
+                    currentSubPath = savedSub.absolutePath
+                    MediaItem.Builder().setUri(url).setSubtitleConfigurations(listOf(srtConfig(savedSub))).build()
+                } else MediaItem.fromUri(url)
+                p.setMediaItem(mediaItem)
                 p.prepare()
                 p.playWhenReady = true
+                if (savedSub == null) p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                    .setPreferredTextLanguage("en")
+                    .setSelectUndeterminedTextLanguage(true)
+                    .build()
             }
         }
     }

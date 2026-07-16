@@ -25,6 +25,8 @@ android {
         buildConfigField("String", "TMDB_KEY", "\"${project.findProperty("tmdbKey") ?: ""}\"")
         // OMDb key (omdbapi.com) for IMDb / Rotten Tomatoes / Metacritic ratings; CI secret OMDB_KEY.
         buildConfigField("String", "OMDB_KEY", "\"${project.findProperty("omdbKey") ?: ""}\"")
+        buildConfigField("String", "UPDATE_TAG", "\"apk-latest\"")
+        buildConfigField("String", "UPDATE_APK_NAME", "\"app-debug.apk\"")
         // libVLC ships native libs per ABI; Fire/Android devices are ARM. Drop x86 to keep the APK small.
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a")
@@ -44,6 +46,15 @@ android {
     buildTypes {
         getByName("debug") {
             signingConfig = signingConfigs.getByName("stable")
+        }
+        create("codexTest") {
+            initWith(getByName("debug"))
+            signingConfig = signingConfigs.getByName("stable")
+            matchingFallbacks += listOf("debug")
+            applicationIdSuffix = ".codextest"
+            versionNameSuffix = "-codex"
+            buildConfigField("String", "UPDATE_TAG", "\"apk-codex-test\"")
+            buildConfigField("String", "UPDATE_APK_NAME", "\"vibe-tv-codex-test.apk\"")
         }
         getByName("release") {
             isMinifyEnabled = false

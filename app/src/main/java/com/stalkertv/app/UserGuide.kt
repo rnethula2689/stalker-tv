@@ -137,7 +137,9 @@ Watching row on Home. Long-press an item to remove it.
 -----------------------------
   - From a movie/episode's options, choose Download.
   - Track progress and play finished downloads from Home > Downloads.
-  - Downloaded items play without internet.
+  - Downloaded items play without internet. New HLS downloads also keep
+    available subtitle tracks for offline playback when the provider exposes
+    them.
 
 
 14. RECORDINGS
@@ -157,6 +159,9 @@ or remove to free up space.
     (or switching player) re-loads the same subtitle automatically, with no new
     search or download. Clear them anytime via Settings > Subtitles > Clear
     saved subtitles.
+  - If the remembered subtitle for a downloaded item is wrong, open Subtitles
+    and search again; the new pick replaces the saved subtitle for that title.
+    Deleting the downloaded title removes its saved subtitle too.
   - In the VLC player, the 💬 button on the top bar picks between the movie's
     built-in subtitle tracks, Off, or an online search. Movies with built-in
     English subtitles show them automatically — same as the Default player.

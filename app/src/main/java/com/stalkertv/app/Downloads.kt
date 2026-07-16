@@ -60,6 +60,9 @@ object Downloads {
 
     private class PausedException : Exception()
     private class CancelledException : Exception()
+    private data class HlsStream(val infoLine: String, val uri: String, val bandwidth: Int, val subtitlesGroup: String?)
+    private data class HlsSubtitle(val mediaLine: String, val uri: String, val groupId: String)
+    private data class HlsMaster(val stream: HlsStream, val subtitles: List<HlsSubtitle>)
 
     fun activeCount(): Int = active.size
 
@@ -127,7 +130,10 @@ object Downloads {
     /** Delete every download (files + queue) and free the disk space. */
     fun deleteAll(ctx: Context) {
         try { WorkManager.getInstance(ctx.applicationContext).cancelUniqueWork("downloads") } catch (_: Exception) {}
-        for (it in readIndex(ctx)) cancelled.add(it.id)
+        for (it in readIndex(ctx)) {
+            cancelled.add(it.id)
+            SubStore.forget(ctx, it.id)
+        }
         active.clear()
         dir(ctx).listFiles()?.forEach { it.deleteRecursively() } // removes .part, .mp4, HLS folders, index.json
         notifyChanged()
@@ -158,6 +164,7 @@ object Downloads {
         File(dir(ctx), "$id.part").delete()
         File(dir(ctx), id).deleteRecursively()
         items.firstOrNull { it.id == id }?.let { File(dir(ctx), it.fileName).delete() }
+        SubStore.forget(ctx, id)
         writeIndex(ctx, items.filterNot { it.id == id })
         notifyChanged()
     }
@@ -327,39 +334,101 @@ object Downloads {
 
     private fun uriIn(line: String): String? = Regex("URI=\"([^\"]+)\"").find(line)?.groupValues?.get(1)
 
-    private fun downloadHls(ctx: Context, item: Item, firstUrl: String) {
-        var playlistUrl = firstUrl
-        var text = httpText(playlistUrl)
-        if (text.contains("#EXT-X-STREAM-INF")) {
-            val lines = text.lines()
-            var bestBw = -1
-            var bestUri: String? = null
-            for (i in lines.indices) {
-                if (lines[i].startsWith("#EXT-X-STREAM-INF")) {
-                    val bw = Regex("BANDWIDTH=(\\d+)").find(lines[i])?.groupValues?.get(1)?.toIntOrNull() ?: 0
-                    val uri = lines.getOrNull(i + 1)?.trim()
-                    if (!uri.isNullOrEmpty() && !uri.startsWith("#") && bw >= bestBw) { bestBw = bw; bestUri = uri }
+    private fun attrs(line: String): Map<String, String> {
+        val raw = line.substringAfter(':', "")
+        val out = LinkedHashMap<String, String>()
+        val token = StringBuilder()
+        var inQuotes = false
+        fun addToken() {
+            val t = token.toString().trim()
+            token.setLength(0)
+            if (t.isEmpty()) return
+            val eq = t.indexOf('=')
+            if (eq <= 0) return
+            val key = t.substring(0, eq).trim()
+            val value = t.substring(eq + 1).trim().trim('"')
+            out[key] = value
+        }
+        for (c in raw) {
+            when {
+                c == '"' -> { inQuotes = !inQuotes; token.append(c) }
+                c == ',' && !inQuotes -> addToken()
+                else -> token.append(c)
+            }
+        }
+        addToken()
+        return out
+    }
+
+    private fun attr(line: String, key: String): String? = attrs(line)[key]
+
+    private fun parseMaster(text: String): HlsMaster? {
+        val lines = text.lines()
+        val streams = ArrayList<HlsStream>()
+        val subs = ArrayList<HlsSubtitle>()
+        for (i in lines.indices) {
+            val line = lines[i].trim()
+            if (line.startsWith("#EXT-X-MEDIA") && attr(line, "TYPE").equals("SUBTITLES", true)) {
+                val uri = attr(line, "URI") ?: continue
+                val group = attr(line, "GROUP-ID") ?: ""
+                subs.add(HlsSubtitle(line, uri, group))
+            }
+            if (line.startsWith("#EXT-X-STREAM-INF")) {
+                val uri = lines.drop(i + 1).firstOrNull { it.trim().isNotEmpty() && !it.trim().startsWith("#") }?.trim()
+                if (!uri.isNullOrEmpty()) {
+                    streams.add(HlsStream(line, uri, attr(line, "BANDWIDTH")?.toIntOrNull() ?: 0, attr(line, "SUBTITLES")))
                 }
             }
-            bestUri ?: throw IOException("no HLS variant")
-            playlistUrl = resolveRef(playlistUrl, bestUri)
-            text = httpText(playlistUrl)
         }
-        val folder = File(dir(ctx), item.id)
-        folder.mkdirs()
+        val best = streams.maxByOrNull { it.bandwidth } ?: return null
+        val matchingSubs = subs.filter { best.subtitlesGroup == null || it.groupId == best.subtitlesGroup }
+        return HlsMaster(best, matchingSubs)
+    }
+
+    private fun countMediaSegments(text: String): Int =
+        text.lines().count { it.trim().let { line -> line.isNotEmpty() && !line.startsWith("#") } }
+
+    private fun segmentExt(line: String): String {
+        val path = line.substringBefore('?').substringBefore('#')
+        val ext = path.substringAfterLast('/', path).substringAfterLast('.', "").lowercase()
+        return when (ext) {
+            "m4s", "mp4", "vtt", "webvtt", "aac", "mp3", "ts" -> ext
+            else -> "ts"
+        }
+    }
+
+    private fun mediaLineWithUri(line: String, uri: String): String {
+        val uriAttr = Regex("URI=\"[^\"]*\"")
+        return if (uriAttr.containsMatchIn(line)) line.replace(uriAttr, "URI=\"$uri\"")
+        else "$line,URI=\"$uri\""
+    }
+
+    private fun streamLineWithSubtitleGroup(line: String, group: String): String =
+        if (group.isBlank() || attr(line, "SUBTITLES") != null) line else "$line,SUBTITLES=\"$group\""
+
+    private fun downloadMediaPlaylist(
+        ctx: Context,
+        item: Item,
+        playlistUrl: String,
+        text: String,
+        outDir: File,
+        playlistName: String,
+        segmentPrefix: String
+    ) {
+        outDir.mkdirs()
         val lines = text.lines()
-        item.total = lines.count { it.isNotBlank() && !it.startsWith("#") }.toLong()
-        item.hls = true
         val out = ArrayList<String>()
-        var keyIdx = 0; var mapIdx = 0; var segIdx = 0
+        var keyIdx = 0
+        var mapIdx = 0
+        var segIdx = 0
         for (raw in lines) {
             val line = raw.trim()
             when {
                 line.startsWith("#EXT-X-KEY") -> {
                     val u = uriIn(line)
                     if (u != null && !u.startsWith("data:")) {
-                        val name = "key$keyIdx.key"; keyIdx++
-                        val kf = File(folder, name)
+                        val name = "${segmentPrefix}_key$keyIdx.key"; keyIdx++
+                        val kf = File(outDir, name)
                         if (!(kf.exists() && kf.length() > 0)) httpToFile(resolveRef(playlistUrl, u), kf)
                         out.add(line.replace(u, name))
                     } else out.add(line)
@@ -367,8 +436,8 @@ object Downloads {
                 line.startsWith("#EXT-X-MAP") -> {
                     val u = uriIn(line)
                     if (u != null) {
-                        val name = "map$mapIdx.bin"; mapIdx++
-                        val mf = File(folder, name)
+                        val name = "${segmentPrefix}_map$mapIdx.bin"; mapIdx++
+                        val mf = File(outDir, name)
                         if (!(mf.exists() && mf.length() > 0)) httpToFile(resolveRef(playlistUrl, u), mf)
                         out.add(line.replace(u, name))
                     } else out.add(line)
@@ -376,19 +445,71 @@ object Downloads {
                 line.isEmpty() || line.startsWith("#") -> out.add(raw)
                 else -> {
                     checkpoint(item.id)
-                    val ext = if (line.substringBefore('?').endsWith(".m4s", true)) "m4s" else "ts"
-                    val name = "seg$segIdx.$ext"
-                    val sf = File(folder, name)
+                    val name = "${segmentPrefix}_seg$segIdx.${segmentExt(line)}"
+                    val sf = File(outDir, name)
                     if (!(sf.exists() && sf.length() > 0)) httpToFile(resolveRef(playlistUrl, line), sf)
                     out.add(name)
                     segIdx++
-                    item.done = segIdx.toLong()
+                    item.done += 1
                     report(item)
                 }
             }
         }
         if (segIdx == 0) throw IOException("no segments")
-        File(folder, "index.m3u8").writeText(out.joinToString("\n"))
+        File(outDir, playlistName).writeText(out.joinToString("\n"))
+    }
+
+    private fun downloadHls(ctx: Context, item: Item, firstUrl: String) {
+        var playlistUrl = firstUrl
+        var text = httpText(playlistUrl)
+        val masterUrl = playlistUrl
+        val master = if (text.contains("#EXT-X-STREAM-INF")) parseMaster(text) else null
+        var subtitlePayloads = emptyList<Pair<HlsSubtitle, String>>()
+        if (master != null) {
+            playlistUrl = resolveRef(masterUrl, master.stream.uri)
+            text = httpText(playlistUrl)
+            subtitlePayloads = master.subtitles.mapNotNull { sub ->
+                try {
+                    val url = resolveRef(masterUrl, sub.uri)
+                    sub to httpText(url)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        }
+        val folder = File(dir(ctx), item.id)
+        folder.mkdirs()
+        item.total = (countMediaSegments(text) + subtitlePayloads.sumOf { countMediaSegments(it.second) }).toLong()
+        item.done = 0
+        item.hls = true
+
+        if (master != null && subtitlePayloads.isNotEmpty()) {
+            downloadMediaPlaylist(ctx, item, playlistUrl, text, folder, "video.m3u8", "video")
+            val localSubs = ArrayList<String>()
+            subtitlePayloads.forEachIndexed { index, (sub, subText) ->
+                try {
+                    val subDir = File(folder, "sub$index")
+                    downloadMediaPlaylist(ctx, item, resolveRef(masterUrl, sub.uri), subText, subDir, "index.m3u8", "sub$index")
+                    localSubs.add(mediaLineWithUri(sub.mediaLine, "sub$index/index.m3u8"))
+                } catch (_: Exception) {}
+            }
+            if (localSubs.isNotEmpty()) {
+                val group = master.stream.subtitlesGroup ?: localSubs.firstOrNull()?.let { attr(it, "GROUP-ID") }.orEmpty()
+                val masterOut = ArrayList<String>()
+                masterOut.add("#EXTM3U")
+                masterOut.addAll(localSubs)
+                masterOut.add(streamLineWithSubtitleGroup(master.stream.infoLine, group))
+                masterOut.add("video.m3u8")
+                File(folder, "index.m3u8").writeText(masterOut.joinToString("\n"))
+            } else {
+                val index = File(folder, "index.m3u8")
+                if (index.exists()) index.delete()
+                if (!File(folder, "video.m3u8").renameTo(index)) throw IOException("rename failed")
+            }
+        } else {
+            downloadMediaPlaylist(ctx, item, playlistUrl, text, folder, "index.m3u8", "seg")
+        }
+        if (item.done > 0) item.total = item.done
         item.fileName = "${item.id}/index.m3u8"
     }
 }

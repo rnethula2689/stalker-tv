@@ -135,6 +135,7 @@ class DownloadsActivity : AppCompatActivity(), Downloads.Listener {
                 .putExtra("resumeSource", item.source)
                 .putExtra("resumePoster", item.poster)
                 .putExtra("resumeStart", startPos)
+                .putExtra("year", Resume.get(this, item.id)?.year ?: "")
         )
     }
 

@@ -635,6 +635,8 @@ class LiveVlcActivity : AppCompatActivity() {
         knownDurationMs = 0            // new episode: unknown length → fall back to VLC's own timeline
         seekTarget = -1L; startSeekTo = 0
         vodSubPath = ""               // a new episode has its own (or no) subtitle; speed persists
+        vodSubAttached = false
+        SubStore.saved(this, subKey())?.let { vodSubPath = it.absolutePath }
         stopSrtOverlay()
         android.widget.Toast.makeText(this, "▶  Next: ${item.title}", android.widget.Toast.LENGTH_SHORT).show()
         io.execute {
